@@ -524,6 +524,32 @@ describe("--check: each installed host is checked from its own row (plan 42-08, 
     expect(only(c.stdout, /skill ui-ux-pro-max/), c.stdout).toEqual([]);
   });
 
+  // Review WR-03 of phase 42: a stray file in the roles folder is reported by itself and the other skills are checked.
+  const STRAY = (name: string): RegExp =>
+    new RegExp(
+      `^ {2}advisory\\s+declared skills of ${name.replace(/\./g, "\\.")} in the roles folder not checked: ` +
+        "the file name is not a role name, which is lower-case letters, digits and hyphens$",
+    );
+
+  it("a NOTES.md in the roles folder gives one line naming it, and the declared skills are still checked (review WR-03)", () => {
+    const row = installedWithPlantedSkill();
+    writeFileSync(join(row.kitHome, "agent-factory", "roles", "NOTES.md"), "Some notes, not a role.\n");
+    const c = check(row);
+    expect(only(c.stdout, STRAY("NOTES.md")).length, c.stdout).toBe(1);
+    expect(only(c.stdout, MISSING_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, /declared skills not checked/), c.stdout).toEqual([]);
+  });
+
+  it("a file with a role's frontmatter but a name that is not a role name: its declaration is left out and named (review WR-03)", () => {
+    const row = installedWithPlantedSkill();
+    const roles = join(row.kitHome, "agent-factory", "roles");
+    writeFileSync(join(roles, "Designer_Copy.md"), readFileSync(join(roles, "designer.md"), "utf8"));
+    const c = check(row);
+    expect(only(c.stdout, STRAY("Designer_Copy.md")).length, c.stdout).toBe(1);
+    expect(only(c.stdout, MISSING_CLAUDE).length, c.stdout).toBe(1);
+    expect(only(c.stdout, /declared skills not checked/), c.stdout).toEqual([]);
+  });
+
   it("no role declares a skill: no skill line at all", () => {
     const row = installedWith(["--claude", "--codex", "--antigravity"], {});
     const c = check(row);

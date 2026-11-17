@@ -2147,9 +2147,13 @@ function readDeclaredSkills() {
     if (!isJsonObject(parsed) || !isJsonObject(parsed.skills) || !Array.isArray(parsed.refusals))
         return notShape;
     const refusals = [];
+    const strays = new Set();
     for (const ref of parsed.refusals) {
-        if (!isJsonObject(ref) || typeof ref.role !== "string" || !KEBAB_NAME.test(ref.role) || typeof ref.reason !== "string") {
+        if (!isJsonObject(ref) || typeof ref.role !== "string" || typeof ref.reason !== "string")
             return notShape;
+        if (!KEBAB_NAME.test(ref.role)) {
+            strays.add(ref.role);
+            continue;
         }
         // One line on the report: whitespace runs collapse to one space, control and bidi characters are taken out (the
         // reason quotes role-file bytes, review CR-02) and a long reason is cut.
@@ -2160,12 +2164,18 @@ function readDeclaredSkills() {
     for (const [name, roles] of Object.entries(parsed.skills)) {
         if (!KEBAB_NAME.test(name) || !Array.isArray(roles) || roles.length === 0)
             return notShape;
-        if (!roles.every((x) => typeof x === "string" && KEBAB_NAME.test(x)))
+        if (!roles.every((x) => typeof x === "string"))
             return notShape;
-        skills.set(name, [...roles]);
+        for (const x of roles)
+            if (!KEBAB_NAME.test(x))
+                strays.add(x);
+        const declaringRoles = roles.filter((x) => KEBAB_NAME.test(x));
+        // A skill only stray files declare is not a declared skill of any role.
+        if (declaringRoles.length > 0)
+            skills.set(name, declaringRoles);
     }
     // A role the reader refused declares nothing here; the role-frontmatter guard reports the refusal as a failure.
-    return { skills, refusals };
+    return { skills, refusals, strays: [...strays].sort() };
 }
 /**
  * Whether `<root>/<rel>/<skill>/SKILL.md` is a regular file, the path followed. `rel` is a POSIX path. A stat that fails
@@ -2361,6 +2371,11 @@ function doctorDeclaredSkills(hosts, home) {
     if (typeof declared === "string") {
         say("advisory", `declared skills not checked: ${declared}`);
         return;
+    }
+    for (const stray of declared.strays) {
+        const name = stray.length > 100 ? stray.slice(0, 100) + "..." : stray;
+        say("advisory", `declared skills of ${name}.md in the roles folder not checked: the file name is not a role name, ` +
+            "which is lower-case letters, digits and hyphens");
     }
     for (const { role, reason } of declared.refusals) {
         say("advisory", `declared skills of ${role} not read: ${reason} (the role-frontmatter guard reports this)`);
