@@ -17,3 +17,15 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
   `scripts/audit-model.ts`.
 - **Remedy (from the gate's own message):** `npm run generate:hook-manifest`, then commit `hooks/hook-entry.ts`,
   `hooks/hook-entry.js` and the D-24 freeze together.
+
+## The checkout-only dogfood runbook still points at example 03 as real proof (found by plan 43-07, 2026-11-18)
+
+- **What:** `docs/dogfood-human-runbook.md` (checkout-only, not shipped) says the sequential path was
+  "captured as REAL proof in `examples/03-ticket-to-pr.md` and `examples/01-greenfield-bootstrap.md`" (lines 6-8),
+  compares against example 03 (line 157), and its Step 4 sends the reader to the "Dual-path parity (DOG-02)" table
+  in example 03 (lines 165-170). Plan 43-07 relabeled examples 01 and 03 as illustrative v3 walkthroughs and dropped
+  that table, which had no v3 equivalent. The original capture and table stay in commit
+  ab0cda98416c24310c02c180cb2a917889d413e6.
+- **Not fixed here:** the runbook is in no 43-07 `files_modified`, and its other text is pre-v3 too (`autonomy=pr`,
+  handoff filenames), so the fix is a runbook rewrite or retirement, not a one-line edit. No gate reads it.
+- **Remedy:** point the runbook at the commit for the captured run, or retire its parity step, for human triage.
