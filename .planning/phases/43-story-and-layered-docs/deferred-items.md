@@ -29,3 +29,16 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
 - **Not fixed here:** the runbook is in no 43-07 `files_modified`, and its other text is pre-v3 too (`autonomy=pr`,
   handoff filenames), so the fix is a runbook rewrite or retirement, not a one-line edit. No gate reads it.
 - **Remedy:** point the runbook at the commit for the captured run, or retire its parity step, for human triage.
+
+## A host's `node --test` runs the installed `tools/grugops/test-skip-integrity.js` (found by plan 43-13, 2026-11-18)
+
+- **What:** In a repository whose test script is plain `node --test`, Node's default test glob matches the
+  installed `tools/grugops/test-skip-integrity.js` (its name starts with `test-`). Run with no arguments it exits
+  with `Error: no registry file path was provided`, so the host's suite fails on a fresh install before any change.
+  Reproduced on a pristine scratch install (Node v26.12.1): 2 tests, 1 pass, 1 fail, the failing one
+  `tools/grugops/test-skip-integrity.js`. In the 43-13 UAT it blocked run 6's engineer (a `failed-attempt` note on
+  `npm test exits 0`) and run 2's final test step.
+- **Not fixed here:** plan 43-13 is a UAT and changes no installer file; the install name comes from
+  `install/uninstall.ts` (`scripts/runnable-ref/test-skip-integrity.js` → `tools/grugops/test-skip-integrity.js`).
+- **Remedy (for human triage):** install the tool under a name Node's default glob does not match, or document the
+  collision in install/README.md.
