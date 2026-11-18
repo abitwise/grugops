@@ -259,6 +259,26 @@ export const ASYM_TABLE_FILES = [
   "agent-factory/packaging/adapters.md",
   "docs/usage.md",
 ];
+// The lines of the per-host DISPATCH table(s) in one document. A table is a run of consecutive lines
+// that start with `|`, and its header is the run's first line; a dispatch table is one whose header
+// names a dispatch column (`Role dispatch`, `Dispatch mode`). Every other line is dropped, so a second
+// per-host table in the same document — docs/usage.md's start table, which has one bold row per host
+// and no dispatch wording — is neither counted nor read as a dispatch row. A document whose dispatch
+// table lost that column yields no rows, and the loop below then fails "found 0 table row(s)" by name.
+export function dispatchTableLines(text: string): string[] {
+  const out: string[] = [];
+  let block: string[] = [];
+  const flush = (): void => {
+    if (block.length > 0 && /\bdispatch\b/i.test(block[0])) out.push(...block);
+    block = [];
+  };
+  for (const line of text.split(/\r?\n/)) {
+    if (line.startsWith("|")) block.push(line);
+    else flush();
+  }
+  flush();
+  return out;
+}
 // Escape every regex metacharacter in a registry display name, so a name carrying `.`, `+` or `(`
 // is matched literally and can never widen the row pattern.
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -344,7 +364,7 @@ export function oracleWr05Wording(): void {
   let asymFail = "";
   let rowsChecked = 0;
   for (const file of ASYM_TABLE_FILES) {
-    const lines = readText(file).split("\n");
+    const lines = dispatchTableLines(readText(file));
     for (const { label, rowRe, spawn } of ASYM_ROWS) {
       // WR-03: validate EVERY matching row for the tool, not just the first. The real tree carries
       // exactly one row per tool per file (verified 2026-06-21, re-measured 2026-08-12, and from plan

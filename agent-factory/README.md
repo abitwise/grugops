@@ -44,33 +44,7 @@ Whether a live run on a host other than Claude Code follows that route is `UNKNO
 
 ## Usage across the supported host tools
 
-<!-- claim: C-28-027 -->
-grugops works on Claude Code, Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, and Pi. The
-single rule to remember: **only the dispatch differs, never the content.** The roles, the
-workflows, and the gates are identical everywhere. The only difference is whether the host
-tool can *spawn* sub-agents or must *load* role files into context one at a time.
-
-<!-- claim: C-28-028 -->
-| Tool                  | Entry file it reads                              | Role dispatch                                            |
-| --------------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| **Claude Code**       | `CLAUDE.md` (+ portable `AGENTS.md`)             | Coordinator spawns role agents — the `coordinator: true` adapter holds the grant |
-| **Codex CLI**         | `AGENTS.md` (+ `.agents/skills/grugops/SKILL.md` skill) | Sequential role-load — no spawn                   |
-| **Antigravity CLI**   | `AGENTS.md` (+ the same `.agents/skills/grugops/SKILL.md` skill) | Sequential role-load — no spawn          |
-| **OpenCode**          | `AGENTS.md` (+ `.opencode/commands/grugops.md` command) | Sequential role-load (or its own native agents)   |
-| **GitHub Copilot CLI**| `AGENTS.md` (+ `.github/copilot-instructions.md`)| Sequential role-load — no spawn                          |
-| **Pi**                | `AGENTS.md` (+ `.pi/prompts/grugops.md` template) | Sequential role-load — no spawn                          |
-
-<!-- claim: C-28-029 -->
-On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
-agent when it would otherwise "wake" that role. On the non-spawning host CLIs the Orchestrator
-is a single agent that *loads the relevant role file into context* at that moment. Same roles,
-same workflows, same gates, same shared verified context — only the dispatch differs.
-
-<!-- claim: C-28-030 -->
-The detailed per-tool **adapters** (thin wrappers, slash commands, entry-file pointers, and
-the Claude Code plugin form) ship now — the installer (`node install/install.js`) lays them
-down. This table is the usage overview; the adapters are the mechanical conveniences layered
-on top.
+See [Usage across the supported host tools](../docs/usage.md#usage-across-the-supported-host-tools) in Using grugops.
 
 ## Configuration
 
@@ -97,39 +71,7 @@ See [How work flows](../docs/how-it-works.md#how-work-flows) in How grugops work
 
 ## Copy-paste Orchestrator prompts
 
-Paste any of these to your coding agent. Replace the `<...>` placeholders with your own
-values. Each one starts the Orchestrator and runs the named workflow.
-
-```text
-# Bootstrap an existing repository (brownfield)
-Use the Orchestrator. Bootstrap this repo as brownfield. Create AGENTS.md, memory-bank,
-  brownfield map, the board, config, and safe first tickets.
-
-# Plan a new idea from scratch (greenfield)
-Use the Orchestrator. Plan this idea as greenfield: <idea>. Produce product/system/architecture
-  notes in the shared verified context, epics, first tickets, and seed the board.
-
-# Refine the backlog and promote ready items                       (workflow 07)
-Use the Orchestrator. Refine the backlog and promote ready items.
-
-# Plan a sprint toward a goal                                       (workflow 08, scrum)
-Use the Orchestrator. Plan sprint <n> toward goal: <goal>.
-
-# Run the daily sweep (reconcile the board, surface blockers)       (workflow 09)
-Use the Orchestrator. Run the daily sweep.
-
-# Implement a ticket via ticket-to-pr                               (workflow 04)
-Use the Orchestrator. Implement ticket <id> via ticket-to-pr.
-
-# Run the PR quality gate for current changes                       (workflow 05)
-Use the Orchestrator. Run the PR quality gate for current changes.
-
-# Create the UAT pack for a feature                                 (workflow 06)
-Use the Orchestrator. Create the UAT pack for feature <name>.
-
-# Prepare a release for a set of tickets                            (workflow 12, enterprise)
-Use the Orchestrator. Prepare release <version> for these tickets.
-```
+See [Copy-paste Orchestrator prompts](../docs/usage.md#copy-paste-orchestrator-prompts) in Using grugops.
 
 ## Install
 

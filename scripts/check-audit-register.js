@@ -243,7 +243,14 @@ export const CLAIM_KIND_CARDINALITY = [
     // states design intent and where each control lives, asserts no merge or deploy outcome, and
     // points to docs/GUARANTEES.md. This gate refused until the number moved; the number was taken
     // from that refusal's own text ("architecture declares 41 but the registry carries 46").
-    { kind: "architecture", count: 46 },
+    // 46 -> 47 (plan 43-10, 2026-11-18; D-09, D-21). ONE ROW ADDED, NONE RECLASSIFIED. `C-28-061`
+    // registers the command sentence on the new usage page docs/usage.md: each skill has its own
+    // command on Claude Code, and on another host a skill is started through the dispatcher. It is
+    // `architecture`: it names no merge, deploy or production outcome. The moved `C-28-007` and
+    // `C-28-027` .. `C-28-030` keep their ids and kinds, so they do not move this number. This gate
+    // refused until the number moved; the number was taken from that refusal's own text
+    // ("architecture declares 46 but the registry carries 47").
+    { kind: "architecture", count: 47 },
     { kind: "install", count: 8 },
 ];
 /**

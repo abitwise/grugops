@@ -2795,7 +2795,7 @@ describe("check-diff-disposition — a frozen section closes at a LEVEL-ONE head
     ).toEqual([]);
   });
 
-  it("every level-one heading BELOW a `## ` section in the watched corpus is FENCED, and there are some", () => {
+  it("every level-one heading BELOW a `## ` section in the watched corpus is FENCED, and the scan is shown to examine one", () => {
     // WHAT MAKES THE WIDENING SAFE, AS A FACT ABOUT THE CORPUS RATHER THAN A PROPERTY OF THE CODE.
     // A `# ` heading now closes a `## ` section, so an UNFENCED `# ` line below a `## ` heading would
     // truncate that section — the fail-open direction, invisible in a green run. Measured this
@@ -2810,30 +2810,43 @@ describe("check-diff-disposition — a frozen section closes at a LEVEL-ONE head
     // harmless for the exact reason the plan's own task text gives — they sit ABOVE every `## `
     // heading in their file, so no section-close scan ever starts before them — and the property
     // that expresses the safety is therefore "below a `## `", not "after line one".
-    const offenders: string[] = [];
-    let examined = 0;
-    let filesScanned = 0;
-    for (const rel of mdOf(REPO)) {
-      filesScanned += 1;
-      const text = readFileSync(join(REPO, rel), "utf8");
-      const lines = text.split("\n");
-      const flags = fencedLineFlags(text);
-      const firstSection = lines.findIndex(
-        (l, i) => !flags[i] && l.startsWith("## "),
-      );
-      if (firstSection === -1) continue;
-      for (let i = firstSection + 1; i < lines.length; i += 1) {
-        if (!lines[i].startsWith("# ")) continue;
-        examined += 1;
-        if (!flags[i]) offenders.push(`${rel}:${i + 1} — ${lines[i]}`);
+    //
+    // MOVED 2026-11-18 IN PLAN 43-10 (D-10). Those nine fenced lines were the copy-paste prompts in
+    // `agent-factory/README.md` § Copy-paste Orchestrator prompts, which moved to docs/usage.md, a page
+    // outside this watched corpus. The live corpus now holds NO level-one heading below a `## `
+    // section, fenced or not, so a floor on the live count can no longer be met and would only invite
+    // planting one. The property still holds on the live corpus (no offender), and the scan's
+    // non-vacuity is proved instead on two planted documents: a fenced `# ` line below a `## ` is
+    // examined and passes, and an unfenced one is examined and named.
+    const scan = (docs: { rel: string; text: string }[]): { examined: number; offenders: string[] } => {
+      const offenders: string[] = [];
+      let examined = 0;
+      for (const { rel, text } of docs) {
+        const lines = text.split("\n");
+        const flags = fencedLineFlags(text);
+        const firstSection = lines.findIndex(
+          (l, i) => !flags[i] && l.startsWith("## "),
+        );
+        if (firstSection === -1) continue;
+        for (let i = firstSection + 1; i < lines.length; i += 1) {
+          if (!lines[i].startsWith("# ")) continue;
+          examined += 1;
+          if (!flags[i]) offenders.push(`${rel}:${i + 1} — ${lines[i]}`);
+        }
       }
-    }
-    // TWO FLOORS, because a vacuity floor over the FILES cannot see a silently short ELEMENT count.
-    expect(filesScanned).toBeGreaterThan(0);
-    expect(
-      examined,
-      "the derived set of level-one headings below a `## ` section must be NON-EMPTY — a scan that found nothing cannot report that they are all fenced",
-    ).toBeGreaterThan(0);
+      return { examined, offenders };
+    };
+    const live = mdOf(REPO).map((rel) => ({ rel, text: readFileSync(join(REPO, rel), "utf8") }));
+    // The vacuity floor over the FILES stays on the live corpus.
+    expect(live.length).toBeGreaterThan(0);
+    const fenced = scan([{ rel: "planted.md", text: "# T\n\n## S\n\n```text\n# a quoted heading\n```\n" }]);
+    expect(fenced, "a fenced level-one line below a `## ` is examined and is not an offender").toEqual({ examined: 1, offenders: [] });
+    const unfenced = scan([{ rel: "planted.md", text: "# T\n\n## S\n\n# a bare heading\n" }]);
+    expect(unfenced, "an unfenced level-one line below a `## ` is examined and named").toEqual({
+      examined: 1,
+      offenders: ["planted.md:5 — # a bare heading"],
+    });
+    const { offenders } = scan(live);
     expect(
       offenders,
       "an UNFENCED level-one heading below a `## ` section TRUNCATES that section under the level-two close — the frozen region above it just got shorter, which is protection lost with no failure anywhere",

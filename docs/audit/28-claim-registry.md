@@ -35,6 +35,13 @@ committed with `docs/concepts.md` the registry carries **60 rows**: those 55 plu
 the absolutes on the core-concept page. The number was DERIVED from `readRegistry().claims.length`
 at that commit.
 
+**Annotation, plan 43-10 — the derived current count after the usage page, ADDED rather than
+substituted.** The sentences above stand as written. As committed with the host usage, commands
+and prompts moved into `docs/usage.md`, the registry carries **61 rows**: the 60 above plus
+`C-28-061`, the command sentence on that page. The number was DERIVED from
+`readRegistry().claims.length` at that commit. `C-28-007` and `C-28-027`..`C-28-030` moved to that
+page and kept their ids, so they add no row.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -170,15 +177,15 @@ grugops version `2.2.0`.
 
 ### C-28-007
 
-- file: README.md
-- line: 48
+- file: docs/usage.md
+- line: 80
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: `only the dispatch differs, never the content` is held MECHANICALLY, not by prose: the seven dash-standalone skills under `.claude/skills/grugops*` and the seven colon-namespaced plugin skills under `skills/` are generated from one source by `scripts/generate-skill-twins.ts` and byte-gated by `npm run freshness:skill-twins`, so a content divergence between the two forms is unrepresentable in a green build.
+- mechanism: `only the dispatch differs, never the content` is held MECHANICALLY, not by prose: the seven dash-standalone skills under `.claude/skills/grugops*` and the seven colon-namespaced plugin skills under `skills/` are generated from one source by `scripts/generate-skill-twins.ts` and byte-gated by `npm run freshness:skill-twins`, so a content divergence between the two forms is unrepresentable in a green build. Moved to docs/usage.md § Commands by plan 43-10 (D-09, D-28) with its anchor; the three-space list indent it carried inside README.md Quickstart step 2 went, so this verbatim block was re-measured in the same commit, and `the same operations` now refers to the example-command fence directly above it, which moved with it. The words are unchanged.
 
 ```
-   In the versioned Claude Code plugin form the same operations are namespaced with a colon — `/grugops:<op>` (for example `/grugops:plan`, `/grugops:ticket`, `/grugops:release`). Both forms coexist; only the dispatch differs, never the content.
+In the versioned Claude Code plugin form the same operations are namespaced with a colon — `/grugops:<op>` (for example `/grugops:plan`, `/grugops:ticket`, `/grugops:release`). Both forms coexist; only the dispatch differs, never the content.
 ```
 
 ### C-28-008
@@ -188,7 +195,7 @@ grugops version `2.2.0`.
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: `agent-factory/README.md` exists and its § `Usage across the supported host tools` table carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), each naming its entry file and its role dispatch. Plan 34-06 made the count derived rather than written: `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table to the registry two-sided, and `scripts/check-uat-oracles.ts` builds its asymmetric rows from the registry. Plan 34-08 made the claim text count-free (`any supported host tool`) and updated this verbatim block in the same commit.
+- mechanism: `agent-factory/README.md` exists and its § `Usage across the supported host tools` table carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), each naming its entry file and its role dispatch. Plan 34-06 made the count derived rather than written: `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table to the registry two-sided, and `scripts/check-uat-oracles.ts` builds its asymmetric rows from the registry. Plan 34-08 made the claim text count-free (`any supported host tool`) and updated this verbatim block in the same commit. Plan 43-10 (D-10) moved that table to docs/usage.md § Usage across the supported host tools; agent-factory/README.md keeps the heading with a pointer line to it, and its § Start here still tells any host tool to start at `agent-factory/roles/orchestrator.md`, so the guide still explains how to point a host tool at the Orchestrator. The derivation and the two checks above now read docs/usage.md.
 
 ```
 3. **Go deep** — the internal start-here guide explains how to point any supported host tool at the Orchestrator and walk a ticket from idea to PR. See **[`agent-factory/README.md`](agent-factory/README.md)**.
@@ -459,12 +466,12 @@ from those notes.
 
 ### C-28-027
 
-- file: agent-factory/README.md
-- line: 42-45
+- file: docs/usage.md
+- line: 35-38
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: FIXED in 28-05. The sentence asserted sameness of a DELETED artifact class — `handoffs` — and `scripts/check-public-docs-vocabulary.js` deliberately could not flag it, because the bare word is not a `RETIRED_PROSE_FORMS` literal and D-10 forbids widening the matcher to chase it. The noun is now `workflows`, and the parity assertion is measured against what actually ships identically: `agent-factory/roles/` and `agent-factory/workflows/` are copied whole to the kit root of every install by `install/install.ts`'s `cpSync` of the `agent-factory` tree, so no host tool receives a different role or workflow body. The companion clause `only the dispatch differs, never the content` is held mechanically by `scripts/generate-skill-twins.ts` and `npm run freshness:skill-twins` (see C-28-007). The spawn-versus-load sentence that follows is unchanged and independently correct against `orchestrator.md` § *Hard limits*.
+- mechanism: FIXED in 28-05. The sentence asserted sameness of a DELETED artifact class — `handoffs` — and `scripts/check-public-docs-vocabulary.js` deliberately could not flag it, because the bare word is not a `RETIRED_PROSE_FORMS` literal and D-10 forbids widening the matcher to chase it. The noun is now `workflows`, and the parity assertion is measured against what actually ships identically: `agent-factory/roles/` and `agent-factory/workflows/` are copied whole to the kit root of every install by `install/install.ts`'s `cpSync` of the `agent-factory` tree, so no host tool receives a different role or workflow body. The companion clause `only the dispatch differs, never the content` is held mechanically by `scripts/generate-skill-twins.ts` and `npm run freshness:skill-twins` (see C-28-007). The spawn-versus-load sentence that follows is unchanged and independently correct against `orchestrator.md` § *Hard limits*. Moved to docs/usage.md § Usage across the supported host tools by plan 43-10 (D-10, D-28), byte for byte with its anchor; agent-factory/README.md keeps the heading and one pointer line. The text and its measurement are unchanged.
 
 ```
 grugops works on Claude Code, Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, and Pi. The
@@ -475,12 +482,12 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 
 ### C-28-028
 
-- file: agent-factory/README.md
-- line: 48-55
+- file: docs/usage.md
+- line: 41-48
 - kind: architecture
 - depends_on: —
 - status: overstated
-- mechanism: CARRIED-IN CANDIDATE, RE-MEASURED RATHER THAN TRANSCRIBED. The table's Claude Code row advertises `Coordinator spawns role agents — the coordinator: true adapter holds the grant`. What holds: `.planning/REQUIREMENTS.md` records SPAWN-01 `[x]` (all 17 adapters exist, generated) and SPAWN-02 `[x]` (byte-gated). What does NOT hold: KIT-03, SPAWN-03 and SPAWN-04 are all still `[ ]`, and SPAWN-03's own text states that the current subagent placement makes the grant a no-op. `28-CONTEXT.md` records that Phase 27 closed by named user override rather than by a verification round. The grant exists; the spawn path's correctness is advertised ahead of its verification. Registered whole-table because an anchor between two pipe rows would split the rendered table. PLAN 34-06 (D-11): the table now carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), Pi included, and the Pi row reads `Sequential role-load — no spawn` because Pi ships no sub-agents. The asymmetric dispatch-table oracle in `scripts/check-uat-oracles.ts` builds its rows from the registry, so a missing, duplicated or spawn-worded host row fails red by name, and `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table's host names and entry-file cells to the registry two-sided. Plan 34.1-04 (D-12) replaced the Gemini CLI row with an Antigravity CLI row and named the entry each of Codex CLI, Antigravity CLI and OpenCode gets after plan 34.1-01 (the shared agent skill `.agents/skills/grugops/SKILL.md`, and the OpenCode command `.opencode/commands/grugops.md`); the overstated Claude Code row is unchanged.
+- mechanism: CARRIED-IN CANDIDATE, RE-MEASURED RATHER THAN TRANSCRIBED. The table's Claude Code row advertises `Coordinator spawns role agents — the coordinator: true adapter holds the grant`. What holds: `.planning/REQUIREMENTS.md` records SPAWN-01 `[x]` (all 17 adapters exist, generated) and SPAWN-02 `[x]` (byte-gated). What does NOT hold: KIT-03, SPAWN-03 and SPAWN-04 are all still `[ ]`, and SPAWN-03's own text states that the current subagent placement makes the grant a no-op. `28-CONTEXT.md` records that Phase 27 closed by named user override rather than by a verification round. The grant exists; the spawn path's correctness is advertised ahead of its verification. Registered whole-table because an anchor between two pipe rows would split the rendered table. PLAN 34-06 (D-11): the table now carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), Pi included, and the Pi row reads `Sequential role-load — no spawn` because Pi ships no sub-agents. The asymmetric dispatch-table oracle in `scripts/check-uat-oracles.ts` builds its rows from the registry, so a missing, duplicated or spawn-worded host row fails red by name, and `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table's host names and entry-file cells to the registry two-sided. Plan 34.1-04 (D-12) replaced the Gemini CLI row with an Antigravity CLI row and named the entry each of Codex CLI, Antigravity CLI and OpenCode gets after plan 34.1-01 (the shared agent skill `.agents/skills/grugops/SKILL.md`, and the OpenCode command `.opencode/commands/grugops.md`); the overstated Claude Code row is unchanged. Moved to docs/usage.md § Usage across the supported host tools by plan 43-10 (D-10, D-28), byte for byte with its anchor; agent-factory/README.md keeps the heading and one pointer line. The text and its measurement are unchanged. `scripts/check-uat-oracles.ts` `ASYM_TABLE_FILES` and `install/host-tools.test.ts` `FLOOR` name docs/usage.md in the same plan; the oracle reads only a table whose header names a dispatch column, so the page's start table is not read as dispatch rows.
 - disposition: accepted
 - finding_id: F-28-210
 
@@ -497,12 +504,12 @@ tool can *spawn* sub-agents or must *load* role files into context one at a time
 
 ### C-28-029
 
-- file: agent-factory/README.md
-- line: 58-61
+- file: docs/usage.md
+- line: 51-54
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: FIXED in 28-05. `same handoffs` asserted parity of the deleted artifact class — the same defect as C-28-027, at a second location in the same file, which is why both had to move together. The clause now reads `same workflows, same gates, same shared verified context`, naming the memory channel that replaced the relay rather than the relay itself; the parity is measured against the same `cpSync` of the whole `agent-factory` tree that C-28-027 cites. The spawn-versus-load distinction the passage draws was already correct and is unchanged — it matches `orchestrator.md` § *Responsibilities* item 6, which points at Workflow 17, and Workflow 17 step 4: `Where the `Agent` spawn tool exists, spawn that adapter with the task reference and nothing else.` and `Where the tool does not exist, switch role per `agent-factory/roles/_role-switch-protocol.md`.` (re-pointed in plan 41-06, D-12, when the spawn and drain text left the role).
+- mechanism: FIXED in 28-05. `same handoffs` asserted parity of the deleted artifact class — the same defect as C-28-027, at a second location in the same file, which is why both had to move together. The clause now reads `same workflows, same gates, same shared verified context`, naming the memory channel that replaced the relay rather than the relay itself; the parity is measured against the same `cpSync` of the whole `agent-factory` tree that C-28-027 cites. The spawn-versus-load distinction the passage draws was already correct and is unchanged — it matches `orchestrator.md` § *Responsibilities* item 6, which points at Workflow 17, and Workflow 17 step 4: `Where the `Agent` spawn tool exists, spawn that adapter with the task reference and nothing else.` and `Where the tool does not exist, switch role per `agent-factory/roles/_role-switch-protocol.md`.` (re-pointed in plan 41-06, D-12, when the spawn and drain text left the role). Moved to docs/usage.md § Usage across the supported host tools by plan 43-10 (D-10, D-28), byte for byte with its anchor; agent-factory/README.md keeps the heading and one pointer line. The text and its measurement are unchanged.
 
 ```
 On Claude Code the coordinator (the `coordinator: true` orchestrator adapter) spawns a role
@@ -513,12 +520,12 @@ same workflows, same gates, same shared verified context — only the dispatch d
 
 ### C-28-030
 
-- file: agent-factory/README.md
-- line: 64-67
+- file: docs/usage.md
+- line: 57-60
 - kind: install
 - depends_on: —
 - status: true
-- mechanism: `install/install.ts` lays down `.claude/agents/` role adapters, `.claude/skills/` dash-standalone skills, `skills/` plugin skills, and the per-tool entry-file pointers; `agent-factory/packaging/` carries the three templates (`adapters.md`, `slash-command.template.md`, `subagent.frontmatter.md`) they are generated from. The adapters ship now, as the sentence says.
+- mechanism: `install/install.ts` lays down `.claude/agents/` role adapters, `.claude/skills/` dash-standalone skills, `skills/` plugin skills, and the per-tool entry-file pointers; `agent-factory/packaging/` carries the three templates (`adapters.md`, `slash-command.template.md`, `subagent.frontmatter.md`) they are generated from. The adapters ship now, as the sentence says. Moved to docs/usage.md § Usage across the supported host tools by plan 43-10 (D-10, D-28), byte for byte with its anchor; agent-factory/README.md keeps the heading and one pointer line. The text and its measurement are unchanged. `This table` still names the dispatch table directly above it.
 
 ```
 The detailed per-tool **adapters** (thin wrappers, slash commands, entry-file pointers, and
@@ -973,6 +980,19 @@ The gate is the PR quality gate. It runs your repository's own checks, install, 
 
 ```
 grugops is designed so that people make the merge and release decisions. The role files and workflows tell agents to stop at a pull request and leave the review and the merge to a person. A release waits for a named person's approval and a named person's confirmation of the production action, at the default setting of the `production_requires_human_confirmation` checkpoint. Those are written rules, and they hold only as well as an agent follows them. The hard floor is your git host: branch protection or rulesets on protected branches, and deployment environments with required reviewers for production. grugops never configures your git host; you set those protections yourself. On Claude Code, the standalone installer also writes ask rules, so the CLI asks before the usual merge and deploy commands; they are a speed bump, not a security boundary.
+```
+
+### C-28-061
+
+- file: docs/usage.md
+- line: 65
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). On Claude Code each of the seven skills has its own command: `.claude/skills/` holds the dash-standalone skills `grugops`, `grugops-map`, `grugops-plan`, `grugops-ticket`, `grugops-gate`, `grugops-uat` and `grugops-release`, and `skills/` holds their plugin twins, generated by `scripts/generate-skill-twins.ts` and held equal by `npm run freshness:skill-twins`. On every other host a skill other than the dispatcher has no command of its own: `scripts/generate-catalog.ts` writes each `docs/reference/skills/<op>.md` § Invocation from `install/host-tools.ts` `HOST_TOOLS`, prefixing a non-Claude-Code row with `Through the dispatcher: `, and the page says to start the dispatcher and ask for the work. Each command in the list under the fence links that page. The start table it links is § Start a session on the same page.
+
+```
+On Claude Code each grugops skill has its own command. On another host, start grugops from the [start table](#start-a-session) and name the job in your request; the page linked after each command below shows how to start that skill on each host.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

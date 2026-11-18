@@ -511,6 +511,37 @@ function hostRowLines(body: string, name: string): { line: number; text: string 
     .filter((l) => re.test(l.text));
 }
 
+/**
+ * The tables of a document, one masked copy each: a table is a run of consecutive lines starting with `|` (the
+ * definition install/host-tools.test.ts uses), and its copy keeps that run and blanks every other line, so line
+ * numbers stay those of the file. Plan 43-10 (D-10) put two per-host tables in docs/usage.md (the start table and the
+ * dispatch table moved from agent-factory/README.md), each with one bold row per host; a whole-file read would see
+ * two rows per host and take neither for a launch table, so the launch-table rules read one table at a time.
+ */
+function tableBodies(body: string): string[] {
+  const lines = body.split(/\r?\n/);
+  const runs: [number, number][] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].startsWith("|")) continue;
+    const start = i;
+    while (i + 1 < lines.length && lines[i + 1].startsWith("|")) i++;
+    runs.push([start, i]);
+  }
+  return runs.map(([a, b]) => lines.map((l, k) => (k >= a && k <= b ? l : "")).join("\n"));
+}
+
+/** The per-host launch tables of a document, each as a masked copy (see tableBodies). */
+function launchTables(body: string): string[] {
+  return tableBodies(body).filter(isLaunchTable);
+}
+
+/** The one launch table of a document that must hold exactly one, such as docs/usage.md's start table. */
+function soleLaunchTable(file: string, body: string): string {
+  const t = launchTables(body);
+  expect(t.length, `${file} holds ${t.length} per-host launch table(s), not one`).toBe(1);
+  return t[0];
+}
+
 /** Whether `body` is a per-host launch table: one row per registry host, and some launch host's row names its launch form or file. */
 function isLaunchTable(body: string): boolean {
   if (!HOST_TOOLS.every((h) => hostRowLines(body, h.name).length === 1)) return false;
@@ -576,7 +607,7 @@ describe("verified-live claims and launch forms are bound to the registry (quick
   });
 
   it("LIVE-3: the per-host launch tables are derived (CLAUDE.md, docs/usage.md and adapters.md, count 3), and each has zero findings", () => {
-    const tables = trackedMarkdown(REPO).filter((f) => isLaunchTable(readRel(f)));
+    const tables = trackedMarkdown(REPO).filter((f) => launchTables(readRel(f)).length > 0);
     // Measured 2026-10-19: agent-factory/README.md carries one bold row per host, and none of its launch hosts' rows
     // names a launch form or file.
     // Re-pinned 2026-10-19 by quick task 261019-mq1 (261018-hs8 review IN-09): CLAUDE.md's per-tool table now names
@@ -586,11 +617,13 @@ describe("verified-live claims and launch forms are bound to the registry (quick
     expect([...tables].sort(), "the per-host launch tables").toEqual(["CLAUDE.md", "agent-factory/packaging/adapters.md", "docs/usage.md"]);
     expect(tables.length).toBe(3);
     let examined = 0;
-    const findings = tables.flatMap((f) => {
-      const r = scanHostTable(f, readRel(f));
-      examined += r.examined;
-      return r.findings;
-    });
+    const findings = tables.flatMap((f) =>
+      launchTables(readRel(f)).flatMap((table) => {
+        const r = scanHostTable(f, table);
+        examined += r.examined;
+        return r.findings;
+      }),
+    );
     expect(findings.map(showLive)).toEqual([]);
     expect(examined, "LIVE-3 examined no row").toBeGreaterThanOrEqual(1);
   });
@@ -641,7 +674,7 @@ describe("verified-live claims and launch forms are bound to the registry (quick
 
   it("LIVE-3 by mutation: a scratch docs/usage.md copy with a note removed, \"verified live\" planted, or `UNKNOWN - verify` removed gives a finding naming the file and the host", () => {
     const body = readRel("docs/usage.md");
-    expect(scanHostTable("docs/usage.md", body).findings, "premise: the real docs/usage.md has no LIVE-3 finding").toEqual([]);
+    expect(scanHostTable("docs/usage.md", soleLaunchTable("docs/usage.md", body)).findings, "premise: the real docs/usage.md has no LIVE-3 finding").toEqual([]);
     const v = VERIFIED[0];
     const u = UNVERIFIED[0];
     const mutate = (h: LaunchHost, edit: (row: string) => string): { text: string; line: number } => {
@@ -659,7 +692,7 @@ describe("verified-live claims and launch forms are bound to the registry (quick
     ];
     for (const c of cases) {
       const m = mutate(c.host, c.edit);
-      const got = scanHostTable("docs/usage.md", m.text).findings;
+      const got = scanHostTable("docs/usage.md", soleLaunchTable("docs/usage.md", m.text)).findings;
       expect(got.map((f) => f.line), showLive(got[0] ?? { file: "", line: 0, sentence: "", why: "no finding" })).toEqual([m.line]);
       expect(got[0].file).toBe("docs/usage.md");
       expect(got[0].why).toContain(c.host.name);
@@ -791,7 +824,7 @@ describe("doc path lists, start forms and the launch caution are bound to the re
   });
 
   it("START-1: docs/usage.md's start-a-session table has zero findings, and every registry host's row was examined", () => {
-    const r = scanStartTable("docs/usage.md", readRel("docs/usage.md"));
+    const r = scanStartTable("docs/usage.md", soleLaunchTable("docs/usage.md", readRel("docs/usage.md")));
     expect(r.findings.map(showLive)).toEqual([]);
     expect(r.examined).toBe(HOST_TOOLS.length);
     expect(COMMAND_FLAGS.length, "premise: the command forms give flags").toBeGreaterThan(0);
@@ -819,7 +852,7 @@ describe("doc path lists, start forms and the launch caution are bound to the re
       { host: panel, edit: (row) => row.split(invokeTok).join("the command") },
     ];
     for (const c of cases) {
-      const got = scanStartTable("docs/usage.md", mutate(c.host, c.edit)).findings;
+      const got = scanStartTable("docs/usage.md", soleLaunchTable("docs/usage.md", mutate(c.host, c.edit))).findings;
       expect(got.length, `no finding for a mutation of ${c.host.name}'s row`).toBeGreaterThan(0);
       for (const f of got) {
         expect(f.file).toBe("docs/usage.md");
