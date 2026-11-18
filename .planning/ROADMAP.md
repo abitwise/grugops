@@ -744,7 +744,7 @@ Wave 5
   5. The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug` (STORY-05)
   6. Milestone UAT, carried from Phase 39 UAT tests 10 and 14 (human, 2026-10-31): on a live Claude Code host in a scratch repo, unscored work is never auto-delegated to a junior, mid or senior engineer adapter (each level is reached only when the Tech Lead's plan names it), and a `grugops-designer` design note reaches `scripts/context-io.js` through Bash and is admitted, not refused as unsealed
 
-**Plans**: 4/15 plans executed (plan revision 1 split 43-04 into 43-04 and 43-14, and 43-06 into 43-06 and 43-15; plans run by wave, not by number)
+**Plans**: 5/15 plans executed (plan revision 1 split 43-04 into 43-04 and 43-14, and 43-06 into 43-06 and 43-15; plans run by wave, not by number)
 
 Wave 1 *(one registry plan, one corpus plan, disjoint files)*
 - [x] 43-01-PLAN.md — the pre-phase baseline, and the `retired` claim status: row and id kept, text and anchor absence-checked (STORY-04)
@@ -755,7 +755,7 @@ Wave 2
 
 Wave 3 *(the reference tracer, the installer tracer and the examples, disjoint files)*
 - [x] 43-04-PLAN.md — the catalog generator writes docs/reference/ with the index and one page per role; docs/catalog/ retired; the tree freshness gate (STORY-03, STORY-02)
-- [ ] 43-06-PLAN.md — install ships docs/ and examples/ into the kit home beside agent-factory/: record, fresh and backup arms, census (STORY-02)
+- [x] 43-06-PLAN.md — install ships docs/ and examples/ into the kit home beside agent-factory/: record, fresh and backup arms, census (STORY-02)
 - [ ] 43-07-PLAN.md — worked examples 01-03 rewritten to v3; 01 and 03 relabeled illustrative (STORY-02, STORY-05)
 - [ ] 43-08-PLAN.md — worked examples 04-05 rewritten to v3 with an honest deploy gate (STORY-02, STORY-05)
 
@@ -795,7 +795,7 @@ Wave 9 *(human checkpoint)*
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
 | 42. Skills per role and evaluation | v3.0 | 8/8 | Complete    | 2026-11-17 |
-| 43. Story and layered docs | v3.0 | 4/15 | In Progress | - |
+| 43. Story and layered docs | v3.0 | 5/15 | In Progress | - |
 
 ## Backlog
 
