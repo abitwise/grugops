@@ -251,9 +251,13 @@ function wr05LineBoundRefusals(files: string[]): string[] {
 // MUST still say no-spawn / sequential role-load. A bulk find-replace that lets a non-spawning row
 // grow spawn/coordinator wording is the drift bug this assertion catches. Explicit scan list (never a
 // repo-wide grep).
+//
+// Plan 43-10 (D-10): the kit README's dispatch table (C-28-028) moved to docs/usage.md, which also
+// holds the start table (one bold row per host, launch commands, no dispatch wording). Only a table
+// whose header row names a dispatch column is read here; see `dispatchTableLines`.
 export const ASYM_TABLE_FILES = [
   "agent-factory/packaging/adapters.md",
-  "agent-factory/README.md",
+  "docs/usage.md",
 ];
 // Escape every regex metacharacter in a registry display name, so a name carrying `.`, `+` or `(`
 // is matched literally and can never widen the row pattern.

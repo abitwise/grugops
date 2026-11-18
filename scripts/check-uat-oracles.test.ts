@@ -62,8 +62,9 @@ const GUARD_INPUTS = [
   ".planning/v1.2-SDLC-COVERAGE-AUDIT.md",
   ".planning/RETROSPECTIVE.md",
   // Phase 23 (D-19 / Pitfall 3): the oracle now scans the per-host tables for asymmetric-flip drift.
+  // Plan 43-10 (D-10): the kit README's dispatch table moved to docs/usage.md, so the mirror copies it from there.
   "agent-factory/packaging/adapters.md",
-  "agent-factory/README.md",
+  "docs/usage.md",
 ];
 
 const tmpDirs: string[] = [];
@@ -186,7 +187,7 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
   // The CC row losing its coordinator-spawn wording must ALSO fail (the flip must persist).
   it("wording asymmetry: Claude Code row loses coordinator-spawn wording → nonzero + names the file", () => {
     const m = mirror();
-    const file = join(m, "agent-factory/README.md");
+    const file = join(m, "docs/usage.md");
     const reverted = readFileSync(file, "utf8")
       .split("\n")
       .map((l) =>
@@ -201,7 +202,7 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     writeFileSync(file, reverted);
     const r = runIn(m);
     expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("README.md");
+    expect(out(r)).toContain("docs/usage.md");
   });
 
   // ── 28-REVIEW CR-01: a DELETED tool row must fail, not pass vacuously. ───────────────────────────
@@ -216,7 +217,7 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
   // that was DELETED. This is that case, and it is the one the review reproduced.
   it("wording asymmetry CR-01: the Claude Code row DELETED from both tables → nonzero + names the missing row (never a vacuous PASS)", () => {
     const m = mirror();
-    for (const rel of ["agent-factory/packaging/adapters.md", "agent-factory/README.md"]) {
+    for (const rel of ["agent-factory/packaging/adapters.md", "docs/usage.md"]) {
       const file = join(m, rel);
       const stripped = readFileSync(file, "utf8")
         .split("\n")
@@ -230,7 +231,7 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     // both files, and the count it actually found.
     expect(out(r)).toContain("Claude Code");
     expect(out(r)).toContain("adapters.md");
-    expect(out(r)).toContain("README.md");
+    expect(out(r)).toContain("docs/usage.md");
     expect(out(r)).toMatch(/found 0 table row\(s\)/);
     // And the PASS line asserting the flip is asymmetric must be ABSENT: that is the whole defect.
     expect(out(r)).not.toMatch(/PASS\s+WR-05 wording/);
@@ -312,6 +313,38 @@ describe("check-uat-oracles.js (Phase 19 Tier-1 fail-proof harness)", () => {
     expect(m).not.toBeNull();
     expect(Number(m![2])).toBe(ASYM_TABLE_FILES.length);
     expect(Number(m![1])).toBe(HOST_TOOLS.length * ASYM_TABLE_FILES.length);
+  });
+
+  // ── Plan 43-10 (D-10): the dispatch table moved to docs/usage.md, which also holds the start table. ──
+  //
+  // docs/usage.md carries two per-host tables, each with one bold row per registry host: § Start a session
+  // (launch commands, held to the registry by install/host-entry-docs.test.ts START-1) and the dispatch
+  // table moved from agent-factory/README.md (C-28-028). The asymmetry scan reads only a table whose header
+  // row names a dispatch column, so the start table's rows are neither counted nor read as dispatch rows.
+  // These cases hold that selection: the real page has both tables and the scan counts one row per host
+  // there, and a page whose dispatch table loses its dispatch column fails by name, never vacuously.
+  it("wording 43-10: docs/usage.md carries the start table too, and the scan reads only its dispatch table, one row per host", () => {
+    expect(ASYM_TABLE_FILES).toContain("docs/usage.md");
+    expect(ASYM_TABLE_FILES).not.toContain("agent-factory/README.md");
+    const page = readFileSync(join(ROOT, "docs/usage.md"), "utf8").split("\n");
+    const ccRows = page.filter((l) => /^\|\s*\*\*Claude Code\*\*/.test(l));
+    expect(ccRows.length, "premise: docs/usage.md holds the start table and the dispatch table").toBe(2);
+    const r = runIn(mirror());
+    expect(r.status).toBe(0);
+    expect(out(r)).not.toMatch(/docs\/usage\.md: found \d+ table row/);
+  });
+
+  it("wording 43-10: docs/usage.md's dispatch table loses its dispatch column header → nonzero + found 0 rows, never a vacuous PASS", () => {
+    const m = mirror();
+    const file = join(m, "docs/usage.md");
+    const before = readFileSync(file, "utf8");
+    const after = before.replace(/\| Role dispatch(\s*)\|/, "| Role mode$1    |");
+    expect(after, "premise: the mutation renamed the dispatch column").not.toBe(before);
+    writeFileSync(file, after);
+    const r = runIn(m);
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("docs/usage.md: found 0 table row(s) for Claude Code ");
+    expect(out(r)).not.toMatch(/PASS\s+WR-05 wording/);
   });
 
   // ── oracleDualPathEquivalence (DOGF-01) — replaces the two structural parity-grep tests. ─────────

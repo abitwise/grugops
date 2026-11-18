@@ -462,7 +462,8 @@ describe("every per-host table equals the registry (plan 34-06)", () => {
    */
   const DECLARED_EXTRAS = [".planning/research/STACK.md"];
   /** The files that carry a per-host table today; the derived set must contain each. */
-  const FLOOR = ["agent-factory/packaging/adapters.md", "agent-factory/README.md", "CLAUDE.md"];
+  // Plan 43-10 (D-10): the kit README's dispatch table moved to docs/usage.md, so docs/usage.md takes its place.
+  const FLOOR = ["agent-factory/packaging/adapters.md", "docs/usage.md", "CLAUDE.md"];
   const NAMES = HOST_TOOLS.map((t) => t.name);
   const BOLD_FIRST_CELL = /^\|\s*\*\*(.+?)\*\*\s*\|/;
 
