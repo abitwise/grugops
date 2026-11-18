@@ -4968,7 +4968,7 @@ function copyKit(retainBackup = false): void {
         "note",
         `${at}: something install did not write is already there, so ${noun} were not copied there and it was left ` +
           `as it is (not renamed, not backed up, not recorded). Links from the kit to ../${entry}/ do not resolve in ` +
-          `this kit home. To get ${noun}, move what is there to another name and re-run, or set GRUGOPS_HOME to a directory of its own.`,
+          `this kit home. To get ${noun}, move what is there to another name, or set GRUGOPS_HOME to a directory of its own; the next install then copies them.`,
       );
       untouched.push(entry);
       continue;
