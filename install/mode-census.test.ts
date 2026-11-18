@@ -148,7 +148,10 @@ const INSTALL_TEST_FILE_COUNT = 48;
 // role-skills-reader.test.ts (plans 42-02, 42-08), which has no chmod call and reads no `.mode` (it writes scratch kits
 // and reads the reader's report and its CLI's stdout), and skills-kit-text.test.ts (plans 42-03, 42-06, 42-07), which
 // has neither either (it reads kit markdown and asserts phrases and tables).
-const SCRIPTS_TEST_FILE_COUNT = 85;
+// SCRIPTS_TEST_FILE_COUNT 85 -> 86 (2026-11-18, plan 43-03, re-derived by listing scripts/, not incremented) for
+// check-story-docs.test.ts, which has no chmod call and reads no `.mode` (it builds hermetic mirrors, spawns the
+// committed story-docs gate and reads package.json and ci.yml).
+const SCRIPTS_TEST_FILE_COUNT = 86;
 const SOURCE_FILE_COUNT = 11;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial
