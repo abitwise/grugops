@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 43
 current_phase_name: Story and layered docs
 status: executing
-stopped_at: Completed 43-11-PLAN.md
-last_updated: "2026-11-18T06:57:28.498Z"
+stopped_at: Completed 43-12-PLAN.md
+last_updated: "2026-11-18T08:09:23.170Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 43 execution started
-state_head: 787d6fdb8430b4b127817c9da220d999559638de
+state_head: 58f506a907efb01f00216be1c40ecce81c709731
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 165
-  completed_plans: 163
+  completed_plans: 164
   percent: 89
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43 (Story and layered docs) — EXECUTING
-Plan: 14 of 15
+Plan: 15 of 15
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 43 execution started
 
@@ -881,6 +881,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43 P14 | 12 min | 2 tasks | 23 files |
 | Phase 43 P10 | 23 min | 3 tasks | 26 files |
 | Phase 43 P11 | 18 min | 3 tasks | 23 files |
+| Phase 43 P12 | 41 min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -2462,6 +2463,9 @@ Recent decisions affecting current work:
 - [Phase 43]: 43-11: README.md is the short front door (art, tagline H1 C-28-069, story C-28-070, host-neutral quickstart, how-it-works bullets, where next); C-28-002, C-28-003 and C-28-008 are retired at 863c81b1 / 65ec4751
 - [Phase 43]: 43-11: C-28-001 moved byte for byte to docs/concepts.md; docs/concepts.md is now a safety-claim home in the watched corpus and README.md left it
 - [Phase 43]: 43-11: check-story-docs check 4 holds the README tagline; docs/README.md is the docs index; next free claim id C-28-071
+- [Phase 43]: 43-12: board-corpus example rows keep transcribed text and cite commit 161bf23d instead of re-syncing to the v3 rows
+- [Phase 43]: 43-12: anchored overstatements in safety rows (C-28-001, C-28-023) and the human-kept C-28-033 clause go to the 43-13 UAT as UNKNOWN - verify, not reworded by an executor
+- [Phase 43]: 43-12: two moved docs/usage.md absolutes registered as C-28-073 and C-28-074; next free claim id C-28-075
 
 ### Pending Todos
 
@@ -2804,8 +2808,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-18T06:57:26.893Z
-Stopped at: Completed 43-11-PLAN.md
+Last session: 2026-11-18T08:09:21.543Z
+Stopped at: Completed 43-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

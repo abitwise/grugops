@@ -81,10 +81,10 @@ Decisions these requirements rest on: PROJECT.md Key Decisions tagged `[v3.0]` (
 ### Story and docs (STORY)
 
 - [x] **STORY-01**: The README tells the new story — "grugops — Specialist agents. Shared context. Coordinated work." (lowercase brand) — replacing "the simple software factory"
-- [ ] **STORY-02**: The main docs explain how grugops works and its core concept, show usage flows with worked examples, and link to every agent and skill page
+- [x] **STORY-02**: The main docs explain how grugops works and its core concept, show usage flows with worked examples, and link to every agent and skill page
 - [x] **STORY-03**: Every agent and skill has a reference page generated from the role and skill files and kept fresh by a gate
-- [ ] **STORY-04**: Every new public page is inside the claim registry's checked file set before it is written; claims that move are re-dispositioned by id, never deleted
-- [ ] **STORY-05**: The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug`
+- [x] **STORY-04**: Every new public page is inside the claim registry's checked file set before it is written; claims that move are re-dispositioned by id, never deleted
+- [x] **STORY-05**: The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug`
 
 ## Future Requirements
 
@@ -162,10 +162,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SKILL-04 | Phase 42 | Complete |
 | SKILL-05 | Phase 42 | Complete |
 | STORY-01 | Phase 43 | Complete |
-| STORY-02 | Phase 43 | Pending |
+| STORY-02 | Phase 43 | Complete |
 | STORY-03 | Phase 43 | Complete |
-| STORY-04 | Phase 43 | Pending |
-| STORY-05 | Phase 43 | Pending |
+| STORY-04 | Phase 43 | Complete |
+| STORY-05 | Phase 43 | Complete |
 
 **Coverage:**
 - v3.0 requirements: 51 total
