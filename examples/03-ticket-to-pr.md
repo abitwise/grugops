@@ -1,109 +1,144 @@
-# Example: Ticket to PR (the dogfood report)
+# Example: Ticket to PR
 
-> Real run — captured 2026-06-03
+> Illustrative run — expected output, not a captured session
+>
+> Based on a real run captured 2026-06-03 on v1.0; updated to v3 by hand. The original capture is
+> in commit [ab0cda98](https://github.com/abitwise/grugops/commit/ab0cda98416c24310c02c180cb2a917889d413e6).
 
-This is the REAL dogfood capture, not an illustration. grugops was installed onto a fresh,
-throwaway sample app **outside this repo** (a minimal TypeScript + Node + Fastify service in
-grugops's greenfield default stack), bootstrapped via the portable `AGENTS.md` sequential path,
-and one real ticket — `ABC-001 — GET /version endpoint` — was driven idea→PR through the frozen
-`04-ticket-to-pr` → `05-pr-quality-gate` flow. Every command below actually ran; the gate verdict
-is real; the validator (`scripts/validate-agent-factory.mjs`) passed on the sample's resulting
-tree (DOG-01).
-
-The split is deliberate and honest (D-38): the **sequential AGENTS.md path** is agent-run and
-captured here as REAL proof. The **live Claude Code path** (plugin marketplace install +
-plugin-cache pointer resolution, CC sub-agent spawn) cannot be
-honestly self-driven by an executor — those checks are marked **pending human** and live in
-`docs/dogfood-human-runbook.md`. No marketplace install or sub-agent spawn is simulated.
+This walks one ready ticket, `ABC-001 — GET /version endpoint`, through
+`agent-factory/workflows/04-ticket-to-pr.md` and the gate in
+`agent-factory/workflows/05-pr-quality-gate.md`. The sample is the small TypeScript + Node +
+Fastify service from `examples/01-greenfield-bootstrap.md`: it answers `GET /health`, and its
+bootstrap left `ABC-001` in `Ready for Dev`. IDs, note ids, names and dates are placeholders. The
+flow is `Orchestrator -> Tech Lead -> Software Engineer (the level the Tech Lead names) -> QE/E2E ->
+gate -> a pull request a human merges`.
 
 ---
 
 ## Input
 
-Acting as the Orchestrator (`AGENTS.md` → `agent-factory/roles/orchestrator.md`) on the sample
-repo, the request was:
+On Claude Code, start the session from the sample repo with the Orchestrator as the main thread:
 
 ```text
-/grugops "add a GET /version endpoint so an operator can read the running app version"
+claude --agent grugops-orchestrator
 ```
 
-The sample already answered `GET /health`; the ticket adds a sibling read-only `GET /version`.
+Other hosts start differently; see the start table in `README.md`. Then type the request:
+
+```text
+implement ABC-001, the GET /version endpoint, as a pull request a human can review
+```
 
 ## Orchestrator decision
 
-The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · checkpoints.open_pr=block`) and
-`memory-bank/plans/board.md` first, classified the request as `ticket-to-pr`, checked `ABC-001` against the
-Definition of Ready, and pulled it within WIP:
+The Orchestrator reads `.grugops/factory.config.json` (`mode=lean`, `cadence=kanban`,
+`checkpoints.open_pr=block`) and `memory-bank/plans/board.md`. It checks `ABC-001` against
+`agent-factory/checklists/definition-of-ready.md`: the ticket has acceptance criteria, size `XS`
+and priority `P2`. Then it writes its decision:
 
 ```markdown
 # Orchestrator Decision
 ## Request type
-ticket-to-pr — implement ABC-001 (GET /version) as a PR a human can review.
-## Mode/Cadence/Checkpoints in effect
+ticket-to-pr — implement ABC-001 (GET /version) as a pull request a human can review.
+## Mode/Cadence/Checkpoints
 mode=lean · cadence=kanban · checkpoints.open_pr=block
 ## Activated agents
-Software Engineer (implement), QE/E2E (break it), Orchestrator (gate recommendation)
+Tech Lead (score and plan), Software Engineer at the level the Tech Lead names, QE/E2E (try to break it)
 ## Why
-grug no rush — one engineer, one small change, then the gate.
+One small ticket: the Tech Lead scores it, one engineer makes the change, then the gate runs.
 ## Required inputs
-ABC-001 with acceptance criteria + size + priority; definition-of-ready.md; checkpoints.open_pr=block
+ABC-001 with acceptance criteria, size and priority; definition-of-ready.md; complexity-rubric.md
 ## Workflow
-04-ticket-to-pr.md  (the gate loop lives in 05-pr-quality-gate.md, referenced not restated)
+04-ticket-to-pr.md (the gate is 05-pr-quality-gate.md)
 ## Board moves
 Ready for Dev -> In Development -> In Review
 ## Expected notes
-Software Engineer and QE/E2E each publish typed notes into the shared verified context (Workflow 16)
+Tech Lead: scores and level. Software Engineer: branch, files and commands. QE/E2E: result and tests.
 ## Stop conditions
-fails Definition of Ready -> stop; XL -> SPLIT_REQUIRED (ABC-001 is XS, so neither fired)
+fails Definition of Ready -> stop; XL or too large for one PR -> SPLIT_REQUIRED; F2 = 2 -> In Design
 ## Next action
-Software Engineer implements GET /version on a branch with a test
+Queue a subtask for the Tech Lead to score ABC-001.
 ```
 
-**Clear voice — one line of the block above was restated, and the restatement is recorded rather
-than made silently.** This run was captured on 2026-06-03. At that time the decision block's
-eighth heading read `## Expected handoffs` and named two static files under a shared handoff
-directory. Phase 24 deleted those seventeen templates and the shared verified context replaced the
-relay; `agent-factory/roles/orchestrator.md`'s § *Output* contract now names that heading
-`Expected notes`. Phase 28 restated the heading and its value to the shipped contract. Nothing
-else in the captured block was touched, and no gate verdict, command, or count anywhere in this
-file was rewritten.
+## The Tech Lead scores the ticket
 
-## Board moves (real column headings)
-
-ABC-001 walked the real frozen columns. The board status and the ticket front-matter
-(`status:`/`column:`) stayed in lockstep at every step — the validator confirmed the
-board↔ticket contract at each state.
+The Orchestrator writes `.grugops/queue/pending/abc-001-plan.md`:
 
 ```text
-## Ready for Dev (WIP 0/6)
-
-## In Development (WIP 0/3)
-
-## In Review (WIP 1/3)
-- [ABC-001] GET /version endpoint  (PR: feat/ABC-001-version-endpoint [local branch, no remote], QE: PASS, gate: READY_FOR_HUMAN_REVIEW)
+# subtask abc-001-plan
+ref: .grugops/context/abc-001/
 ```
 
-## What the two roles published (real results)
+It checks capacity and claims the subtask, then spawns the Tech Lead with the task reference and
+nothing else:
 
-The Software Engineer and QE/E2E each recorded a result for the ticket. The capture stored those
-results as static files under a shared handoff directory; that directory is gone, and the same two
-results are now published as typed notes under `.grugops/context/ABC-001/notes/` through
-`scripts/context-io.ts`, per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`).
-Neither role hands anything to the other — QE/E2E pulls the verified context, and the shared
-context is the only channel between them:
+```text
+$ node tools/grugops/claim.js free
+free 3
+$ node tools/grugops/claim.js claim abc-001-plan --by grugops-tech-lead
+claimed abc-001-plan by grugops-tech-lead
+```
 
-- **Software Engineer** publishes the implementation result — branch
-  `feat/ABC-001-version-endpoint`, files changed, and the five real gate commands run.
-- **QE/E2E** publishes `Result: PASS`; e2e not triggered (`e2e_when: ui-or-critical-path`, no
-  UI/critical path); the coverage instrument is absent in the minimal sample, recorded honestly as
-  absent rather than faked. A `PASS` asserted as measured is a `finding`, and `context-io.ts`
-  admits one only against a real `§14-gate#<id>` stamp from a live green gate run — which is what
-  the gate section below produced.
+The Tech Lead reads the shared context first (`node tools/grugops/note.js read abc-001`). It holds
+the bootstrap's notes: the BA/PM's acceptance criteria, the System Analyst's response contract
+(`200 { "version": string }`, with an `APP_VERSION` override) and the Architect's decision to add
+the route inline. The Tech Lead writes the dev tasks first, then scores them with
+`agent-factory/checklists/complexity-rubric.md`:
 
-Security/NFR was **not** triggered — a read-only, unauthenticated status route adds no
-risk-bearing surface.
+- `src/app.ts`: add `GET /version`, returning `{ version }` from the package version, or from
+  `APP_VERSION` when it is set. Given the app runs, when a client calls `GET /version`, then it
+  gets `200` and the package version.
+- `src/version.test.ts`: two new unit tests, one for the package version and one for the
+  `APP_VERSION` override.
 
-The change itself (the real diff on `src/app.ts`):
+| Factor | Score | Fact |
+|--------|-------|------|
+| F1 files touched | 0 | 2 files: `src/app.ts`, `src/version.test.ts` |
+| F2 spec completeness | 0 | exact files, change and test cases named |
+| F3 risk surface | 1 | public interface: a new HTTP route |
+| F4 novelty | 0 | same shape as `GET /health` in `src/app.ts` |
+| F5 test burden | 1 | new tests in one layer (unit) |
+| F6 blast radius | 0 | one module; `grep` finds no caller of the new route |
+
+The sum is 2. A sum of 0-3 gives junior only when F2 and F3 are both 0, so F3 = 1 makes the level
+**mid**. The Tech Lead publishes the scores, the level and the dev tasks as a `decision` note:
+
+```text
+$ node tools/grugops/note.js add abc-001 --kind decision --by tech-lead --confidence high \
+    --ref ABC-001 --body-file /tmp/abc-001-plan.md
+noted abc-001 20260604T101500Z-tech-lead-decision-1a2b3c4d
+```
+
+It writes a short `## Tech Lead plan` section into the ticket body,
+`memory-bank/plans/tickets/ABC-001.md`:
+
+```markdown
+## Tech Lead plan
+- Level: mid. Adapter: `grugops-software-engineer-mid`. Sum: 2. Note: 20260604T101500Z-tech-lead-decision-1a2b3c4d
+- Scope: the `GET /version` route in `src/app.ts` and its unit tests in `src/version.test.ts`.
+- Dropped: a build-info endpoint and a version header on every response; nobody asked for them.
+- Floor: the acceptance criteria in this ticket; the existing `GET /health` test stays green.
+```
+
+The ticket stays in `Ready for Dev` while the Tech Lead plans. The Tech Lead ends its task with
+`node tools/grugops/claim.js done abc-001-plan`.
+
+## The engineer works at the named level
+
+Once the plan note is published, the Orchestrator moves `ABC-001` to `In Development`, queues
+`abc-001-dev` with the same `ref:` line, and claims it for the adapter the plan names:
+
+```text
+$ node tools/grugops/claim.js claim abc-001-dev --by grugops-software-engineer-mid --level mid
+claimed abc-001-dev by grugops-software-engineer-mid
+```
+
+On Claude Code it spawns `grugops-software-engineer-mid` by name with the task reference only. It
+never re-decides the level. On the other hosts the Software Engineer role reads the level from
+`## Tech Lead plan` and keeps to the mid scope.
+
+The engineer reads the shared context, then works on the branch `grugops/ticket-to-pr-abc-001`,
+test-first. It writes the two unit tests and watches them fail, then adds the route:
 
 ```ts
 // ABC-001: read-only version endpoint so operators can confirm which build is live.
@@ -112,85 +147,137 @@ app.get("/version", async () => {
 });
 ```
 
-## Gate verdict (real)
-
-The gate (`05-pr-quality-gate.md`) ran in order — `install → lint → typecheck → unit → build` —
-with the commands pulled from the sample's `AGENTS.md` slots (filled with the sample's real
-verified commands at bootstrap, never fabricated):
-
-```text
-install    npm install                          -> rc 0
-lint       npm run lint   (tsc --noEmit -p tsconfig.json)  -> rc 0
-typecheck  npm run typecheck (tsc --noEmit -p tsconfig.json) -> rc 0
-unit       npm test       (node --test 'src/**/*.test.ts')   -> tests 2 / pass 2 / fail 0, rc 0
-build      npm run build  (tsc --noEmit -p tsconfig.json)  -> rc 0
-```
-
-Honest note (no fabricated verdict): this minimal sample has **no separate linter or build step** —
-its `package.json` wires `lint`, `typecheck`, and `build` all to the same `tsc --noEmit -p tsconfig.json`.
-So the `lint` and `build` gate rows here genuinely ran `tsc --noEmit`, not eslint and not an emitting
-build; they degenerate to the typecheck for this sample. They are reported as exactly what ran. (This
-matches `examples/01`, where the Scribe recorded these slots as `tsc --noEmit` and left only the
-absent eslint/prettier/e2e slots `UNKNOWN - verify`.)
-
-All four `mandatory_gates` (`lint, typecheck, unit, build`) passed; no self-fix round was needed.
-
-Terminal result: **`READY_FOR_HUMAN_REVIEW`**.
-
-checkpoints.open_pr=block — the agent opened a branch and stopped at the PR. It never merged. A human holds
-merge and deploy.
-
-## PR / branch link (honest)
-
-The throwaway sample has **no git remote**, so there is no hosted PR URL. The change is a real
-local branch with a real diff, recorded honestly as such:
+The tests pass, and so does the existing `GET /health` test. The engineer pushes the branch and
+opens pull request `#12`. It publishes the work as an `observation` note with the trace ids on
+its refs. This sample has a scripted install, so no gate stamp exists here and a pointer to the
+work goes in an `observation`, as Workflow 16 says:
 
 ```text
-branch:   feat/ABC-001-version-endpoint  (off main)
-diffstat: 5 files changed, 33 insertions(+), 4 deletions(-)
-            src/app.ts           +5   (the /version route)
-            src/version.test.ts  +23  (2 passing tests)
-            package.json, tsconfig.json, src/server.ts  (gate wiring)
-PR link:  <none — no remote on the throwaway sample; a human opens the PR on a real remote>
+$ node tools/grugops/note.js add abc-001 --kind observation --by software-engineer \
+    --confidence high --ref ABC-001 --ref '#12' --ref src/app.ts --ref src/version.test.ts \
+    --body-file /tmp/abc-001-dev.md
+noted abc-001 20260604T104200Z-software-engineer-observation-5e6f7a8b
 ```
 
-## Validator (DOG-01)
+The note body names the branch, the files, the commands run and ends with a `Not checked:` line.
+The engineer moves `ABC-001` to `In Review` and runs `node tools/grugops/claim.js done abc-001-dev`.
 
-`node scripts/validate-agent-factory.mjs` was run against the sample's resulting tree at every
-board state (Ready for Dev, In Review) — **`ALL CHECKS PASSED`, exit 0**, bare and `--strict`.
-It also still exits 0 on grugops's own tree (the D-42 self-test).
+## QE/E2E tries to break it
 
-## Trace updates (real row)
+QE/E2E claims its own subtask the same way. It calls `GET /version` with and without
+`APP_VERSION` set, and with an unsupported method. End-to-end tests do not run: `quality.ui_e2e` is
+`ui-or-critical-path`, and this change has no UI and no critical path. QE/E2E records its pass as
+a `claim` with `confidence: UNKNOWN - verify`, because no gate stamp exists on this host to make it
+a `finding`:
 
-`memory-bank/plans/traceability.md` on the sample carried ABC-001 from seed to In Review:
+```text
+$ node tools/grugops/note.js add abc-001 --kind claim --by qe-e2e --confidence "UNKNOWN - verify" \
+    --ref ABC-001 --ref src/version.test.ts --body "QE result: PASS. No e2e: no UI or critical path."
+noted abc-001 20260604T110300Z-qe-e2e-claim-9c0d1e2f
+```
 
-| Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |
-|--------|-------|------|---------|------|-----------------|-------|-----|---------|--------|
-| ABC-001 | GET /version endpoint | EPIC-001 | FEAT-001 | NFR-001 | feat/ABC-001-version-endpoint / src/app.ts | src/version.test.ts | — | — | In Review |
+Security/NFR is not triggered: a read-only status route adds no risk-bearing surface.
 
----
+## The gate
 
-## Dual-path parity (DOG-02): only the dispatch differs, never the content
+The gate runs as `05-pr-quality-gate.md` states. It first runs the read-only git-host check,
+`node tools/grugops/host-protection.js`. In this illustration `main` is protected on the git host,
+so the check exits 0 and its last line reads:
 
-grugops dispatches the same factory two ways: the **sequential AGENTS.md path** (agent loads the
-roles in turn — proven REAL above) and the **CC-native sub-agent path** (a live Claude Code
-session installs the plugin and spawns the `grugops-orchestrator` sub-agent via the `Agent`
-tool). DOG-02 asserts they produce the **same ticket, the
-same handoff filenames, and the same gate verdict** — only the dispatch mechanism differs.
+```text
+HOST-PROTECTION: 1 protected, 0 unprotected, 0 UNKNOWN - verify; production environment not checked (UNKNOWN - verify by design)
+```
 
-The CC-native column is filled by running `docs/dogfood-human-runbook.md` in a live Claude Code
-session; until then its cells read **pending human** (never simulated — fabricating them would
-violate the no-fabrication rule).
+The gate records an `observation` note that names `main` as protected and says the production
+environment is not checked.
 
-| Parity dimension | Sequential AGENTS.md path (agent-proven) | CC-native sub-agent path (human-confirmed) |
-|------------------|-------------------------------------------|---------------------------------------------|
-| Same ticket | `ABC-001 — GET /version endpoint` (driven here) | `pending human` (runbook step 3 — drive the same ABC-001) |
-| Dispatch mechanism | `AGENTS.md → orchestrator.md` sequential role-load | `pending human` (plugin install → `settings.json` `agent:` → `Agent` spawn) |
-| Plugin-cache pointer resolution (D-31) | n/a (no plugin cache on the sequential path) | `pending human` (runbook step 1 — `/grugops:plan` resolves, not a path error) |
-| Handoff filenames produced | `implementation-handoff.md`, `qe-handoff.md` | `pending human` (runbook step 3 — expect the SAME filenames) |
-| Gate verdict | `READY_FOR_HUMAN_REVIEW` | `pending human` (runbook step 3 — expect the SAME verdict) |
-| Validator on resulting tree (DOG-01) | `ALL CHECKS PASSED` (exit 0, bare + strict) | `pending human` (runbook step 4 — expect the SAME exit 0) |
+Then the checks run in order, with the commands from the sample's `AGENTS.md` slots:
 
-When every CC-native cell is confirmed and equals its sequential counterpart, DOG-02 is met:
-the dispatch differed, the content did not. The honest agent-proven / human-pending split is the
-deliverable — see `docs/dogfood-human-runbook.md`.
+```text
+install         npm install                                            -> rc 0
+lint            npm run lint       (tsc --noEmit -p tsconfig.json)     -> rc 0
+typecheck       npm run typecheck  (tsc --noEmit -p tsconfig.json)     -> rc 0
+unit            npm test           (node --test)                       -> tests 3, pass 3, fail 0
+build           npm run build      (tsc --noEmit -p tsconfig.json)     -> rc 0
+uat-spec        not run: no *.uat.spec.ts file and no e2e lane for this change
+e2e             not run: quality.ui_e2e=ui-or-critical-path
+test-integrity  node tools/grugops/test-skip-integrity.js .grugops/test-skips.md --skip-count 0 -> rc 0
+```
+
+This sample has no separate linter or build step, so `lint` and `build` run the same
+`tsc --noEmit` as `typecheck`. They are reported as exactly what ran. The test runner reports 0
+skipped tests, and the skip registry `.grugops/test-skips.md`, which a human owns, lists none. No
+self-fix round was needed.
+
+Next the gate renders the trace and checks the state:
+
+```text
+$ node tools/grugops/trace-render.js .
+Rendered the trace: 1 task(s) and 7 note(s) read; skipped notes: unparseable 0, unopenable 0, not-a-regular-file 0, above-ceiling 0, vanished 0, unsealed 0; unreadable tasks 0; 1 file(s) written, 0 file(s) removed.
+$ node tools/grugops/state-check.js .
+...
+No findings.
+```
+
+The rendered `memory-bank/plans/traceability/ABC-001.md`, shown here as output:
+
+```markdown
+<!-- GENERATED by grugops trace-render from published note refs — do not hand-edit -->
+# Trace: ABC-001
+
+## Requirement
+
+- EPIC-001
+- FEAT-001
+- ADR-0001
+- NFR-001
+
+## Code
+
+- #12
+- src/app.ts
+
+## Tests
+
+- src/version.test.ts
+
+## UAT
+
+None recorded.
+
+## Release
+
+None recorded.
+```
+
+The index `memory-bank/plans/traceability.md` keeps one line for the ticket:
+`| ABC-001 | [ABC-001](traceability/ABC-001.md) |`.
+
+Every check passed. On a host repository no gate stamp exists, so the gate records an
+`observation` that no verdict stands behind the run, and publishes:
+
+```text
+READY_FOR_HUMAN_REVIEW
+no gate stamp on this host: no verdict stands behind this result
+```
+
+The rendered trace, the board moves and `Cycle time`, `WIP` and `Gate pass rate` in
+`memory-bank/plans/metrics.md` are committed on the pull request branch.
+
+## The board
+
+```text
+## Ready for Dev (WIP 0/6)
+
+## In Development (WIP 0/3)
+
+## In Review (WIP 1/3)
+- [ABC-001] GET /version endpoint  (owner: QE/E2E, since: 2026-06-04)
+```
+
+## The human step
+
+`checkpoints.open_pr=block`: the agents opened a branch and a pull request, and stopped there.
+Sam, the sample's maintainer, reviews pull request `#12` against
+`agent-factory/checklists/pr-review-checklist.md` and decides whether to merge it. No agent merges,
+and no agent deploys.
