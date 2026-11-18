@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 43
 current_phase_name: Story and layered docs
 status: executing
-stopped_at: Completed 43-15-PLAN.md
-last_updated: "2026-11-18T04:08:34.685Z"
+stopped_at: Completed 43-09-PLAN.md
+last_updated: "2026-11-18T04:58:12.494Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 43 execution started
-state_head: 4e92ba808af0b88e3e822bf4cff61fb04cd73043
+state_head: ed7b05a511418d30afe730dcb576d8aa296f69f6
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 165
-  completed_plans: 159
+  completed_plans: 160
   percent: 89
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43 (Story and layered docs) — EXECUTING
-Plan: 10 of 15
+Plan: 11 of 15
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 43 execution started
 
@@ -877,6 +877,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43 P08 | 8 min | 2 tasks | 2 files |
 | Phase 43 P05 | 20 min | 2 tasks | 19 files |
 | Phase 43 P15 | 26 min | 2 tasks | 4 files |
+| Phase 43 P09 | 20min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -2450,6 +2451,8 @@ Recent decisions affecting current work:
 - [Phase 43]: 43-05: roles reached are exact role display names in '- <Display Name> — ' Agents involved bullets plus role files the skill body names; non-name bullets are skipped, unknown workflow or role paths are refused
 - [Phase 43]: 43-15: docs/ and examples/ needed no install.ts change; the arms from 43-06 are generic, proven by new cases and five install.js mutations
 - [Phase 43]: 43-15: an installer from before 43-06 reads a kit-home record naming docs/examples as malformed, keeps agent-factory/ as an unrecorded backup and exits 3 (measured); install/README.md says so
+- [Phase 43]: 43-09: claim rows about merge, deploy or production steps are stated as the kit text's instruction or at the checkpoint default and point to GUARANTEES.md, so they stay architecture rows with no depends_on
+- [Phase 43]: 43-09: moving a registered claim out of agent-factory/README.md owes LANG-03 disposition rows in docs/audit/29-style-dispositions/ (check-diff-disposition watches the kit README)
 
 ### Pending Todos
 
@@ -2792,8 +2795,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-18T04:08:33.076Z
-Stopped at: Completed 43-15-PLAN.md
+Last session: 2026-11-18T04:58:10.870Z
+Stopped at: Completed 43-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
