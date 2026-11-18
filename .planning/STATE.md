@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: 43
-current_phase_name: Story and layered docs
-status: verifying
-stopped_at: Completed 43-13-PLAN.md
-last_updated: "2026-11-18T13:47:01.571Z"
-last_activity: 2026-11-17
-last_activity_desc: Phase 43 execution started
-state_head: de200df968992cf46df0c10cf9e9d5d3a4022b9c
+current_phase: "43.1"
+current_phase_name: Close v3.0 P1 debt
+status: planning
+stopped_at: Phase 43 complete, ready to plan Phase 43.1
+last_updated: "2026-11-18T20:29:38.311Z"
+last_activity: 2026-11-18
+last_activity_desc: Phase 43 complete, transitioned to Phase 43.1
+state_head: 012da79e0694ba38e1f18829e1dac9574272e0fb
 progress:
-  total_phases: 9
-  completed_phases: 8
+  total_phases: 10
+  completed_phases: 9
   total_plans: 165
   completed_plans: 165
-  percent: 89
+  percent: 100
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 
 ## Current Position
 
-Phase: 43 (Story and layered docs) — EXECUTING
-Plan: 15 of 15
-Status: Phase complete — ready for verification
-Last activity: 2026-11-17 — Phase 43 execution started
+Phase: 43.1 — Close v3.0 P1 debt
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-18 — Phase 43 complete, transitioned to Phase 43.1
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 545
+- Total plans completed: 560
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -149,6 +149,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 40 | 25 | - | - |
 | 41 | 29 | - | - |
 | 42 | 8 | - | - |
+| 43 | 15 | - | - |
 
 **Recent Trend:**
 
@@ -905,6 +906,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 - Phase 32.1 inserted after Phase 32: Board Dashboard Deferred Residuals — the 16 open items Phase 32's Option C close deferred (F-14..F-21 + carried ledger rows; see 32-41-SUMMARY.md and deferred-items.md) (URGENT)
 - Phase 33.1 inserted after Phase 33: Phase 33 Leftovers: Guard Bypasses First — owns the Phase 33 override carry, CR-01/CR-02 first (URGENT)
 - Phase 34.1 inserted after Phase 34: Per-agent installer: install for the coding agent(s) named (asked or by parameter); carries Phase 34 UAT gaps G-34-R3-2/G-34-R3-4; absorbs backlog 999.4
+- Phase 43.1 inserted after Phase 43: Close v3.0 P1 debt from the milestone audit (human chose option 1, fix before close) (URGENT)
 
 ### Decisions
 
@@ -2812,7 +2814,7 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-11-18T13:46:59.943Z
-Stopped at: Completed 43-13-PLAN.md
+Stopped at: Phase 43 complete, ready to plan Phase 43.1
 Resume file: None
 
 ## Operator Next Steps

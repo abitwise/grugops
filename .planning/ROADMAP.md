@@ -121,7 +121,7 @@ Full phase details + milestone summary: `milestones/v2.1-ROADMAP.md` · requirem
 - [x] **Phase 40: Plain-language role rewrite** - caveman retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English within 67,383 bytes, every load-bearing rule kept, "do less" rules added (completed 2026-11-04)
 - [x] **Phase 41: Orchestrator flow guidance** - the Orchestrator reads running work from disk, refills free capacity on each completion, knows when to start a fresh session, and the same guidance works on all six hosts (completed 2026-11-15)
 - [x] **Phase 42: Skills per role and evaluation** - each role names the skills it may use with a fallback, third-party skills are evaluated and recommended only as optional pinned installs, and the doctor warns on a missing skill (completed 2026-11-17)
-- [ ] **Phase 43: Story and layered docs** - the README tells the new story, the main docs explain how grugops works with worked examples, and every agent and skill has a generated, freshness-gated reference page
+- [x] **Phase 43: Story and layered docs** - the README tells the new story, the main docs explain how grugops works with worked examples, and every agent and skill has a generated, freshness-gated reference page (completed 2026-11-18)
 
 **Dependencies:** 35 is independent and may run in parallel with 36. 36 → 37 → 38. 37 → 39, so 39 may run in parallel with 38. 39 → 40 → 41. 42 needs both 39 and 40. 43 needs every other phase.
 
@@ -744,7 +744,7 @@ Wave 5
   5. The docs state open gaps honestly (own-session spawn capture is `UNKNOWN - verify`), make no cost or token-saving claims, and `CLAUDE.md` no longer names `/grug` (STORY-05)
   6. Milestone UAT, carried from Phase 39 UAT tests 10 and 14 (human, 2026-10-31): on a live Claude Code host in a scratch repo, unscored work is never auto-delegated to a junior, mid or senior engineer adapter (each level is reached only when the Tech Lead's plan names it), and a `grugops-designer` design note reaches `scripts/context-io.js` through Bash and is admitted, not refused as unsealed
 
-**Plans**: 15/15 plans executed (plan revision 1 split 43-04 into 43-04 and 43-14, and 43-06 into 43-06 and 43-15; plans run by wave, not by number)
+**Plans**: 15/15 plans complete (plan revision 1 split 43-04 into 43-04 and 43-14, and 43-06 into 43-06 and 43-15; plans run by wave, not by number)
 
 Wave 1 *(one registry plan, one corpus plan, disjoint files)*
 - [x] 43-01-PLAN.md — the pre-phase baseline, and the `retired` claim status: row and id kept, text and anchor absence-checked (STORY-04)
@@ -795,9 +795,28 @@ Wave 9 *(human checkpoint)*
 | 40. Plain-language role rewrite | v3.0 | 25/25 | Complete    | 2026-11-04 |
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
 | 42. Skills per role and evaluation | v3.0 | 8/8 | Complete    | 2026-11-17 |
-| 43. Story and layered docs | v3.0 | 15/15 | In Progress | - |
+| 43. Story and layered docs | v3.0 | 15/15 | Complete    | 2026-11-18 |
+| 43.1. Close v3.0 P1 debt (INSERTED) | v3.0 | 0/0 | Not started | - |
 
 ## Backlog
+
+### Phase 43.1: Close v3.0 P1 debt (INSERTED)
+
+**Goal:** Close the 12 P1 items from the v3.0 audit before the milestone ships, so CI on main is green on ubuntu, an install no longer breaks a host's own tests, and no shipped doc makes a false or unqualified claim. Source: `.planning/v3.0-MILESTONE-AUDIT.md` and `.planning/v3.0-DEFERRED-TRIAGE.md`, with evidence per id in `.planning/v3.0-deferred-triage.jsonl`. Chosen by the human on 2026-11-18, option 1: "fix the P1s now, then close".
+**Requirements**: none new. This hardens shipped v3.0 behavior (STORY-04, STORY-05, RUN-05, LAYOUT-03) and closes deferred items D0–D4, D6, D66, D67, D68, D692, D693 and D739.
+**Depends on:** Phase 43
+**Success Criteria** (what must be TRUE):
+  1. The ubuntu CI job on main is green. The tests that read `.planning/phases/31-*` and `27-*` (D0–D4, D6) resolve the archived paths under `.planning/milestones/v2.1-phases/`, or are retired by a recorded decision. `check-flip-manifest.js` exits 0 or is retired by a recorded decision. The `install/install.test.ts` case "on a host whose package.json has no type field" passes, with its cause found. The windows job stays out of scope; it is tracked in `.planning/WINDOWS.md`.
+  2. No runnable the installer writes to `tools/grugops/` matches `node --test`'s default file globs, so a host's own `node --test` run after install picks up no grugops file (D66). Install, uninstall and `--migrate` handle the old name on repos that already have it.
+  3. The phase 43 review follow-ups are closed: WR-02, WR-03, IN-03 and IN-04 (D68), and F-09, F-10 and F-12 (D67). The claim registry covers `docs/skills.md` and `install/README.md`.
+  4. `agent-factory/packaging/adapters.md` no longer says grugops never spawns sub-agents: it matches the Claude Code coordinator route (D692). Workflow 12, the CHANGELOG, install/README §5 and the commit convention state that the production environment is the hard floor only when the deploy credentials live solely in that environment (D693).
+  5. The kit-home overlap check refuses a kit home and target that are the same directory under another spelling, including a macOS firmlink (`/System/Volumes/Data…`), by comparing device and inode rather than path strings. A test pins the refusal (D739; backlog 999.1, B1).
+  6. The 12 P1 items are marked resolved in their `deferred-items.md` sources and in `.planning/v3.0-DEFERRED-TRIAGE.md`.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 43.1 to break down)
 
 ### Phase 999.1: Installer adversarial e2e lane — turn the per-plan red-team into a bounded, repeatable test flow (BACKLOG)
 
