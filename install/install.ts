@@ -3689,19 +3689,16 @@ if (!ALLOW_SELF) {
   const realKit = realPathThroughExisting(KIT_ROOT);
   const realHome = realPathThroughExisting(GRUGOPS_HOME);
   const realTarget = realPathThroughExisting(TARGET);
-  // The kit entries beside the kit root (plan 43-06): each one's path and real path.
-  const docsEntries = KIT_ENTRY_PATHS.filter((e) => e !== KIT_ENTRY_PATH).map((e) => {
-    const at = join(GRUGOPS_HOME, e);
-    return { at, real: realPathThroughExisting(at) };
+  // Every kit entry (plan 43-06): the kit root and the shipped docs roots beside it, each with its real path.
+  const kitEntries = KIT_ENTRY_PATHS.map((e) => {
+    const at = e === KIT_ENTRY_PATH ? KIT_ROOT : join(GRUGOPS_HOME, e);
+    return { entry: e, at, realAt: e === KIT_ENTRY_PATH ? realKit : realPathThroughExisting(at) };
   });
   const within = (child: string, parent: string): boolean => child.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
   let overlap: string | null = null;
-  const overlapsTarget = (real: string, target: string): boolean => real === target || within(real, target) || within(target, real);
-  const docsOverlap = realTarget === null ? undefined : docsEntries.find((d) => d.real !== null && overlapsTarget(d.real, realTarget));
-  if (realKit === null || realHome === null || realTarget === null || docsEntries.some((d) => d.real === null)) {
+  if (realHome === null || realTarget === null || kitEntries.some((k) => k.realAt === null)) {
     const unread = [
-      ...(realKit === null ? [`the kit root ${KIT_ROOT}`] : []),
-      ...docsEntries.filter((d) => d.real === null).map((d) => `the kit entry ${d.at}`),
+      ...kitEntries.filter((k) => k.realAt === null).map((k) => (k.entry === KIT_ENTRY_PATH ? `the kit root ${KIT_ROOT}` : `the kit entry ${k.at}`)),
       ...(realHome === null ? [`the kit home ${GRUGOPS_HOME}`] : []),
       ...(realTarget === null ? [`the target ${TARGET}`] : []),
     ];
@@ -3709,22 +3706,18 @@ if (!ALLOW_SELF) {
       `install.js: the real path of ${unread.join(" and of ")} could not be read, so it cannot be shown that the kit ` +
       `home ${GRUGOPS_HOME} lies outside the target ${TARGET}; the kit could be written into, or replace, your ` +
       `repository. Set GRUGOPS_HOME to a directory outside the repository that can be resolved. Nothing was written.`;
-  } else if (
-    realKit === realTarget ||
-    within(realKit, realTarget) ||
-    within(realTarget, realKit) ||
-    realHome === realTarget ||
-    within(realHome, realTarget)
-  ) {
-    overlap =
-      `install.js: the kit home ${KIT_ROOT} overlaps the target ${TARGET} (real paths ${realKit} and ${realTarget}); ` +
-      `the kit would be written into, or replace, your repository. Set GRUGOPS_HOME to a directory outside the ` +
-      `repository. Nothing was written.`;
-  } else if (docsOverlap !== undefined) {
-    overlap =
-      `install.js: the kit home entry ${docsOverlap.at} overlaps the target ${TARGET} (real paths ${docsOverlap.real} and ` +
-      `${realTarget}); the shipped docs would be written into, or replace, your repository. Set GRUGOPS_HOME to a ` +
-      `directory outside the repository. Nothing was written.`;
+  } else {
+    // The kit entry that is the target, lies inside it or holds it; else, when the kit home is the target or lies
+    // inside it, the kit root (every entry then lies inside the target).
+    const hit =
+      kitEntries.find((k) => k.realAt === realTarget || within(k.realAt as string, realTarget) || within(realTarget, k.realAt as string)) ??
+      (realHome === realTarget || within(realHome, realTarget) ? kitEntries[0] : undefined);
+    if (hit !== undefined) {
+      overlap =
+        `install.js: the kit home ${hit.at} overlaps the target ${TARGET} (real paths ${hit.realAt} and ${realTarget}); ` +
+        `the kit would be written into, or replace, your repository. Set GRUGOPS_HOME to a directory outside the ` +
+        `repository. Nothing was written.`;
+    }
   }
   if (overlap !== null) {
     process.stderr.write(`${overlap}\n`);

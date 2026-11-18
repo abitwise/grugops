@@ -4758,7 +4758,8 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
   ["install.ts", "configCarryStep", "remove it", 2, "the seeded factory.config.json path that is not a regular file"],
   ["install.ts", "copyKit", "remove", 4, "the new kit staged in a temporary directory"],
   ["install.ts", "copyKit", "remove it by hand", 2, "the replaced kit left in its holder directory"],
-  ["install.ts", "writeKitHomeRecord", "remove it by hand when you no longer need it", 1, "an unrecorded backup of the kit-home record"],
+  // Plan 43-06 (D-11, D-27): one kit-home record now covers the backups of every kit entry a run made, so the sentence names them in the plural.
+  ["install.ts", "writeKitHomeRecord", "remove them by hand when you no longer need them", 1, "the unrecorded backups of the kit-home record"],
   ["install.ts", "renderAdaptersInMirror", "remove it, and re-run", 2, "the model configuration file that could not be read"],
   ["install.ts", "kitDestDecision", "remove it", 1, "a symbolic link at a kit destination that is not install's"],
   ["install.ts", "materializeAdapter", "remove it by hand", 1, "a symlink adapter still present after it was unlinked"],
@@ -5160,9 +5161,9 @@ const NOT_INSTALLS_EXEMPT: readonly NotInstallsRow[] = [
   [
     "install.ts",
     "writeKitHomeRecord",
-    "${path}: ${previous.why}. It is not install's kit-home record, so it was left as it is and this run was not recorded there (the backup ${join(GRUGOPS_HOME, made.path)} is unrecorded; remove it by hand when you no longer need it).",
+    "${path}: ${previous.why}. It is not install's kit-home record, so it was left as it is and this run was not recorded there (the backup(s) ${made.map((m) => join(GRUGOPS_HOME, m.path)).join(\", \")} are unrecorded; remove them by hand when you no longer need them).",
     "the kit-home record",
-    "writeKitHomeRecord's verify over an unreadable kit-home record, with this run's backup",
+    "writeKitHomeRecord's verify over an unreadable kit-home record, with this run's backups (plan 43-06: one per kit entry it backed up)",
   ],
 ];
 interface NotInstallsSite {
@@ -5485,7 +5486,12 @@ describe("the marker-writer census (REC-1, derived over every chokepoint call)",
 // the Claude Code version line print through printableLine (state-migrate.ts stripControlChars plus the bidi format
 // characters taken out), and doctorDeclaredSkills prints through its local say, which calls it. Neither reads the
 // marker; the DI-19 rows below still hold.
-const DOCTOR_REACH_SIZE = 80;
+// Re-pinned 2026-11-18 by plan 43-06 (D-11, D-27): 79, measured by this census. The reach is matched by identifier
+// NAME, and the doctor's own `rel` variables matched the arrow `rel` that dirsSameContent declared inside itself. Plan
+// 43-06 moved that walker out as treeFiles (shippedSameContent shares it), so `rel` is no longer a function name and
+// left the set. The doctor never called that walker: the functions it reaches are unchanged, and the DI-19 rows below
+// still hold.
+const DOCTOR_REACH_SIZE = 79;
 
 /** Every install.ts function by name: a function declaration, or a function or arrow expression bound to a const. */
 function functionsByName(sf: ts.SourceFile): Map<string, ts.Node[]> {

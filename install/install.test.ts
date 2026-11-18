@@ -130,7 +130,7 @@ import {
 // print ten thousand verification lines to prove one threshold. The cycle-REPORT case still runs
 // the compiled installer end to end, because what it pins is the reporting channel and the banner.
 // Sized FROM the constant, never from a restated number. Drives the COMMITTED .js — the repo idiom.
-import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, hasSourceMarkers } from "./kit-source.js";
+import { srcNestedAdapterFiles, MAX_WALK_ENTRIES, SOURCE_MARKERS, SHIPPED_DOCS_ROOTS, hasSourceMarkers } from "./kit-source.js";
 
 // THE ONE PLATFORM-SHAPE SKIP FORMAT (plan 33-05, D-16), imported in the test only, under the same
 // exception as the two imports above: install.ts keeps importing nothing from scripts/. The skip helpers
@@ -534,6 +534,16 @@ const SYNTH_GENERATOR_KIT_SOURCES: string[] = ["agent-factory/roles", "agent-fac
 // out of the real repository. It plants NO `agent-factory/config`: the installer never copies that
 // into its mirror either (D-06), and a fixture that shipped one would be asserting against a shape
 // the installer cannot produce.
+// plantShippedDocsRoots — give a throwaway $GRUGOPS_SRC the shipped docs roots (kit-source.ts SHIPPED_DOCS_ROOTS),
+// empty. Since plan 43-06 (D-11, D-27) install copies the shipped docs beside the kit, and a kit source whose docs
+// roots cannot be read is a verify finding (the run ends INCOMPLETE, exit 3), because the kit's `../docs/` links would
+// be dead in the kit home. The real kit source always carries them, so a synthetic source carries them too, empty:
+// the cases that use one are about the adapters, the kit or the doctor, not about the shipped pages. The roots come
+// from the import, never typed here.
+function plantShippedDocsRoots(src: string): void {
+  for (const root of SHIPPED_DOCS_ROOTS) mkdirSync(join(src, root), { recursive: true });
+}
+
 function plantRenderInputs(src: string): void {
   mkdirSync(join(src, "scripts"), { recursive: true });
   for (const rel of SYNTH_GENERATOR_TWINS) {
@@ -583,6 +593,7 @@ function makeSyntheticSrc(): string {
   // The render inputs FIRST: the roles corpus this plants is what decides the rendered adapter
   // names, and SYNTH_ADAPTERS is derived from the same corpus in the real repository.
   plantRenderInputs(src);
+  plantShippedDocsRoots(src);
   mkdirSync(join(src, "agent-factory", "seed", ".grugops"), { recursive: true });
   mkdirSync(join(src, ".claude", "agents"), { recursive: true });
   writeFileSync(join(src, "agent-factory", "VERSION"), "0.0.0-synthetic\n");
@@ -1701,6 +1712,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     for (const rel of ["agent-factory", ".claude", "AGENTS.md", "scripts/runnable-ref", ...SYNTH_GENERATOR_TWINS]) {
       cpSync(join(REPO_ROOT, ...rel.split("/")), join(src, ...rel.split("/")), { recursive: true });
     }
+    plantShippedDocsRoots(src);
     const rolePath = join(src, "agent-factory", "roles", "orchestrator.md");
     const before = readFileSync(rolePath, "utf8");
     const after = before.replace(/(## One job\n)(\S)/, "$1In checkout S: $2");
@@ -12339,6 +12351,7 @@ describe("install.js — an adapter this kit version no longer ships (plan 39-10
     const probeAdapter = adapter.replaceAll("grugops-system-analyst", "grugops-retired-probe").replaceAll("roles/system-analyst.md", "roles/retired-probe.md");
     expect(probeAdapter, "premise: the copied adapter has a name to change").not.toBe(adapter);
     writeFileSync(join(src, ...PROBE_REL.split("/")), probeAdapter);
+    plantShippedDocsRoots(src);
     return src;
   }
 

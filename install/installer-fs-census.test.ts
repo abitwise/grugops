@@ -267,13 +267,13 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     site: "install.ts:copyKit:mkdtempSync",
     count: 2,
     gate: "dry-run-return-above",
-    why: "install.ts:2428 returns before mkdtempSync at :2445 (the staging directory `.agent-factory.tmp-XXXXXX`) and :2463 (the holder `.agent-factory.old-XXXXXX` a recorded kit is moved into), both under GRUGOPS_HOME and created exclusively, so nothing that was there is reused or replaced (plan 33.1-37, rows D8 and D10 of plan 33.1-36). They replaced the fixed `.tmp.<pid>` and `.old.<pid>` names",
+    why: "install.ts:2428 returns before mkdtempSync at :2445 (the staging directory `.agent-factory.tmp-XXXXXX`) and :2463 (the holder `.agent-factory.old-XXXXXX` a recorded kit is moved into), both under GRUGOPS_HOME and created exclusively, so nothing that was there is reused or replaced (plan 33.1-37, rows D8 and D10 of plan 33.1-36). They replaced the fixed `.tmp.<pid>` and `.old.<pid>` names. Since plan 43-06 the two calls sit in copyKit's write loop over the kit entries, after its `if (DRY_RUN)` return, and are named `.<entry>.tmp-XXXXXX` and `.<entry>.old-XXXXXX` per entry",
   },
   {
     site: "install.ts:copyKit:renameSync",
     count: 3,
     gate: "dry-run-return-above",
-    why: "install.ts:2428 returns before the renames at :2464 (a recorded kit into this run's holder), :2474 (anything else at the kit root to `agent-factory.bak.<ISO>`, recorded; never-clobber: gone(backup) is asked first) and :2483 (the staged kit into place) (plan 33.1-37)",
+    why: "install.ts:2428 returns before the renames at :2464 (a recorded kit into this run's holder), :2474 (anything else at the kit root to `agent-factory.bak.<ISO>`, recorded; never-clobber: gone(backup) is asked first) and :2483 (the staged kit into place) (plan 33.1-37). Since plan 43-06 the three calls sit in copyKit's write loop over the kit entries, after its `if (DRY_RUN)` return, and act on each entry the same way (`<entry>.bak.<ISO>` for a backup)",
   },
   {
     site: "install.ts:copyKit:rmdirSync",
@@ -286,6 +286,14 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     count: 1,
     gate: "dry-run-return-above",
     why: "install.ts:2428 returns before rmSync at :2501, which removes only this run's mkdtemp holder, holding only the displaced kit, and only after owns(kitHome, GRUGOPS_HOME, \"agent-factory\", \"kit\") answered owned for it (plan 33.1-37; the ownership check below asserts the order). The removal of the kit root by name (:1642) and of the staging name (:1624) are gone",
+  },
+  // Plan 43-06 (D-11, D-27): copyKit stages each shipped docs entry page by page through copyKitDocs, never with a
+  // cpSync of the whole source folder, so a checkout-only path cannot be staged.
+  {
+    site: "install.ts:copyKitDocs:cpSync",
+    count: 1,
+    gate: "helper-gated",
+    why: "copyKitDocs copies one shipped page (kit-source.ts shippedDocs, under a docs entry) from the kit source into this run's exclusive mkdtemp staging directory `<GRUGOPS_HOME>/.<entry>.tmp-XXXXXX/<page>`, with errorOnExist and force false, so nothing already there is overwritten (plan 43-06). Its one caller is copyKit, in its write loop, after copyKit's `if (DRY_RUN)` return",
   },
   {
     site: "install.ts:copyKitFile:symlinkSync",
@@ -497,6 +505,13 @@ const READ_SITES: readonly ReadSite[] = [
     cls: "kit-path",
     source: 'join(GRUGOPS_SRC, "agent-factory")',
     why: "the kit source checkout (GRUGOPS_SRC): the kit is copied into a staging directory beside the kit home",
+  },
+  {
+    site: "install.ts:copyKitDocs:cpSync",
+    count: 1,
+    cls: "kit-path",
+    source: 'join(GRUGOPS_SRC, ...rel.split("/"))',
+    why: "the kit source checkout (GRUGOPS_SRC): each shipped page (kit-source.ts shippedDocs, a docs or examples page that is not checkout-only) is copied into a staging directory in the kit home (plan 43-06, D-11, D-27); a page that is a link in the source is copied as the file it points at",
   },
   {
     site: "install.ts:renderAdaptersInMirror:cpSync",

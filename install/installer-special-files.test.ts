@@ -56,7 +56,7 @@ import {
   runUninstall,
   spawnBin,
 } from "./installer-paths.test-support.js";
-import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
+import { KIT_ENTRY_PATH, KIT_ENTRY_PATHS, KIT_HOME_RECORD_REL } from "./install-marker.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-special-")));
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
@@ -327,10 +327,11 @@ for (const shape of ["FIFO", "directory"] as const) {
 // constants, so a third kit-home read path added there without a case here fails the pinned count.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-const KIT_HOME_READ_PATHS: readonly string[] = [KIT_HOME_RECORD_REL, KIT_ENTRY_PATH];
-// Pinned: the kit-home record install reads (readKitHomeRecord) and the kit root copyKit decides on
-// (owns(kit), treeRecord, dirsSameContent, and --update's VERSION read under it).
-const KIT_HOME_READ_PATH_COUNT = 2;
+const KIT_HOME_READ_PATHS: readonly string[] = [KIT_HOME_RECORD_REL, ...KIT_ENTRY_PATHS];
+// Pinned: the kit-home record install reads (readKitHomeRecord) and each kit entry copyKit decides on
+// (owns(kit), treeRecord, dirsSameContent, and --update's VERSION read under the kit root). Plan 43-06 (D-11,
+// D-27) made the shipped docs roots kit entries beside the kit root (docs, examples), so 2 became 4.
+const KIT_HOME_READ_PATH_COUNT = 4;
 type KitHomeRun = "install --yes" | "install --yes --update" | "install --yes --prune-old-kit";
 // Plan 33.1-40: prune reads the kit-home record (and the backups it records), so it is a kit-home run too.
 const KIT_HOME_RUNS: readonly KitHomeRun[] = ["install --yes", "install --yes --update", "install --yes --prune-old-kit"];
@@ -356,10 +357,10 @@ function kitHomeRun(kind: KitHomeRun, t: { target: string; home: string; grugops
   const args = kind === "install --yes" ? [] : kind === "install --yes --update" ? ["--update"] : ["--prune-old-kit"];
   return runInstall(t.target, t.grugopsHome, args, { home: t.home, timeoutMs: 60_000 });
 }
-// Where the planted path is now: in place, or (for the kit root) the one backup copyKit renamed it to.
+// Where the planted path is now: in place, or (for a kit entry) the one backup copyKit renamed it to.
 function kitHomeWhereNow(grugopsHome: string, rel: string): string {
-  if (rel === KIT_ENTRY_PATH) {
-    const baks = readdirSync(grugopsHome).filter((n) => n.startsWith(`${KIT_ENTRY_PATH}.bak.`));
+  if (KIT_ENTRY_PATHS.includes(rel)) {
+    const baks = readdirSync(grugopsHome).filter((n) => n.startsWith(`${rel}.bak.`));
     if (baks.length === 1) return join(grugopsHome, baks[0]);
   }
   return join(grugopsHome, rel);
