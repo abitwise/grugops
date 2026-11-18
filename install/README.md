@@ -46,7 +46,13 @@ The installer uses a **two-root** layout, so the kit and your per-repo state sta
 separated:
 
 - **Shared, read-only kit** → copied once to `${GRUGOPS_HOME:-$HOME/.grugops}` (default
-  `~/.grugops`). One kit, shared across every repo you install into.
+  `~/.grugops`). One kit, shared across every repo you install into. This kit home holds three
+  folders side by side: `agent-factory/` (the kit itself), `docs/` and `examples/`. The `docs/` and
+  `examples/` folders are copies of the public user docs and the worked examples, so the links between
+  the kit and those pages resolve in the kit home as they do in a grugops checkout. Install copies
+  only those pages. It never writes the records that stay in the checkout there: `docs/audit/`,
+  `docs/design/`, `docs/initial/`, the maintainer runbook (`docs/dogfood-human-runbook.md`) and the
+  pre-v3 layout page (`docs/pre-v3-state-layout.md`).
 - **Per-repo, writable state** → seeded into the target repo (`.grugops/factory.config.json`,
   the install marker, `memory-bank/plans/`, and `memory-bank/`).
 
@@ -152,16 +158,28 @@ written. Install reports each file that failed as a counted `verify` line naming
 run's checks see that state and check it again.
 
 The shared kit home is different. The kit home keeps a record of what install wrote there,
-`${GRUGOPS_HOME:-$HOME/.grugops}/.grugops-kit.json`. A re-install replaces the `agent-factory/` that
-record names with a fresh copy of the kit, so an edit you made inside the shared kit install wrote is
-overwritten, with no backup and no question. That is accepted for now (human decision, 2026-09-30); a
-backup of kit-home edits is deferred. Keep your own changes in the target repository, not in the
-shared kit home. Anything else at that path is kept: an `agent-factory/` the record does not name (one
-of your own, or a kit home written by an installer from before the record existed), a symbolic link,
-or a file is renamed aside to `agent-factory.bak.<ISO>` beside it, never deleted, and the backup is
-recorded in `.grugops-kit.json`. So the first re-install over a kit home written before this release
-leaves one such backup. `--prune-old-kit` removes it while it is unchanged (see "Pruning old
-backups"), or you can remove it by hand once you no longer need it.
+`${GRUGOPS_HOME:-$HOME/.grugops}/.grugops-kit.json`. A re-install replaces each of `agent-factory/`,
+`docs/` and `examples/` that the record names with a fresh copy, so an edit you made inside one of
+them is overwritten, with no backup and no question. That is accepted for now (human decision,
+2026-09-30); a backup of kit-home edits is deferred. Keep your own changes in the target repository,
+not in the shared kit home. Anything else at one of those three paths is kept: a folder the record
+does not name (one of your own, or a kit home written by an installer from before the record
+existed), a symbolic link, or a file is renamed aside to `<name>.bak.<ISO>` beside it
+(`agent-factory.bak.<ISO>`, `docs.bak.<ISO>` or `examples.bak.<ISO>`), never deleted, and the backup
+is recorded in `.grugops-kit.json`. So the first re-install over a kit home written before the record
+existed leaves one `agent-factory.bak.<ISO>`. Over a kit home written before `docs/` and `examples/`
+were copied there, install adds them with no backup, unless you already keep a folder of that name
+there. `--prune-old-kit` removes such a backup while it is unchanged (see "Pruning old backups"), or
+you can remove it by hand once you no longer need it.
+
+An installer from before `docs/` and `examples/` were copied to the kit home does not accept a
+kit-home record that names them. It reads the record as malformed, so as no record at all. It then
+keeps the `agent-factory/` it finds as an `agent-factory.bak.<ISO>` backup, copies its own kit, and
+leaves `docs/`, `examples/` and the record as they are. The run ends `install INCOMPLETE` with exit
+code `3` and a `verify` line saying the record was not written and the backup is unrecorded, so
+`--prune-old-kit` leaves that backup; remove it by hand. Running the current installer again
+replaces all three folders and keeps the record. (Measured on 2026-11-18 with such an installer,
+over a kit home the current installer wrote.)
 
 A grugops skill or adapter file that is already in the repository, byte for byte what install would
 write (a copy you made by hand, for example), is not install's unless an earlier install recorded
@@ -1613,9 +1631,12 @@ an edit has not reached yet without writing anything, run
 It is **reversible**: the displaced kit is retained as a timestamped `agent-factory.bak.<ISO>`
 backup under the kit home (renamed aside, never deleted, and recorded in `.grugops-kit.json`)
 whenever the new kit differs from it. If the kit is already identical, the update leaves no backup
-behind. Anything at `agent-factory/` that the kit-home record does not name as install's kit (a
-directory of yours, a link, a file, or a kit written by an installer from before the record existed)
-is always kept the same way, whether or not it differs. `--update` has no target, so the kit-home
+behind. The `docs/` and `examples/` beside the kit are refreshed the same way: one that differs from
+the shipped pages (a page you edited there, say) is kept as `docs.bak.<ISO>` or
+`examples.bak.<ISO>`, recorded the same way, and an identical one is replaced with no backup.
+Anything at `agent-factory/`, `docs/` or `examples/` that the kit-home record does not name as
+install's (a directory of yours, a link, a file, or a kit written by an installer from before the
+record existed) is always kept the same way, whether or not it differs. `--update` has no target, so the kit-home
 overlap refusal does not apply to it; the record is what keeps it from deleting anything install did
 not write.
 
@@ -1640,8 +1661,9 @@ This is the **single, opt-in deletion path** in grugops, and it is deliberately 
 
 - It removes **only backups install recorded**: the in-repo kit (`agent-factory.bak.<ISO>`) and legacy
   config (`factory.config.json.bak.<ISO>`) backups `--migrate` makes in the target, recorded in
-  `.grugops/install.json`, and the kit backups install and `--update` make in the kit home
-  (`agent-factory.bak.<ISO>`), recorded in `.grugops-kit.json` there.
+  `.grugops/install.json`, and the backups install and `--update` make in the kit home
+  (`agent-factory.bak.<ISO>`, `docs.bak.<ISO>` and `examples.bak.<ISO>`), recorded in
+  `.grugops-kit.json` there.
 - It removes a recorded backup only while it is **still exactly as install left it**, compared with its
   recorded content: every file's bytes and permission bits, every link's target, and every name in a
   directory. A backup you changed since, even by one added file, is left and named with the reason. A
@@ -1652,9 +1674,10 @@ This is the **single, opt-in deletion path** in grugops, and it is deliberately 
   your own `thesis.bak.<ISO>/` or `budget.xlsx.bak.<ISO>` has the same shape. A backup grugops made
   before this release has no record either, so prune leaves it too (`not recorded by install`). Check
   such a backup and remove it by hand when you no longer need it.
-- A kit-home backup install made of something that was not its kit (a directory of yours at
-  `agent-factory/`; its `backed-up` line said so) is a recorded backup like the others, so prune removes
-  it while it is unchanged. Move anything you want to keep out of such a backup before you prune.
+- A kit-home backup install made of something that was not its own (a directory of yours at
+  `agent-factory/`, `docs/` or `examples/`; its `backed-up` line said so) is a recorded backup like the
+  others, so prune removes it while it is unchanged. Move anything you want to keep out of such a backup
+  before you prune.
 - After it removes a backup, prune takes that backup's entry out of the record that listed it. If the
   record cannot be rewritten (it changed while prune ran, or it is read-only), a `verify` line names the
   entries it still lists, and the run exits `3`; a later prune finds those paths gone and leaves the
