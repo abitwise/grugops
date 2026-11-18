@@ -42,11 +42,13 @@ import {
   isNumberedWorkflowFile,
   listRoleDisplayNames,
   listPluginSkillAdapters,
+  listAgentAdapterSpecs,
   listRoles,
   listWorkflowDisplayNames,
 } from "./kit-model.js";
 import { parseFrontmatter } from "./frontmatter.js";
-import { HOST_TOOLS } from "../install/host-tools.js";
+import { readRoleSkills } from "./role-skills-reader.js";
+import { HOST_TOOLS, LAUNCH_AGENT_NAME, LAUNCH_NOT_LIVE, launchInvoke, launchLiveNote } from "../install/host-tools.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-catalog.js");
@@ -1304,5 +1306,232 @@ describe("generate-catalog.js (DOCS-01)", () => {
       workflowCadenceCell(m2, "09-daily-sweep.md"),
       "a NON-empty cadence must publish its own value — otherwise the UNKNOWN - verify assertion above would also pass against a generator that hard-coded the cell",
     ).toBe("scrum-only");
+  });
+});
+
+// ── The full role pages (plan 43-14, D-14) ────────────────────────────────────────────────────────
+//
+// Each role page carries, after its opening: a `| Field | Value |` table (Tier, Capabilities, Skills,
+// Workflows, Source), an `## Adapters per host` table with one plain-text row per HOST_TOOLS host, and
+// the six sections One job, Activates when, Output, Board moves, Hard limits and Stop when, copied
+// verbatim from the role file. Reads and Responsibilities stay in the role file. Every expected value
+// is derived here from the kit, the host registry and the role-skills reader; nothing is typed.
+describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () => {
+  const SIX = ["One job", "Activates when", "Output", "Board moves", "Hard limits", "Stop when"] as const;
+  const SEQUENTIAL_CELL = "Loaded by the Orchestrator in turn; no per-role adapter.";
+  const ROLE_FILES: readonly string[] = listRoles(ROOT);
+  const NAMES: readonly string[] = listRoleDisplayNames(ROOT);
+  const SPECS = listAgentAdapterSpecs(ROOT);
+  const SKILLS = readRoleSkills(ROOT);
+
+  function mirror(): string {
+    const m = mkdtempSync(join(tmpdir(), "grugops-catalog-pages-"));
+    tmpDirs.push(m);
+    mirrorGeneratorInto(m);
+    return m;
+  }
+  const run = (m: string): { status: number | null; text: string; stdout: string } => {
+    const r = spawnSync("node", [join(m, "scripts", "generate-catalog.js")], { encoding: "utf8" });
+    return { status: r.status, text: `${r.stdout}${r.stderr}`, stdout: r.stdout };
+  };
+  const page = (m: string, file: string): string => readFileSync(join(m, "docs", "reference", "agents", file), "utf8");
+  const section = (text: string, heading: string): string[] => {
+    const lines = text.split("\n");
+    const at = lines.indexOf(`## ${heading}`);
+    if (at === -1) return [];
+    const end = lines.findIndex((l, i) => i > at && l.startsWith("## "));
+    return lines.slice(at + 1, end === -1 ? lines.length : end);
+  };
+  /** The section body as the role file writes it, up to the next level-two heading, trailing blanks dropped. */
+  const roleSection = (roleText: string, heading: string): string => section(roleText, heading).join("\n").trimEnd();
+  /** The value cell of a `| <field> | <value> |` row of the header table. */
+  const fieldCell = (text: string, field: string): string | undefined => {
+    const row = text.split("\n").find((l) => l.startsWith(`| ${field} | `));
+    return row === undefined ? undefined : row.slice(`| ${field} | `.length, -" |".length);
+  };
+  const frontmatterOne = (text: string, key: string): string | undefined => {
+    const parsed = parseFrontmatter(text);
+    if (!parsed.ok) throw new Error(`unreadable frontmatter: ${parsed.reason}`);
+    const v = parsed.value.get(key) ?? [];
+    return v.length === 1 && v[0].trim() !== "" ? v[0].trim() : undefined;
+  };
+  /** The workflow files whose `## Agents involved` has a bullet `- <name> — `, in numeric order. */
+  const workflowsNaming = (name: string): string[] =>
+    readdirSync(join(ROOT, WORKFLOWS_SUBPATH))
+      .filter(isNumberedWorkflowFile)
+      .map((f) => ({ f, text: readFileSync(join(ROOT, WORKFLOWS_SUBPATH, f), "utf8") }))
+      .filter(({ text }) => section(text, "Agents involved").some((l) => l.startsWith(`- ${name} — `)))
+      .map(({ f, text }) => ({ f, order: Number(frontmatterOne(text, "order")) }))
+      .sort((a, b) => a.order - b.order)
+      .map(({ f }) => f);
+  /** The `- ` bullets of every workflow's `## Agents involved` that name no role display name. */
+  const unmatchedBullets = (): number =>
+    readdirSync(join(ROOT, WORKFLOWS_SUBPATH))
+      .filter(isNumberedWorkflowFile)
+      .flatMap((f) => section(readFileSync(join(ROOT, WORKFLOWS_SUBPATH, f), "utf8"), "Agents involved"))
+      .filter((l) => l.startsWith("- "))
+      .filter((l) => {
+        const m = l.match(/^- (.+?) — /);
+        return m === null || !NAMES.includes(m[1]);
+      }).length;
+
+  it("PREMISES: the role set, the adapter specs and the six sections are all non-empty in the kit", () => {
+    expect(ROLE_FILES.length).toBeGreaterThan(0);
+    expect(SPECS.length).toBeGreaterThanOrEqual(ROLE_FILES.length);
+    for (const file of ROLE_FILES) {
+      const text = readFileSync(join(ROOT, "agent-factory", "roles", file), "utf8");
+      for (const h of SIX) expect(roleSection(text, h), `${file}: ## ${h}`).not.toBe("");
+    }
+  });
+
+  it("every role page carries the header table, one plain-text adapters row per host and the six sections verbatim, and no Reads or Responsibilities", () => {
+    const m = mirror();
+    const r = run(m);
+    expect(r.status, r.text).toBe(0);
+    ROLE_FILES.forEach((file) => {
+      const roleText = readFileSync(join(ROOT, "agent-factory", "roles", file), "utf8");
+      const text = page(m, file);
+      expect(text.split("\n").includes("| Field | Value |"), `${file}: the header table`).toBe(true);
+      expect(fieldCell(text, "Tier"), file).toBe(frontmatterOne(roleText, "tier"));
+      expect(fieldCell(text, "Capabilities"), file).toBe(frontmatterOne(roleText, "capabilities") ?? "UNKNOWN - verify");
+      const stem = file.slice(0, -".md".length);
+      const declared = Object.keys(SKILLS.skills).filter((k) => SKILLS.skills[k].includes(stem));
+      const refused = SKILLS.refusals.find((x) => x.role === stem);
+      if (refused === undefined) {
+        expect(fieldCell(text, "Skills"), file).toBe(declared.length === 0 ? "none declared" : declared.map((k) => `\`${k}\``).join(", "));
+      }
+      const wfCell = fieldCell(text, "Workflows") ?? "";
+      const wfs = workflowsNaming(NAMES[ROLE_FILES.indexOf(file)]);
+      if (wfs.length === 0) expect(wfCell, file).toBe("UNKNOWN - verify");
+      else {
+        const linked = [...wfCell.matchAll(/\]\(\.\.\/\.\.\/\.\.\/agent-factory\/workflows\/([^)]+\.md)\)/g)].map((x) => x[1]);
+        expect(linked, file).toEqual(wfs);
+      }
+      expect(fieldCell(text, "Source"), file).toBe(`[agent-factory/roles/${file}](../../../agent-factory/roles/${file})`);
+
+      const rows = section(text, "Adapters per host").filter((l) => l.startsWith("| ") && !l.startsWith("| ---"));
+      expect(rows.length, `${file}: a header and one row per host`).toBe(1 + HOST_TOOLS.length);
+      HOST_TOOLS.forEach((h, i) => {
+        const row = rows[i + 1];
+        expect(row.startsWith(`| ${h.name} | `), `${file}: row ${i + 1} opens with the plain name ${h.name}`).toBe(true);
+        if (h.dispatch === "spawn") {
+          for (const s of SPECS.filter((x) => x.roleFile === file)) expect(row, file).toContain(`\`${s.name}\``);
+        } else {
+          expect(row, file).toContain(SEQUENTIAL_CELL);
+        }
+      });
+
+      let last = -1;
+      for (const h of SIX) {
+        const at = text.split("\n").indexOf(`## ${h}`);
+        expect(at, `${file}: ## ${h} present`).toBeGreaterThan(-1);
+        expect(at, `${file}: ## ${h} in order`).toBeGreaterThan(last);
+        last = at;
+        expect(section(text, h).join("\n").trimEnd(), `${file}: ## ${h} verbatim`).toBe(roleSection(roleText, h));
+      }
+      expect(text, file).not.toContain("## Reads");
+      expect(text, file).not.toContain("## Responsibilities");
+      expect(text.endsWith("\n") && !text.endsWith("\n\n"), `${file}: one trailing newline`).toBe(true);
+    });
+  });
+
+  it("the Software Engineer page lists its level adapters under Claude Code; the Orchestrator page lists its launch form on each launch host", () => {
+    const m = mirror();
+    expect(run(m).status).toBe(0);
+    const spawn = HOST_TOOLS.find((h) => h.dispatch === "spawn")!;
+    const leveled = SPECS.filter((s) => s.level !== null);
+    expect(leveled.length, "PREMISE: a role declares levels").toBeGreaterThan(0);
+    for (const s of leveled) {
+      const row = section(page(m, s.roleFile), "Adapters per host").find((l) => l.startsWith(`| ${spawn.name} | `));
+      expect(row, s.name).toContain(`\`${s.name}\``);
+    }
+    const launch = SPECS.find((s) => s.name === LAUNCH_AGENT_NAME);
+    expect(launch, "PREMISE: one adapter is the launch agent").toBeDefined();
+    const rows = section(page(m, launch!.roleFile), "Adapters per host");
+    expect(rows.find((l) => l.startsWith(`| ${spawn.name} | `))).toContain(`\`${LAUNCH_AGENT_NAME}\``);
+    const launchHosts = HOST_TOOLS.filter((h) => h.dispatch === "sequential" && h.launchForm !== null);
+    expect(launchHosts.length, "PREMISE: a sequential host has a launch form").toBeGreaterThan(0);
+    for (const h of launchHosts) {
+      const row = rows.find((l) => l.startsWith(`| ${h.name} | `)) ?? "";
+      expect(row, h.name).toContain(launchInvoke(h)!.replace(/\|/g, "\\|"));
+      expect(row, h.name).toContain(launchLiveNote(h) ?? LAUNCH_NOT_LIVE);
+    }
+    // No other role page carries a launch form.
+    for (const file of ROLE_FILES.filter((f) => f !== launch!.roleFile)) {
+      for (const h of launchHosts) expect(page(m, file), file).not.toContain(launchInvoke(h)!);
+    }
+  });
+
+  it("the Tech Lead page links WF04, and a bullet naming no role is counted in the output line, never linked", () => {
+    const m = mirror();
+    const r = run(m);
+    expect(r.status, r.text).toBe(0);
+    const tl = ROLE_FILES[NAMES.indexOf("Tech Lead")];
+    expect(tl, "PREMISE: a role is named Tech Lead").toBeDefined();
+    const wf04 = readdirSync(join(ROOT, WORKFLOWS_SUBPATH)).find((f) => f.startsWith("04-"))!;
+    expect(fieldCell(page(m, tl), "Workflows")).toContain(`(../../../agent-factory/workflows/${wf04})`);
+    const n = unmatchedBullets();
+    expect(n, "PREMISE: WF04's Receiving role bullet names no role").toBeGreaterThan(0);
+    expect(r.stdout).toContain(`${n} workflow bullet(s) name no role`);
+  });
+
+  it("a role with `capabilities` removed reads UNKNOWN - verify; declared skills are listed; a refused declaration reads UNKNOWN - verify plus the reason", () => {
+    const m = mirror();
+    const set = (file: string, f: (t: string) => string): void => {
+      const p = join(m, "agent-factory", "roles", file);
+      const before = readFileSync(p, "utf8");
+      const after = f(before);
+      expect(after, `the plant on ${file} applied`).not.toBe(before);
+      writeFileSync(p, after);
+    };
+    set("qe-e2e.md", (t) => t.replace(/^capabilities: .*\n/m, "skills: alpha-one beta\n"));
+    set("designer.md", (t) => t.replace(/^tier: /m, "skills: Bad_Name\ntier: "));
+    const r = run(m);
+    expect(r.status, r.text).toBe(0);
+    expect(fieldCell(page(m, "qe-e2e.md"), "Capabilities")).toBe("UNKNOWN - verify");
+    expect(fieldCell(page(m, "qe-e2e.md"), "Skills")).toBe("`alpha-one`, `beta`");
+    const refused = fieldCell(page(m, "designer.md"), "Skills") ?? "";
+    expect(refused.startsWith("UNKNOWN - verify ("), refused).toBe(true);
+    expect(refused).toContain("Bad_Name");
+  });
+
+  it("fail-closed: a role missing `## Stop when` → exit 1 naming the file, and every page is byte-unchanged", () => {
+    const m = mirror();
+    expect(run(m).status).toBe(0);
+    const before = snapshotDir(join(m, "docs", "reference"));
+    expect(before.size, "PREMISE: the first run wrote the tree").toBe(PAGE_TOTAL);
+    const p = join(m, "agent-factory", "roles", "qe-e2e.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/^## Stop when$/m, "## Halt when"));
+    const r = run(m);
+    expect(r.status, r.text).toBe(1);
+    expect(r.text).toContain("qe-e2e.md");
+    expect(r.text).toContain("Stop when");
+    expect(r.text).not.toContain("ERR_MODULE_NOT_FOUND");
+    expect(sameSnapshot(snapshotDir(join(m, "docs", "reference")), before)).toBe(true);
+  });
+
+  it("fail-closed: two roles with the same `# Role:` name → exit 1 naming both files, and every page is byte-unchanged", () => {
+    const m = mirror();
+    expect(run(m).status).toBe(0);
+    const before = snapshotDir(join(m, "docs", "reference"));
+    const qeName = NAMES[ROLE_FILES.indexOf("qe-e2e.md")];
+    const p = join(m, "agent-factory", "roles", "designer.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/^# Role: .+$/m, `# Role: ${qeName}`));
+    const r = run(m);
+    expect(r.status, r.text).toBe(1);
+    expect(r.text).toContain("designer.md");
+    expect(r.text).toContain("qe-e2e.md");
+    expect(r.text).not.toContain("ERR_MODULE_NOT_FOUND");
+    expect(sameSnapshot(snapshotDir(join(m, "docs", "reference")), before)).toBe(true);
+  });
+
+  it("no generated page uses the word parallel or names the model resolver's source path", () => {
+    const m = mirror();
+    expect(run(m).status).toBe(0);
+    for (const [rel, bytes] of snapshotDir(join(m, "docs", "reference"))) {
+      const t = bytes.toString("utf8");
+      expect(/\bparallel\b/i.test(t), rel).toBe(false);
+      expect(t, rel).not.toContain("scripts/model-tiers.ts");
+    }
   });
 });
