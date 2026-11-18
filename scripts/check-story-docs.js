@@ -15,6 +15,10 @@
 //      or in shippedDocs()); a checkout-only target is linked by repository URL instead, and such a
 //      URL must name a path that exists. README.md stays in the checkout, so its relative links
 //      need only exist there.
+//   4. README.md opens with the tagline (plan 43-11; D-01, STORY-01). Its first non-blank line
+//      outside fenced blocks and HTML comments is the tagline H1, so the header art and a claim
+//      anchor may come before it; and the old `simple software factory` line does not come back, in
+//      any case.
 //
 // Each check builds a `Measured` and folds it with `reportMeasured` (scripts/vacuity.ts), so a check
 // that visited nothing, or a scan set that came up short, is a failure and never a PASS line.
@@ -262,11 +266,100 @@ function runLinkCheck() {
     const m = { label, visited, expected: pages.length, findings };
     reportMeasured(m, emit, (f) => `    ${f.file}:${f.line}: (${f.target}) ${f.reason}`);
 }
+// ---------------------------------------------------------------------------------------------
+// Check 4 — README.md opens with the tagline (plan 43-11; D-01, STORY-01).
+// ---------------------------------------------------------------------------------------------
+/** The README's H1, the tagline the human chose (D-01), in the lowercase brand. */
+export const TAGLINE = "# grugops — Specialist agents. Shared context. Coordinated work.";
+/** The old tagline phrase the rewrite retired (C-28-002); matched in any case. */
+export const RETIRED_TAGLINE_PHRASE = /simple software factory/i;
+/** The one file this check reads. */
+export const README_STORY_SCAN_SET = ["README.md"];
+/**
+ * The README story findings, in line order. (1) The first non-blank line outside fenced blocks and
+ * HTML comments must be TAGLINE exactly; otherwise that line is a finding, or line 1 when there is no
+ * such line. (2) Every line carrying `simple software factory`, in any case, is a finding.
+ */
+export function readmeStoryFindings(text, file = "README.md") {
+    const lines = text.split("\n");
+    const fenced = fencedLineFlags(text);
+    const out = [];
+    let opening = null;
+    let inComment = false;
+    for (let i = 0; i < lines.length && opening === null; i++) {
+        if (fenced[i])
+            continue;
+        // Drop every HTML comment span on the line; a comment left open runs on to a later line.
+        let rest = lines[i];
+        let visible = "";
+        while (rest.length > 0) {
+            if (inComment) {
+                const end = rest.indexOf("-->");
+                if (end < 0) {
+                    rest = "";
+                }
+                else {
+                    rest = rest.slice(end + 3);
+                    inComment = false;
+                }
+            }
+            else {
+                const start = rest.indexOf("<!--");
+                if (start < 0) {
+                    visible += rest;
+                    rest = "";
+                }
+                else {
+                    visible += rest.slice(0, start);
+                    rest = rest.slice(start + 4);
+                    inComment = true;
+                }
+            }
+        }
+        if (visible.trim() !== "")
+            opening = i;
+    }
+    if (opening === null) {
+        out.push({ file, line: 1, text: "does not open with the tagline: no line outside fences and HTML comments" });
+    }
+    else if (lines[opening] !== TAGLINE) {
+        out.push({
+            file,
+            line: opening + 1,
+            text: `does not open with the tagline: the first line outside fences and HTML comments is "${excerpt(lines[opening])}"`,
+        });
+    }
+    lines.forEach((line, i) => {
+        if (RETIRED_TAGLINE_PHRASE.test(line)) {
+            out.push({ file, line: i + 1, text: `carries the retired phrase "simple software factory": ${excerpt(line)}` });
+        }
+    });
+    return out;
+}
+function runReadmeStoryCheck() {
+    let visited = 0;
+    const findings = [];
+    for (const rel of README_STORY_SCAN_SET) {
+        const text = readOrNull(rel);
+        if (text === null)
+            continue;
+        visited += 1;
+        findings.push(...readmeStoryFindings(text, rel));
+    }
+    const m = {
+        label: "STORY-01 README tagline (README.md opens with the tagline H1 and never says simple software factory)",
+        visited,
+        expected: README_STORY_SCAN_SET.length,
+        findings,
+    };
+    reportMeasured(m, emit, renderLine);
+}
 function runAll() {
     process.stdout.write("== Story docs (plan 43-03) ==\n");
     runGrugCheck();
     runGapD1Check();
     runLinkCheck();
+    runReadmeStoryCheck();
     process.stdout.write("\n== Result ==\n");
     if (FAILS === 0) {
         process.stdout.write("ALL CHECKS PASSED\n");

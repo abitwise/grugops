@@ -670,6 +670,14 @@ export function publicDocsScan() {
 //   FAIL  the public-docs scan set derived 43 document(s), expected exactly 42
 //         (root 4, examples 5, kitReadme 1, guarantees 1, skills 1, docs 31)
 //
+// MOVED 43 -> 44 ON 2026-11-18 IN PLAN 43-11, AND THE ENTRANT IS NAMED. One hand-written page
+// enters: docs/README.md, the docs index (D-07). It moves through the `docs` part only, by the plan
+// 43-02 rule (D-21), so the part goes 31 -> 32 and the scan 43 -> 44. Read off this gate's own
+// refusal with the page written and the pin not yet moved, verbatim:
+//
+//   FAIL  the public-docs scan set derived 44 document(s), expected exactly 43
+//         (root 4, examples 5, kitReadme 1, guarantees 1, skills 1, docs 32)
+//
 // THE CORPUS CARRIES NO SECOND PIN, AND THAT IS ARITHMETIC RATHER THAN AN OVERSIGHT. The corpus and
 // the scan differ by exactly PUBLIC_DOCS_EXEMPT, which is a frozen one-member array: a corpus that
 // grew by a NON-exempt document grows the scan and trips this pin, and a corpus that grew by an
@@ -677,7 +685,7 @@ export function publicDocsScan() {
 // The corpus is additionally pinned from the other side by BANNED_CLAIM_SCAN_COUNT, which is
 // two-sided over a union this corpus is half of. A third pin would be a number to maintain, not a
 // question nobody is asking.
-export const PUBLIC_DOCS_SCAN_COUNT = 43;
+export const PUBLIC_DOCS_SCAN_COUNT = 44;
 // ---------------------------------------------------------------------------
 // The check.
 // ---------------------------------------------------------------------------

@@ -48,6 +48,7 @@ grugops version `2.2.0`.
 - [Usage](docs/usage.md): start a session and get each job done.
 - [Reference](docs/reference/README.md): every role, workflow and skill.
 - [Install guide](install/README.md): every installer flag.
+- [All docs](docs/README.md): the docs index.
 
 ## Safety guarantees
 
