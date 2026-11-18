@@ -1,9 +1,9 @@
 ---
-status: complete
+status: testing
 phase: 43-story-and-layered-docs
-source: [43-13-PLAN.md, 39-UAT.md tests 10 and 14, 43-READER-REVIEW.md]
+source: [43-13-PLAN.md, 39-UAT.md tests 10 and 14, 43-READER-REVIEW.md, 43-VERIFICATION.md]
 started: 2026-11-18T08:40:11Z
-updated: 2026-11-18T13:45:25Z
+updated: 2026-11-18T17:30:00Z
 ---
 
 # Phase 43 milestone UAT: Phase 39 tests 10 and 14
@@ -14,7 +14,12 @@ level is reached only when the Tech Lead's plan names it) and TIER-05 (the Desig
 
 ## Current Test
 
-[testing complete]
+number: 15
+name: Fresh-reader check of the story docs (reader-review F-11)
+expected: |
+  A reader who has not seen grugops can say what grugops is, that it sits on top of their coding agent, how to
+  install it, what to type on their host, and who decides merge and deploy, without help.
+awaiting: user response
 
 ## Tests
 
@@ -65,6 +70,18 @@ note is admitted and nothing was skipped as unsealed. `noteRoute` counts no dire
 `scripts/context-io.js` into a host repository. Workflow 16 says `tools/grugops/note.js` carries a generated copy of
 that writer. Whether this route meets the test's wording is the human's call. The test says "the same scratch repo";
 this run used its own repository made the same way, so no test 10 note shared its context.
+
+### 15. Fresh-reader check of the story docs (verification human item, reader-review F-11)
+
+expected: Give README.md, docs/concepts.md, docs/how-it-works.md and docs/usage.md to a reader who has not seen
+grugops and ask what grugops is, how to install it and how to start a job. The reader can say what grugops is, that it
+sits on top of their coding agent, how to install it, what to type on their host, and who decides merge and deploy,
+without help.
+result: pending
+source_ref: 43-VERIFICATION.md human_verification; 43-READER-REVIEW.md item 10 (F-11, deferred to a fresh reader by
+the human on 2026-11-18)
+
+Tests 10 and 14 above stay accepted; this test was added after the phase verifier returned `human_needed`.
 
 ## Reader-review findings handed to this UAT
 
