@@ -1866,10 +1866,11 @@ describe("32-31 — a module specifier's class is a TOTAL partition decided in O
   });
 
   it("CONVERSE: the wrapper every production caller uses does NOT refuse the legitimate tree", () => {
-    // The refusal added here reaches FIVE production callers through `jsImportClosure`. That number
+    // The refusal added here reaches SIX production callers through `jsImportClosure`. That number
     // used to read "seven"; it was corrected to six in Phase 32.1 plan 32.1-01 against a measurement over
-    // the tracked set, and moved to five on 2026-10-22 (plan 37-08) when scripts/trace-freshness.ts stopped
-    // mirroring a closure. It is pinned by `WALKER_PRODUCTION_IMPORTER_COUNT` rather than left
+    // the tracked set, moved to five on 2026-10-22 (plan 37-08) when scripts/trace-freshness.ts stopped
+    // mirroring a closure, and moved back to six on 2026-11-18 (plan 43-04) when scripts/catalog-freshness.ts
+    // began mirroring the closure of scripts/generate-catalog.js. It is pinned by `WALKER_PRODUCTION_IMPORTER_COUNT` rather than left
     // as a sentence nothing decides over. A rule
     // that also refuses the legitimate shape is a regression, and this is where it is caught —
     // `analyzeClosure` deliberately calls the non-throwing `jsImportClosureFacts`, so without this
@@ -3154,9 +3155,10 @@ describe("32.1-14 — a recovered parse is a named refusal, and a declined decla
 // reading the diff.
 //
 // AND THE SHARED WALKER'S OTHER CALLERS ARE RE-RUN WITH LEGITIMATE INPUT. A refusal added to
-// `jsImportClosure` reaches FIVE production gates — corrected from "seven" to six in Phase 32.1 plan
+// `jsImportClosure` reaches SIX production gates — corrected from "seven" to six in Phase 32.1 plan
 // 32.1-01, where the number was measured over the tracked set and pinned by
-// `WALKER_PRODUCTION_IMPORTER_COUNT`, and moved to five on 2026-10-22 (plan 37-08) — and any change to
+// `WALKER_PRODUCTION_IMPORTER_COUNT`, moved to five on 2026-10-22 (plan 37-08), and back to six on
+// 2026-11-18 (plan 43-04) when scripts/catalog-freshness.ts joined — and any change to
 // WHAT COUNTS AS A SPECIFIER is a regression risk for every edge those mirrors depend on. That was true of
 // the deleted blanking pass and it is true of the tokenizer that replaced it (32.1-06): a node set that
 // stopped reading one shape would shorten every mirror at once. `CLOSURE_BASELINES` pins what each of them built BEFORE the
@@ -3296,6 +3298,13 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
         "scripts/voice-model.js",
       ],
     },
+    // 2026-11-18, plan 43-04: scripts/catalog-freshness.ts became a tree gate that mirrors the closure of
+    // scripts/generate-catalog.js into a temp dir, so this entry joined as a new caller's mirror. Taken from
+    // jsImportClosure, not typed.
+    {
+      entry: "scripts/generate-catalog.js",
+      modules: ["scripts/frontmatter.js", "scripts/generate-catalog.js", "scripts/kit-model.js"],
+    },
     // 2026-11-02, plan 40-21: see the dated comment on the hooks/admission-guard.js row (CR-01). Taken
     // from jsImportClosure, not typed.
     {
@@ -3334,10 +3343,12 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
   ]);
 
 /**
- * Eight entry artifacts carry a closure a gate depends on. A ninth is a decision, recorded above.
+ * Nine entry artifacts carry a closure a gate depends on. A tenth is a decision, recorded above.
  * Moved 9 -> 8 by plan 33.1-05: the Bash command guard's row left with the guard (33.1 D-17/D-23).
+ * Moved 8 -> 9 on 2026-11-18 by plan 43-04: scripts/catalog-freshness.ts mirrors the closure of
+ * scripts/generate-catalog.js, and that entry's row was added above.
  */
-const CLOSURE_BASELINE_COUNT = 8;
+const CLOSURE_BASELINE_COUNT = 9;
 
 /**
  * The number of `.ts` modules that import the shared walker, MEASURED at the time of the cutover.
@@ -3352,8 +3363,11 @@ const CLOSURE_BASELINE_COUNT = 8;
  * longer mirrors a closure) and scripts/trace-render.test.ts joined (it mirrors the wrapper's closure to run
  * the own trace command on a temp root). Its entry artifact, scripts/trace-render.js, is already a
  * `CLOSURE_BASELINES` row. Re-derived by listing the tracked importers.
+ * Moved 10 -> 11 on 2026-11-18 by plan 43-04: scripts/catalog-freshness.ts became a tree gate that mirrors
+ * the closure of scripts/generate-catalog.js, so it joined the importer set. That entry artifact had no row,
+ * so a `CLOSURE_BASELINES` row was added for it, measured with jsImportClosure.
  */
-const WALKER_IMPORTER_COUNT = 10;
+const WALKER_IMPORTER_COUNT = 11;
 
 /**
  * How many of those importers are PRODUCTION modules — i.e. not `*.test.ts` (Phase 32.1, plan
@@ -3372,8 +3386,11 @@ const WALKER_IMPORTER_COUNT = 10;
  * host runnable's --check and no longer mirrors a closure, so it left the importer set. Re-derived by
  * listing the tracked sources that import the walker: check-platform-shapes, context-freshness,
  * generate-hook-manifest, guarantees-freshness and now-running-freshness.
+ * Moved 5 -> 6 on 2026-11-18 by plan 43-04: scripts/catalog-freshness.ts joined the importer set (it mirrors
+ * the closure of scripts/generate-catalog.js). Re-derived by the same listing, which now also names
+ * catalog-freshness.
  */
-const WALKER_PRODUCTION_IMPORTER_COUNT = 5;
+const WALKER_PRODUCTION_IMPORTER_COUNT = 6;
 
 describe("32-31 — the refusals that MOVED are measured at the mechanism, not assumed", () => {
   it("the relocation table has exactly the number of rows its decision records", () => {
@@ -3865,7 +3882,7 @@ describe("32.1-08 — one register owns the dynamic-import answer, and it names 
     );
   });
 
-  it("CONVERSE: the live tree carries no unreadable slot, so the new refusal costs five production gates nothing", () => {
+  it("CONVERSE: the live tree carries no unreadable slot, so the new refusal costs six production gates nothing", () => {
     // The refusal added to `jsImportClosure` reaches every caller of the shared walker. Measured
     // over all 66 tracked `.js` files before it was added: ZERO unreadable slots (recorded in
     // `32.1-08-RED-baseline.txt` § 5). This is the assertion that keeps it true — and it is the
@@ -3885,7 +3902,7 @@ describe("32-31 — every existing caller of the shared walker still builds the 
   it("the caller-entry table has exactly the number of rows its decision records", () => {
     expect(
       CLOSURE_BASELINES.length,
-      "a NINTH entry artifact whose closure a gate depends on is a DECISION: record it above with " +
+      "a TENTH entry artifact whose closure a gate depends on is a DECISION: record it above with " +
         "the module list measured BEFORE the change, never with the list the changed code produces",
     ).toBe(CLOSURE_BASELINE_COUNT);
     expect(new Set(CLOSURE_BASELINES.map((r) => r.entry)).size).toBe(CLOSURE_BASELINE_COUNT);
@@ -3945,7 +3962,7 @@ describe("32-31 — every existing caller of the shared walker still builds the 
     ).toBe(WALKER_IMPORTER_COUNT);
 
     // THE PRODUCTION SUBSET, pinned so the prose cannot drift away from it again. Two sentences in
-    // this file said "seven production callers"; the measurement said six, and five since plan 37-08. A corrected sentence with
+    // this file said "seven production callers"; the measurement said six, five since plan 37-08, and six again since plan 43-04. A corrected sentence with
     // no assertion behind it is the same defect with a better number in it.
     const production = importers.filter((rel) => !rel.endsWith(".test.ts"));
     expect(
