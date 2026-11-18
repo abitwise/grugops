@@ -106,7 +106,8 @@
 // readRoleSkills), Workflows (each workflow whose `## Agents involved` has a bullet `- <display name> — `)
 // and Source. Then `## Adapters per host`, one plain-text row per HOST_TOOLS host: kit-model's adapter
 // names for the host that spawns roles, the in-turn sentence for the others, and on the launch agent's
-// page each launch form from the registry with its live-run note or the not-live mark. Then the six
+// page each launch form from the registry with its live-run note or the not-live mark. A role with level
+// adapters gets a `## Levels` section between the two tables (D-13). Then the six
 // sections ROLE_PAGE_SECTIONS names, copied from the role file through sectionBody. A cell no source
 // answers reads UNKNOWN - verify. A role missing one of the six sections, or two roles with one display
 // name, are refused by name before anything is written.
@@ -165,6 +166,10 @@ import {
 // The declared skills of every role (plan 43-14, D-14). That reader owns the role admission and the
 // projection of the `skills` key; this generator asks it rather than reading the key a second way.
 import { readRoleSkills, type RoleSkillsReport } from "./role-skills-reader.js";
+// The zero-config model and effort of each adapter (plan 43-14, D-13): the same resolver the adapter
+// generator writes from, so the levels table on a role page cannot differ from what the adapters carry.
+// The page names the dial file a user edits, never this module's source path.
+import { zeroConfigAssignments, type AdapterAssignments } from "./model-tiers.js";
 // The host registry: the one list of supported hosts, each with its display name, how it dispatches roles
 // and how a user starts grugops on it. install/host-tools.ts is pure data and imports nothing, and this
 // scripts-to-registry edge is the direction that module allows.
@@ -291,6 +296,8 @@ interface RoleEntry {
   link: string;
   /** The six extracted sections (ROLE_PAGE_SECTIONS), each body as the role file writes it. */
   sections: Map<string, string>;
+  /** The role file's own `## Levels` body, or null when it has none (plan 43-14, D-13). */
+  levels: string | null;
 }
 
 // The sections a role page copies from its role file, in page order (plan 43-14, D-14). Reads and
@@ -387,6 +394,10 @@ for (const file of roleFiles) {
     }
     sections.set(heading, s!.replace(/\s+$/, ""));
   }
+  // The role's own levels text, copied onto the page only when the role has level adapters. Absent is
+  // legal here: the page then says UNKNOWN - verify rather than inventing who names the level.
+  const ownLevels = sectionBody(text!, "Levels");
+  const levels = ownLevels === null || ownLevels.trim() === "" ? null : ownLevels.replace(/\s+$/, "");
   roles.push({
     file,
     stem: file.slice(0, -".md".length),
@@ -396,6 +407,7 @@ for (const file of roleFiles) {
     summary: firstSentence(body!),
     link: `agent-factory/roles/${file}`,
     sections,
+    levels,
   });
 }
 
@@ -816,6 +828,35 @@ try {
 } catch (e) {
   fail(`cannot derive the agent adapters: ${(e as Error).message}`);
 }
+// The zero-config answer for every adapter. It refuses a level the level table does not hold, and that
+// refusal is a finding here: a levels table with a guessed model is a fabricated row.
+let zeroConfig!: AdapterAssignments;
+try {
+  zeroConfig = zeroConfigAssignments(adapterSpecs);
+} catch (e) {
+  fail(`cannot resolve the zero-config model and effort of the agent adapters: ${(e as Error).message}`);
+}
+// The levels section of a role page (D-13), keyed on the specs' `level`, never on a role name: any role
+// whose adapters carry a level gets one. Empty for a role with no level adapter.
+function levelsLines(r: RoleEntry, specs: readonly AgentAdapterSpec[]): string[] {
+  const leveled = specs.filter((s) => s.level !== null);
+  if (leveled.length === 0) return [];
+  return [
+    "## Levels",
+    "",
+    "| Adapter | Level | Model | Effort |",
+    "| --- | --- | --- | --- |",
+    ...leveled.map(
+      (s) =>
+        `| ${s.name} | ${cell(s.level!)} | ${zeroConfig.models.get(s.adapterStem) ?? UNKNOWN} | ${zeroConfig.efforts.get(s.adapterStem) ?? UNKNOWN} |`,
+    ),
+    "",
+    "These are the model and effort each level adapter gets with no `models` setting. The models dial in [agent-factory/config/factory.config.md](../../../agent-factory/config/factory.config.md) can change them.",
+    "",
+    r.levels ?? `${UNKNOWN}: the role file has no \`## Levels\` section saying who names the level.`,
+    "",
+  ];
+}
 
 // ── Build every page into one map before anything is written ─────────────────────────────────
 const pages = new Map<string, string>();
@@ -925,6 +966,7 @@ for (const r of roles) {
       `| Workflows | ${workflowsCell} |`,
       `| Source | [${r.link}](../../../${r.link}) |`,
       "",
+      ...levelsLines(r, specs),
       "## Adapters per host",
       "",
       "| Host | Adapter |",

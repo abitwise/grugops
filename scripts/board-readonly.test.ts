@@ -3309,6 +3309,10 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
     // ./role-skills-reader.js (readRoleSkills), and scripts/role-skills-reader.js joined this closure with
     // its own imports, scripts/canonical-frontmatter.js and scripts/is-entry.js. Re-measured from
     // jsImportClosure, not typed.
+    // 2026-11-18, plan 43-14: the Software Engineer page shows each level adapter's zero-config model and
+    // effort, so the generator imports ./model-tiers.js (zeroConfigAssignments) and scripts/model-tiers.js
+    // joined this closure; its only in-repo import, scripts/kit-model.js, was already a member.
+    // Re-measured from jsImportClosure, not typed.
     {
       entry: "scripts/generate-catalog.js",
       modules: [
@@ -3318,6 +3322,7 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
         "scripts/generate-catalog.js",
         "scripts/is-entry.js",
         "scripts/kit-model.js",
+        "scripts/model-tiers.js",
         "scripts/role-skills-reader.js",
       ],
     },
