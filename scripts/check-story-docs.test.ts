@@ -16,6 +16,8 @@ import {
   gapD1ScanSet,
   grugCommandFindings,
   linkFindings,
+  readmeStoryFindings,
+  TAGLINE,
   type LinkContext,
 } from "./check-story-docs.js";
 import { publicDocsCorpus } from "./check-public-docs-vocabulary.js";
@@ -237,6 +239,86 @@ describe("check 3 — shipped docs links resolve in a kit home (D-11)", () => {
     const line = checkLine(out, "STORY-05 shipped links");
     expect(line, out.replaceAll("\n", " | ")).toContain("PASS  STORY-05 shipped links");
     expect(line).toMatch(/0 findings over (\d+)\/\1 elements/);
+  });
+});
+
+describe("check 4 — the README opens with the tagline (plan 43-11; D-01, STORY-01)", () => {
+  const ART = ["```text", "  ____ art", "```"];
+  // The verdict word (PASS or FAIL) of the README check's line, or "" when the gate printed none.
+  const verdictOf = (out: string): string => checkLine(out, "STORY-01 README tagline").trim().split(/\s+/)[0] ?? "";
+
+  it("the tagline is the exact agreed H1", () => {
+    expect(TAGLINE).toBe("# grugops — Specialist agents. Shared context. Coordinated work.");
+  });
+
+  it("the base commit's README gives two findings: the opening line and `simple software factory`", () => {
+    const base = execFileSync("git", ["show", `${BASE_COMMIT}:README.md`], { cwd: ROOT, encoding: "utf8" });
+    const f = readmeStoryFindings(base);
+    expect(f).toHaveLength(2);
+    expect(f[0].line).toBe(1);
+    expect(f[0].text).toMatch(/does not open with the tagline/);
+    expect(f[1].text).toMatch(/simple software factory/i);
+  });
+
+  it("the live README gives no finding", () => {
+    expect(readmeStoryFindings(readFileSync(join(ROOT, "README.md"), "utf8"))).toEqual([]);
+  });
+
+  it("an art fence and a claim comment before the tagline pass", () => {
+    const text = [...ART, "", "<!-- claim: C-28-069 -->", TAGLINE, "", "A plain story."].join("\n");
+    expect(readmeStoryFindings(text)).toEqual([]);
+  });
+
+  it("a multi-line HTML comment before the tagline is skipped too", () => {
+    const text = ["<!--", "a note", "-->", TAGLINE].join("\n");
+    expect(readmeStoryFindings(text)).toEqual([]);
+  });
+
+  it("a prose line before the tagline H1 is a finding naming its line", () => {
+    const text = [...ART, "", "Welcome to grugops.", TAGLINE].join("\n");
+    const f = readmeStoryFindings(text);
+    expect(f).toHaveLength(1);
+    expect(f[0].line).toBe(5);
+    expect(f[0].text).toMatch(/does not open with the tagline/);
+  });
+
+  it("an empty H1 before the tagline is a finding", () => {
+    const f = readmeStoryFindings(["#", TAGLINE].join("\n"));
+    expect(f).toHaveLength(1);
+    expect(f[0].line).toBe(1);
+  });
+
+  it("a README with no line outside fences and comments is a finding", () => {
+    expect(readmeStoryFindings([...ART, "<!-- only a comment -->"].join("\n"))).toHaveLength(1);
+  });
+
+  it.each(["simple software factory", "Simple Software Factory", "The SIMPLE SOFTWARE FACTORY."])(
+    "`%s` anywhere is a finding, in any case",
+    (phrase) => {
+      const f = readmeStoryFindings([TAGLINE, "", phrase].join("\n"));
+      expect(f).toHaveLength(1);
+      expect(f[0].line).toBe(3);
+    },
+  );
+
+  it("refuses a mirror whose README.md opens with the old H1, naming the line", () => {
+    const root = freshTmp("story-docs-readme-");
+    writeIn(root, "README.md", "# grugops\n\nA story.\n");
+    const r = runGate(root);
+    expect(r.status).toBe(1);
+    expect(verdictOf(r.out)).toBe("FAIL");
+    expect(r.out).toMatch(/README\.md:1: /);
+  });
+
+  it("refuses a mirror with no README.md as a check that visited nothing", () => {
+    const root = freshTmp("story-docs-readme-");
+    const r = runGate(root);
+    expect(verdictOf(r.out)).toBe("FAIL");
+  });
+
+  it("the live tree: the README check passes", () => {
+    const r = runGate(ROOT);
+    expect(verdictOf(r.out)).toBe("PASS");
   });
 });
 
