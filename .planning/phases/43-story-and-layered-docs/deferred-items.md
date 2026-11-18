@@ -45,7 +45,7 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
 
 ## Reader-review follow-ups decided in the 43-13 UAT (source: 43-13 UAT decision, 2026-11-18, 43-UAT.md § Human decision)
 
-- **F-07:** reword the two anchored `always` safety sentences, C-28-001 (docs/concepts.md) and C-28-023 (agent-factory/README.md), and re-measure both registry rows in the same commit.
+- **F-07:** reword the two anchored `always` safety sentences, C-28-001 (docs/concepts.md) and C-28-023 (agent-factory/README.md), and re-measure both registry rows in the same commit. **Done 2026-11-18 in commit `86e6c366`:** both sentences reworded to the git-host floor (no `always`), both rows re-measured `true`, F-28-201 and F-28-208 closed, `docs/GUARANTEES.md` regenerated. Not reworded (outside the F-07 decision): the `always` copies in `.claude-plugin/plugin.json` (C-28-038), the generated adapter and skill text, `agent-factory/packaging/subagent.frontmatter.md` and `docs/dogfood-human-runbook.md`.
 - **F-09:** reword the first clause of C-28-033 in docs/how-it-works.md ("every shipped change is accountable end to end", for example toward "leaves a trail from requirement to release"); keep "exactly what it needs" (human decision 2026-11-04).
 - **F-10:** bring docs/skills.md and install/README.md into the claim registry's anchored set.
 - **F-12:** fix in the reference-page generator: the Orchestrator's own page row `Loaded by the Orchestrator in turn`, and named workflows for the Compliance Officer and Installer pages (both now `UNKNOWN - verify`).

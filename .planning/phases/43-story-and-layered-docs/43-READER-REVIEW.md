@@ -111,6 +111,8 @@ page. Rewording a safety row changes the safety surface (docs/GUARANTEES.md, the
 corpus, a disposition row), and C-28-001 moved byte for byte in plan 43-11 by decision. Whether to
 reword them is a human call for the 43-13 UAT.
 
+**Resolved 2026-11-18, commit `86e6c366`.** The human decided in the 43-13 UAT to reword both now. C-28-001 and C-28-023 now say that merge and deploy are human decisions, that the git host enforces them through branch protection and required reviewers the human sets up, and that on Claude Code the ask rules are a speed bump; C-28-023 also links docs/GUARANTEES.md. Both rows are re-measured `true`, and F-28-201 and F-28-208 are closed.
+
 **F-08 — `single-job "grug" agents` in C-28-001 and C-28-022.** `UNKNOWN - verify`, not fixed. The
 word is quoted brand vocabulary inside the core description, not caveman voice, and both rows are
 anchored (C-28-001 a safety row). Whether the brand word belongs outside the attribution and the FAQ's
