@@ -162,15 +162,22 @@ The shared kit home is different. The kit home keeps a record of what install wr
 `docs/` and `examples/` that the record names with a fresh copy, so an edit you made inside one of
 them is overwritten, with no backup and no question. That is accepted for now (human decision,
 2026-09-30); a backup of kit-home edits is deferred. Keep your own changes in the target repository,
-not in the shared kit home. Anything else at one of those three paths is kept: a folder the record
-does not name (one of your own, or a kit home written by an installer from before the record
-existed), a symbolic link, or a file is renamed aside to `<name>.bak.<ISO>` beside it
-(`agent-factory.bak.<ISO>`, `docs.bak.<ISO>` or `examples.bak.<ISO>`), never deleted, and the backup
-is recorded in `.grugops-kit.json`. So the first re-install over a kit home written before the record
-existed leaves one `agent-factory.bak.<ISO>`. Over a kit home written before `docs/` and `examples/`
-were copied there, install adds them with no backup, unless you already keep a folder of that name
-there. `--prune-old-kit` removes such a backup while it is unchanged (see "Pruning old backups"), or
-you can remove it by hand once you no longer need it.
+not in the shared kit home. Anything else at `agent-factory/` is kept: a folder the record does not
+name (one of your own, or a kit home written by an installer from before the record existed), a
+symbolic link, or a file is renamed aside to `agent-factory.bak.<ISO>` beside it, never deleted, and
+the backup is recorded in `.grugops-kit.json`. So the first re-install over a kit home written before
+the record existed leaves one `agent-factory.bak.<ISO>`. `--prune-old-kit` removes such a backup while
+it is unchanged (see "Pruning old backups"), or you can remove it by hand once you no longer need it.
+
+`docs/` and `examples/` are common folder names, so install treats anything at either path that the
+record does not name differently: it leaves it exactly where it is. Install does not rename it, back
+it up, record it or copy the shipped pages into it, so no later run, `--prune-old-kit` included, can
+move or remove it. A re-install and `--update` do the same, and `DRY_RUN=1` prints the same. Install
+prints a `note` naming the path, saying the shipped docs or examples were not copied there and that
+links from the kit to that folder do not resolve in this kit home. To get the shipped pages, move
+your folder to another name and re-run, or set `GRUGOPS_HOME` to a directory of its own. Over a kit
+home written before `docs/` and `examples/` were copied there, install adds them, unless you already
+keep something of that name there.
 
 An installer from before `docs/` and `examples/` were copied to the kit home does not accept a
 kit-home record that names them. It reads the record as malformed, so as no record at all. It then
@@ -682,6 +689,11 @@ In the **shared kit root** (`${GRUGOPS_HOME:-$HOME/.grugops}`):
 - `agent-factory.bak.<ISO>` — anything at `agent-factory/` that the record does not name as install's
   kit (a directory of yours, a link, a file) is renamed aside to this name and recorded, never deleted.
   `--update` also keeps a recorded kit that differs from the new one under this name
+- `docs/` and `examples/` — copies of the shipped user docs and worked examples, replaced on re-install
+  when the record names them. Anything at either path that the record does not name is yours: install
+  leaves it where it is, copies nothing there and prints a `note` (see "Re-installing" above).
+  `--update` keeps a recorded one that differs from the shipped pages as `docs.bak.<ISO>` or
+  `examples.bak.<ISO>`, recorded
 - `.agent-factory.tmp-XXXXXX` and `.agent-factory.old-XXXXXX` — directories install creates while it
   swaps the kit in, and removes again; one is left only when a step fails, and the `verify` line names
   it
@@ -1634,9 +1646,10 @@ whenever the new kit differs from it. If the kit is already identical, the updat
 behind. The `docs/` and `examples/` beside the kit are refreshed the same way: one that differs from
 the shipped pages (a page you edited there, say) is kept as `docs.bak.<ISO>` or
 `examples.bak.<ISO>`, recorded the same way, and an identical one is replaced with no backup.
-Anything at `agent-factory/`, `docs/` or `examples/` that the kit-home record does not name as
-install's (a directory of yours, a link, a file, or a kit written by an installer from before the
-record existed) is always kept the same way, whether or not it differs. `--update` has no target, so the kit-home
+Anything at `agent-factory/` that the kit-home record does not name as install's (a directory of
+yours, a link, a file, or a kit written by an installer from before the record existed) is always
+kept the same way, whether or not it differs. Anything at `docs/` or `examples/` that the record does
+not name is left where it is, with a `note`, and nothing is copied there. `--update` has no target, so the kit-home
 overlap refusal does not apply to it; the record is what keeps it from deleting anything install did
 not write.
 
@@ -1675,9 +1688,10 @@ This is the **single, opt-in deletion path** in grugops, and it is deliberately 
   before this release has no record either, so prune leaves it too (`not recorded by install`). Check
   such a backup and remove it by hand when you no longer need it.
 - A kit-home backup install made of something that was not its own (a directory of yours at
-  `agent-factory/`, `docs/` or `examples/`; its `backed-up` line said so) is a recorded backup like the
-  others, so prune removes it while it is unchanged. Move anything you want to keep out of such a backup
-  before you prune.
+  `agent-factory/`; its `backed-up` line said so) is a recorded backup like the others, so prune removes
+  it while it is unchanged. Move anything you want to keep out of such a backup before you prune.
+  Install never makes such a backup of a `docs/` or `examples/` that is yours: it leaves that folder in
+  place and records nothing, so prune cannot reach it.
 - After it removes a backup, prune takes that backup's entry out of the record that listed it. If the
   record cannot be rewritten (it changed while prune ran, or it is read-only), a `verify` line names the
   entries it still lists, and the run exits `3`; a later prune finds those paths gone and leaves the

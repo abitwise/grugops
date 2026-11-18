@@ -932,7 +932,9 @@ function isKitHomeBackupName(path: string, of: string): boolean {
 /**
  * What a `backup` entry's backup was made from (plan 33.1-37). `kit-home` is a kit entry copyKit moved
  * aside (the kit root, or since plan 43-06 a shipped docs root: KIT_ENTRY_PATHS), and is allowed only in the
- * kit-home record; the others are target backups (plan 33.1-40):
+ * kit-home record. A docs root is backed up only when the record owns it and --update finds it differs: since
+ * review CR-01 of phase 43 an unowned docs root is left in place, never backed up. The others are target
+ * backups (plan 33.1-40):
  * the in-repo agent-factory/ and the legacy config --migrate moves aside, the handoffs directory, and an
  * edited kit file D-32 backs up. Each is allowed only in a target ledger.
  */

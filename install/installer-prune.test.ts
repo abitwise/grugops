@@ -680,8 +680,8 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
 //
 // Since plan 43-06 the kit home holds `docs/` and `examples/` beside the kit as kit entries, and install keeps what
 // it displaces there as a recorded `docs.bak.<ISO>` or `examples.bak.<ISO>` (origin kit-home), as it does for the
-// kit. This case makes one of each through two different arms (a user's own unrecorded `docs/` kept by an install,
-// an edit inside the recorded `examples/` kept by --update), plants a hand-made, unrecorded `docs.bak.<ISO>` and
+// kit. This case makes one of each through the --update arm (an edit inside the recorded entry; since review CR-01
+// of phase 43 an unrecorded `docs/` or `examples/` is left in place and never backed up), plants a hand-made, unrecorded `docs.bak.<ISO>` and
 // `examples.bak.<ISO>` beside them, and proves: DRY_RUN prune changes nothing; prune removes the two recorded backups
 // through the record and leaves the two unrecorded ones byte for byte, naming each; uninstall never touches the kit
 // home; and the target's state roots are byte-unchanged throughout.
@@ -704,12 +704,14 @@ describe("plan 43-15: --prune-old-kit removes the recorded docs and examples bac
       writeFileSync(at(w.t, rel), `the user's own file under ${rel}, which no install path may touch\n`);
     }
     const noteBytes = new Map(notes.map((rel) => [rel, readFileSync(at(w.t, rel))]));
-    // A user's own docs/ in the kit home: install keeps it as a recorded docs.bak.<ISO> (the backup arm).
-    mkdirSync(join(w.kitHome, "docs"), { recursive: true });
-    writeFileSync(join(w.kitHome, "docs", "MYNOTES.md"), "the user's own notes in a kit-home folder named docs\n");
+    // Review CR-01 of phase 43 changed how this case makes its docs backup. It planted a user's own docs/ in the
+    // kit home and let install keep it as a recorded docs.bak.<ISO>; install now leaves an unowned docs/ in place
+    // and makes no backup of it (installer-kit-home.test.ts, the CR-01 block, proves prune never reaches it). Both
+    // recorded backups now come from the one arm that still makes them: an edit inside the recorded entry, kept by
+    // --update.
     const first = install(w);
     expect(first.status, first.stdout).toBe(0);
-    // An edit inside the recorded examples/: --update keeps it as a recorded examples.bak.<ISO>.
+    writeFileSync(join(w.kitHome, "docs", "faq.md"), "edited in the kit home\n");
     writeFileSync(join(w.kitHome, "examples", "01-greenfield-bootstrap.md"), "edited in the kit home\n");
     const upd = install(w, ["--update"]);
     expect(upd.status, upd.stdout).toBe(0);

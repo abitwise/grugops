@@ -3273,9 +3273,9 @@ if (!ALLOW_SELF) {
 // (GRUGOPS_HOME=$HOME, target $HOME/code/repo) is not an overlap: install writes in the kit home only
 // the kit entries, its record (.grugops-kit.json), its backups and its own mkdtemp directories.
 // Since plan 43-06 the kit entries are the kit root and the shipped docs roots beside it (KIT_ENTRY_PATHS):
-// copyKit renames whatever is at a docs entry aside exactly as it does at the kit root, so a target at
-// `<GRUGOPS_HOME>/docs`, inside it, or holding it is refused the same way (GRUGOPS_HOME=$HOME with the target
-// at $HOME/docs would otherwise have the repository itself renamed to a backup while install wrote into it).
+// a target at `<GRUGOPS_HOME>/docs`, inside it, or holding it is refused the same way. Since review CR-01 of
+// phase 43 copyKit leaves an unowned docs entry as it is (it renames nothing there), but a recorded docs entry is
+// still replaced, so a repository at or around one would still have install write into, or replace, it.
 //
 // It does not run on --check, --update or --prune-old-kit, which branch off above. --check writes
 // nothing. --update has no target, and the kit-home record (copyKit) keeps it from deleting anything
@@ -4335,7 +4335,8 @@ function copyKit(retainBackup = false) {
     const kitHome = readKitHomeRecord(GRUGOPS_HOME);
     if (kitHome.state === "unreadable" || kitHome.state === "unbound") {
         report("note", `${join(GRUGOPS_HOME, KIT_HOME_RECORD_REL)}: ${kitHome.why}, so it is read as no record; whatever is at ` +
-            `${KIT_ENTRY_PATHS.map((e) => join(GRUGOPS_HOME, e)).join(", ")} is kept as a backup, not replaced`);
+            `${KIT_ROOT} is kept as a backup, not replaced, and whatever is at ` +
+            `${SHIPPED_DOCS_ROOTS.map((e) => join(GRUGOPS_HOME, e)).join(" and ")} is left as it is`);
     }
     // The shipped docs, derived once (kit-source.ts, D-11: listed once). Null leaves every docs entry as it is.
     const shipped = shippedDocs(GRUGOPS_SRC);
@@ -4368,6 +4369,20 @@ function copyKit(retainBackup = false) {
         }
         const own = atEntry === null ? null : owns(kitHome.ledger, GRUGOPS_HOME, entry, "kit");
         const owned = own !== null && own.owned;
+        // THE UNOWNED ARM OF A DOCS ENTRY (review CR-01 of phase 43; human decision 2026-11-18, option A). `docs` and
+        // `examples` are common folder names, and GRUGOPS_HOME=$HOME is a documented layout, so whatever is at a docs
+        // entry that the record does not own (a folder of the user's, a link, a file, a recorded entry that no longer
+        // holds) is the user's: it is left exactly as it is, with a note, before any plan is made for it. It is never
+        // renamed, backed up or recorded, so no later run (re-install, --update, --prune-old-kit) can move or remove it.
+        // The note is reported here, before the DRY_RUN branch, so a preview says the same. The kit root keeps its
+        // backup arm: `agent-factory` is a grugops-specific name.
+        if (!isKit && atEntry !== null && !owned) {
+            report("note", `${at}: something install did not write is already there, so ${noun} were not copied there and it was left ` +
+                `as it is (not renamed, not backed up, not recorded). Links from the kit to ../${entry}/ do not resolve in ` +
+                `this kit home. To get ${noun}, move what is there to another name and re-run, or set GRUGOPS_HOME to a directory of its own.`);
+            untouched.push(entry);
+            continue;
+        }
         const same = () => (pages === null ? dirsSameContent(KIT_ROOT, source) : shippedSameContent(at, entry, pages));
         const arm = atEntry === null ? "fresh" : owned ? (retainBackup && !same() ? "backup" : "replace") : "backup";
         const recorded = arm === "replace" || (arm === "backup" && owned);

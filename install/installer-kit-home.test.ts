@@ -19,7 +19,9 @@
 // else aside to a recorded `agent-factory.bak.<ISO>`. The cases cover the first install, a recorded
 // re-install, an unrecorded directory (install and --update), a link at the kit root, --update over a
 // differing and an identical recorded kit, every damage to the record (a FIFO, a directory, a link, not
-// JSON, bound elsewhere), DRY_RUN, and KIT_HOME_VARIANTS (count pinned).
+// JSON, bound elsewhere), DRY_RUN, and KIT_HOME_VARIANTS (count pinned). The docs entries beside the kit
+// (plan 43-06) differ in one arm: since review CR-01 of phase 43, one the record does not name is left in
+// place with a note, never renamed to a backup (the CR-01 block below).
 //
 // MUTATION PROOFS (33.1-37-SUMMARY.md): removing the refusal turns kit-home-is-target red (install exits 0
 // and replaces the in-repo agent-factory/); deleting an unrecorded kit root instead of renaming it turns the
@@ -565,9 +567,9 @@ describe("shippedDocs: the shipped user docs, declared once (plan 43-02, D-11, D
 // An install copies every shippedDocs() page into the kit home as a sibling of the kit:
 // `$GRUGOPS_HOME/docs/<rel>` and `$GRUGOPS_HOME/examples/<rel>`, so `../docs/` from agent-factory/README.md
 // resolves the same in the checkout and in the kit home. Each docs root is a kit entry the kit-home record
-// names, decided by the same arms as the kit: an entry install did not record is renamed to a recorded
-// `<entry>.bak.<ISO>`, never overwritten or deleted. Checkout-only paths never reach a kit home. These
-// cases prove the fresh arm and the backup arm; plan 43-15 proves replace, --update, DRY_RUN and prune.
+// names. Since review CR-01 of phase 43, an entry install did not record is left exactly where it is, with a
+// note, never renamed, backed up, overwritten or deleted. Checkout-only paths never reach a kit home. These
+// cases prove the fresh arm and the unowned arm; plan 43-15 proves replace, --update, DRY_RUN and prune.
 // The target's state roots are compared byte for byte around every run, since no install path may touch them.
 
 const SHIPPED_SAMPLES = ["docs/faq.md", "docs/GUARANTEES.md", "examples/01-greenfield-bootstrap.md"] as const;
@@ -630,33 +632,29 @@ describe("plan 43-06: an install ships the user docs and examples into the kit h
     expect(stateCheck()).toEqual([]);
   });
 
-  it("a user's own unrecorded $GRUGOPS_HOME/docs is renamed to a recorded docs.bak.<ISO>, byte-identical, and the shipped docs are copied", () => {
+  // Review CR-01 of phase 43 (human decision 2026-11-18, option A) replaced this case. It asserted that a user's own
+  // unrecorded $GRUGOPS_HOME/docs was renamed to a recorded docs.bak.<ISO>, which --prune-old-kit then deleted. The
+  // contract now is that such a folder is left where it is, byte for byte, with no backup and no record; the cases
+  // live in the CR-01 block below.
+  it("a user's own unrecorded $GRUGOPS_HOME/docs is left in place byte for byte, no docs.bak.<ISO> is made, and the shipped docs are not copied over it", () => {
     const c = kitHomeCase("docs-unrecorded");
     const stateCheck = plantStateRoots(c.target);
-    const notes = "the user's own notes in a folder that happens to be named docs\n";
-    writeAt(c.grugopsHome, "docs/MYNOTES.md", notes);
+    writeAt(c.grugopsHome, "docs/MYNOTES.md", "the user's own notes in a folder that happens to be named docs\n");
     writeAt(c.grugopsHome, "docs/faq.md", "the user's own faq, not the shipped one\n");
+    const before = snapshotTree(join(c.grugopsHome, "docs"));
     const r = install(c);
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
-    const baks = docsBackupsIn(c);
-    expect(baks.length, `docs backups: ${baks.join(", ")}`).toBe(1);
-    expect(baks[0]).toMatch(/^docs\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/);
-    expect(readFileSync(join(c.grugopsHome, baks[0], "MYNOTES.md"), "utf8")).toBe(notes);
-    expect(readFileSync(join(c.grugopsHome, baks[0], "faq.md"), "utf8")).toBe("the user's own faq, not the shipped one\n");
-    expect(existsSync(join(c.grugopsHome, "docs", "MYNOTES.md")), "the user's file is still in the new docs").toBe(false);
-    expect(readFileSync(join(c.grugopsHome, "docs", "faq.md")).equals(readFileSync(join(REPO, "docs", "faq.md")))).toBe(true);
+    expect(docsBackupsIn(c)).toEqual([]);
+    expect(snapshotTree(join(c.grugopsHome, "docs"))).toBe(before);
     const rec = recordOf(c);
-    const backup = rec.ledger.find((e) => e.kind === "backup" && e.of === "docs");
-    expect(backup, JSON.stringify(rec)).toBeDefined();
-    expect(backup).toMatchObject({ path: baks[0], origin: "kit-home", of: "docs" });
-    expect(String(backup!.content)).toMatch(/^tree:sha256:[0-9a-f]{64}$/);
-    expect(rec.ledger.filter((e) => e.kind === "kit")).toEqual(KIT_ENTRY_RECORD);
-    expect(r.stdout).toMatch(/^ {2}backed-up\s/m);
-    // A later re-install keeps the backup and its entry while the backup still holds what was recorded.
+    expect(rec.ledger.filter((e) => e.kind === "backup"), JSON.stringify(rec)).toEqual([]);
+    expect(rec.ledger.filter((e) => e.kind === "kit").map((e) => e.path)).toEqual(["agent-factory", "examples"]);
+    expect(r.stdout).not.toMatch(/^ {2}backed-up\s/m);
+    // A later re-install decides the same way: the folder is still not install's.
     const again = install(c);
     expect(again.status, again.stdout).toBe(0);
-    expect(docsBackupsIn(c)).toEqual(baks);
-    expect(recordOf(c).ledger.filter((e) => e.kind === "backup")).toEqual([backup]);
+    expect(docsBackupsIn(c)).toEqual([]);
+    expect(snapshotTree(join(c.grugopsHome, "docs"))).toBe(before);
     expect(stateCheck()).toEqual([]);
   });
 
@@ -671,6 +669,109 @@ describe("plan 43-06: an install ships the user docs and examples into the kit h
     expect(r.stdout).toBe("");
     expect(r.stderr).toMatch(/overlaps the target/);
     expect(snapshotTree(c.grugopsHome)).toBe(before);
+  });
+});
+
+// ── REVIEW CR-01 OF PHASE 43 (human decision 2026-11-18, option A): AN UNOWNED docs/ OR examples/ IS LEFT ALONE ──
+//
+// `docs` and `examples` are common folder names, and install/README.md documents GRUGOPS_HOME=$HOME as a supported
+// layout. Before this fix, a folder at either path that the kit-home record did not name was renamed to a recorded
+// `<entry>.bak.<ISO>`, and --prune-old-kit then deleted that backup. Now copyKit leaves such a folder exactly as it is,
+// on install, re-install, --update and DRY_RUN: no rename, no backup, no record entry (so prune has nothing to act
+// on), and a `note` line saying the shipped pages were not copied there and what to do. A docs entry the record does
+// own still takes the replace and --update arms (plan 43-15, below). The kit root keeps its own backup arm.
+
+/** The note copyKit prints for an unowned docs entry, matched on the entry's path and its fixed opening words. */
+function unownedNote(stdout: string, entry: string): string[] {
+  const re = new RegExp(`^ {2}note\\s+\\S*[/\\\\]${escapeRe(entry)}: something install did not write is already there`);
+  return stdout.split("\n").filter((l) => re.test(l));
+}
+const prune = (c: KitHomeCase, dryRun = false): Run =>
+  spawnBin(INSTALL_JS, ["--yes", "--prune-old-kit"], c.target, c.grugopsHome, { dryRun, home: c.home, timeoutMs: 120_000 });
+
+describe("review CR-01 (phase 43): an unowned docs or examples folder in the kit home is left untouched, and prune can never reach it", () => {
+  it("the reviewer's layout: GRUGOPS_HOME=$HOME holding docs/notes.md, target $HOME/code/repo; install --claude exits 0 and leaves docs/notes.md, then --prune-old-kit leaves it too", () => {
+    const root = fresh("cr01-home-is-kit-home");
+    const home = join(root, "home");
+    const target = join(home, "code", "repo");
+    mkdirSync(target, { recursive: true });
+    const notes = "the user's own notes in ~/docs, which grugops never wrote\n";
+    writeAt(home, "docs/notes.md", notes);
+    const r = spawnBin(INSTALL_JS, ["--yes", "--claude"], target, home, { home, timeoutMs: 180_000 });
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(readFileSync(join(home, "docs", "notes.md"), "utf8")).toBe(notes);
+    expect(readdirSync(join(home, "docs"))).toEqual(["notes.md"]);
+    expect(readdirSync(home).filter((n) => n.startsWith("docs.bak.")), "a docs backup was made").toEqual([]);
+    const rec = JSON.parse(readFileSync(join(home, KIT_HOME_RECORD_REL), "utf8")) as RecordJson;
+    expect(rec.ledger.filter((e) => e.kind === "backup"), "a backup was recorded").toEqual([]);
+    expect(rec.ledger.some((e) => e.path === "docs"), "the record names the user's docs").toBe(false);
+    expect(unownedNote(r.stdout, "docs").length, r.stdout).toBe(1);
+    const p = spawnBin(INSTALL_JS, ["--yes", "--prune-old-kit"], target, home, { home, timeoutMs: 120_000 });
+    expect(p.status, `${p.stdout}\n${p.stderr}`).toBe(0);
+    expect(readFileSync(join(home, "docs", "notes.md"), "utf8")).toBe(notes);
+    expect(p.stdout).not.toMatch(/^ {2}removed\s/m);
+  });
+
+  for (const entry of SHIPPED_DOCS_ROOTS) {
+    for (const how of ["install", "--update"] as const) {
+      it(`${how} over an unrecorded ${entry}/ leaves it byte for byte, makes no ${entry}.bak, records nothing for it, prints the note, and --prune-old-kit leaves it`, () => {
+        const c = kitHomeCase(`cr01-${entry}-${how}`);
+        writeAt(c.grugopsHome, `${entry}/notes.md`, `the user's own ${entry} notes\n`);
+        const before = snapshotTree(join(c.grugopsHome, entry));
+        const r = how === "install" ? install(c) : update(c);
+        expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+        expect(snapshotTree(join(c.grugopsHome, entry))).toBe(before);
+        expect(entryBackupsIn(c, entry)).toEqual([]);
+        const rec = recordOf(c);
+        expect(rec.ledger.filter((e) => e.kind === "backup"), JSON.stringify(rec)).toEqual([]);
+        expect(rec.ledger.some((e) => e.path === entry), JSON.stringify(rec)).toBe(false);
+        const note = unownedNote(r.stdout, entry);
+        expect(note.length, r.stdout).toBe(1);
+        expect(note[0]).toContain(`so the shipped ${entry} were not copied there`);
+        expect(note[0]).toContain("set GRUGOPS_HOME to a directory of its own");
+        expect(entryLines(r, "copied", entry)).toEqual([]);
+        expect(entryLines(r, "backed-up", entry)).toEqual([]);
+        // The other docs entry is copied as usual.
+        for (const other of SHIPPED_DOCS_ROOTS.filter((e) => e !== entry)) expect(entryLines(r, "copied", other).length, r.stdout).toBe(1);
+        for (const dry of [true, false]) {
+          const p = prune(c, dry);
+          expect(p.status, `${p.stdout}\n${p.stderr}`).toBe(0);
+          expect(snapshotTree(join(c.grugopsHome, entry)), `${dry ? "DRY_RUN " : ""}prune changed ${entry}/`).toBe(before);
+        }
+        expect(stagingLeftIn(c)).toEqual([]);
+      });
+    }
+  }
+
+  it("a recorded docs entry the user swapped for a file is no longer install's: a re-install leaves the file and copies nothing there", () => {
+    const c = kitHomeCase("cr01-recorded-then-file");
+    expect(install(c).status).toBe(0);
+    rmSync(join(c.grugopsHome, "docs"), { recursive: true });
+    writeFileSync(join(c.grugopsHome, "docs"), "a file the user keeps at the docs path\n");
+    const r = install(c);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(readFileSync(join(c.grugopsHome, "docs"), "utf8")).toBe("a file the user keeps at the docs path\n");
+    expect(entryBackupsIn(c, "docs")).toEqual([]);
+    expect(unownedNote(r.stdout, "docs").length, r.stdout).toBe(1);
+    expect(recordOf(c).ledger.some((e) => e.path === "docs")).toBe(false);
+  });
+
+  it("DRY_RUN install and DRY_RUN --update print the same note for each unowned entry, no would-copy or would-back-up for it, and change no byte in the kit home", () => {
+    const c = kitHomeCase("cr01-dry-run");
+    for (const e of SHIPPED_DOCS_ROOTS) writeAt(c.grugopsHome, `${e}/notes.md`, `the user's own ${e} notes\n`);
+    const before = snapshotTree(c.grugopsHome);
+    for (const run of [() => install(c, [], true), () => update(c, true)]) {
+      const r = run();
+      expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+      for (const e of SHIPPED_DOCS_ROOTS) {
+        expect(unownedNote(r.stdout, e).length, `${e}\n${r.stdout}`).toBe(1);
+        expect(entryLines(r, "would-copy", e), r.stdout).toEqual([]);
+        expect(entryLines(r, "would-back-up", e), r.stdout).toEqual([]);
+        expect(entryLines(r, "would-replace", e), r.stdout).toEqual([]);
+      }
+      expect(r.stdout).toMatch(/^ {2}would-copy\s+kit/m);
+      expect(snapshotTree(c.grugopsHome)).toBe(before);
+    }
   });
 });
 
@@ -773,7 +874,10 @@ describe("plan 43-15: the shipped docs and examples take the kit's replace, --up
     expect(stateCheck()).toEqual([]);
   });
 
-  it("DRY_RUN prints would-copy for docs and examples plus would-back-up (unrecorded), would-replace (recorded) or, under --update, would-back-up for the one that differs, and writes nothing in the kit home", () => {
+  // Review CR-01 of phase 43 changed the unrecorded half of this case: it asserted would-copy plus would-back-up for a
+  // user's own docs/ and examples/. An unowned docs entry is now left alone, so the preview prints the CR-01 note for
+  // it and neither line (the CR-01 block above holds the full DRY_RUN case).
+  it("DRY_RUN prints the CR-01 note for an unrecorded docs entry, would-copy plus would-replace for a recorded one or, under --update, would-back-up for the one that differs, and writes nothing in the kit home", () => {
     const c = kitHomeCase("docs-dry-run");
     const stateCheck = plantStateRoots(c.target);
     for (const e of SHIPPED_DOCS_ROOTS) writeAt(c.grugopsHome, `${e}/MYNOTES.md`, `the user's own ${e} notes\n`);
@@ -781,13 +885,13 @@ describe("plan 43-15: the shipped docs and examples take the kit's replace, --up
     const unrec = install(c, [], true);
     expect(unrec.status, unrec.stdout).toBe(0);
     for (const e of SHIPPED_DOCS_ROOTS) {
-      expect(entryLines(unrec, "would-copy", e).length, `${e}\n${unrec.stdout}`).toBe(1);
-      const backUp = entryLines(unrec, "would-back-up", e);
-      expect(backUp.length, `${e}\n${unrec.stdout}`).toBe(1);
-      expect(backUp[0]).toMatch(new RegExp(`[/\\\\]${e}\\.bak\\.\\d{4}-`));
+      expect(unownedNote(unrec.stdout, e).length, `${e}\n${unrec.stdout}`).toBe(1);
+      expect(entryLines(unrec, "would-copy", e), `${e}\n${unrec.stdout}`).toEqual([]);
+      expect(entryLines(unrec, "would-back-up", e), `${e}\n${unrec.stdout}`).toEqual([]);
       expect(entryLines(unrec, "would-replace", e)).toEqual([]);
     }
     expect(snapshotTree(c.grugopsHome)).toBe(before);
+    for (const e of SHIPPED_DOCS_ROOTS) rmSync(join(c.grugopsHome, e), { recursive: true });
     expect(install(c).status).toBe(0);
     const recorded = snapshotTree(c.grugopsHome);
     const rec = install(c, [], true);

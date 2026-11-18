@@ -169,8 +169,9 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   `docs/how-it-works.md`.
 - Install now copies the shipped user docs and worked examples into the kit home, as
   `$GRUGOPS_HOME/docs/` and `$GRUGOPS_HOME/examples/` beside `agent-factory/`, and records them in
-  the kit-home record. A folder already at either path that the record does not name is kept as a
-  recorded `<name>.bak.<ISO>` backup. Checkout-only pages, such as the audit records, are not copied.
+  the kit-home record. Anything already at either path that the record does not name is left where
+  it is: install does not rename it, back it up or copy into it, and prints a note saying so, so
+  `--prune-old-kit` can never reach it. Checkout-only pages, such as the audit records, are not copied.
 - The five worked examples under `examples/` are rewritten for the v3 kit: the shared queue, typed
   notes, Tech Lead scoring and the rendered trace. Examples 01 and 03 are labeled as illustrative
   runs, not captured sessions, and link the commit that holds the original capture.
