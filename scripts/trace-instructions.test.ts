@@ -2,10 +2,12 @@
 // D-02; plan 37-18).
 //
 // WHAT THIS PROVES.
-//   - the scan set is every git-tracked markdown file under agent-factory/ plus the root AGENTS.md, derived from one
-//     `git ls-files` call, and it is not empty;
+//   - the scan set is every git-tracked markdown file under agent-factory/, the root AGENTS.md and every git-tracked
+//     markdown file under examples/ (the worked walkthroughs, plan 43-12, D-18), derived from one `git ls-files` call,
+//     and it is not empty;
 //   - the set is not short: its size equals a second listing, computed by walking every directory under
-//     agent-factory/ on disk and asking git for the tracked markdown directly inside each one, plus AGENTS.md;
+//     agent-factory/ on disk and asking git for the tracked markdown directly inside each one, plus AGENTS.md and
+//     the tracked `examples/*.md`;
 //   - the set holds every role listRoles returns and every workflow listWorkflows returns, and those two lists have
 //     ROLE_COUNT and WORKFLOW_COUNT members, so the scan cannot skip a role or a workflow;
 //   - the set has SCAN_SET_SIZE files, so a short set is red even if the second listing were short the same way;
@@ -65,6 +67,8 @@ import {
 const ROOT = join(import.meta.dirname, "..");
 const KIT_DIR = "agent-factory";
 const SUBSTRATE = "AGENTS.md";
+/** The worked walkthroughs (plan 43-12, D-18): rewritten to v3 in plans 43-07 and 43-08, held by the same scan. */
+const EXAMPLES = "examples";
 
 /** Tracked paths for the given pathspecs, NUL-separated so no path is ever split or quoted by git. */
 function gitLsFiles(pathspecs: string[]): string[] {
@@ -72,9 +76,9 @@ function gitLsFiles(pathspecs: string[]): string[] {
   return out.split("\0").filter((p) => p.length > 0);
 }
 
-/** The scan set: every tracked markdown file under the kit, plus the substrate. */
+/** The scan set: every tracked markdown file under the kit, the substrate, and every tracked worked example. */
 function scanSet(): string[] {
-  return gitLsFiles([KIT_DIR, SUBSTRATE])
+  return gitLsFiles([KIT_DIR, SUBSTRATE, EXAMPLES])
     .filter((p) => p.endsWith(".md"))
     .sort();
 }
@@ -97,6 +101,7 @@ function secondListing(): string[] {
   const files: string[] = [];
   for (const dir of kitDirectories()) files.push(...gitLsFiles([`:(glob)${dir}/*.md`]));
   files.push(...gitLsFiles([SUBSTRATE]));
+  files.push(...gitLsFiles([`:(glob)${EXAMPLES}/*.md`]));
   return files.sort();
 }
 
@@ -451,8 +456,10 @@ const EXCLUSION_CONTROLS: readonly ExclusionControl[] = [
  * entered, and neither tells an agent to edit the trace by hand (measured: the case printed 79).
  * 2026-10-29, plan 39-06: 80 files; `agent-factory/roles/designer.md` entered, and it does not tell an agent to edit the
  * trace by hand (measured: the case printed 80).
+ * 2026-11-18, plan 43-12: 85 files; examples/ entered: the five worked walkthroughs, rewritten to v3 in plans 43-07 and
+ * 43-08; none tells an agent to edit the trace by hand (measured: the case printed 85).
  */
-const SCAN_SET_SIZE = 80;
+const SCAN_SET_SIZE = 85;
 
 /**
  * The runtime ceiling for one pattern on one adversarial input. The expected time is a few milliseconds; the ceiling
@@ -475,7 +482,7 @@ function wrap(text: string, width: number): string {
   return lines.join("\n");
 }
 
-describe("the scan set (plan 37-18): every tracked kit markdown file and AGENTS.md, counted two ways", () => {
+describe("the scan set (plans 37-18, 43-12): tracked kit markdown, AGENTS.md and examples/*.md, counted two ways", () => {
   const files = scanSet();
 
   it("is not empty and holds the substrate", () => {
