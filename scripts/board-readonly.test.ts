@@ -3301,9 +3301,13 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
     // 2026-11-18, plan 43-04: scripts/catalog-freshness.ts became a tree gate that mirrors the closure of
     // scripts/generate-catalog.js into a temp dir, so this entry joined as a new caller's mirror. Taken from
     // jsImportClosure, not typed.
+    // 2026-11-18, plan 43-05: the generator writes one page per plugin skill with its invocation on each
+    // host, read from the host registry, so it imports ../install/host-tools.js (a pure-data module that
+    // imports nothing) and install/host-tools.js joined this closure. Re-measured from jsImportClosure,
+    // not typed.
     {
       entry: "scripts/generate-catalog.js",
-      modules: ["scripts/frontmatter.js", "scripts/generate-catalog.js", "scripts/kit-model.js"],
+      modules: ["install/host-tools.js", "scripts/frontmatter.js", "scripts/generate-catalog.js", "scripts/kit-model.js"],
     },
     // 2026-11-02, plan 40-21: see the dated comment on the hooks/admission-guard.js row (CR-01). Taken
     // from jsImportClosure, not typed.

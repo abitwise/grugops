@@ -101,6 +101,24 @@
 // ROLES_DIR/WORKFLOWS_DIR/OUT_DIR are FIXED literal paths joined to the repo root (the script dir's
 // parent). None is ever derived from argv, env, or file content.
 //
+// SKILL PAGES (plan 43-05, D-15). Each page says what the skill does (its frontmatter `description`),
+// how to start it on each host, the workflows its body names, the roles those workflows involve plus the
+// roles its body names, its `allowed-tools`, and its source. Nothing on a skill page is typed here:
+//
+//   - the host rows come from HOST_TOOLS in install/host-tools.ts, in registry order. For the host that
+//     spawns roles (Claude Code) the row gives the standalone command, `/` plus the `name` of the one
+//     `.claude/skills/*/SKILL.md` whose `description` equals the plugin skill's, and the plugin command,
+//     `/` plus the plugin.json `name`, `:` and the plugin skill's `name`. A host that loads roles in turn
+//     reaches every skill through the dispatcher (the plugin skill whose `name` equals the plugin.json
+//     `name`), so its row gives the registry's `invoke` text, prefixed `Through the dispatcher: ` on every
+//     page but the dispatcher's own. Each row's first cell is the host's registry name in plain text,
+//     never bold: install/host-entry-docs.test.ts counts bold-host tables as launch tables;
+//   - the workflows are the `agent-factory/workflows/<file>` paths the skill body names, each checked
+//     against kit-model listWorkflows();
+//   - the roles are the role display names in those workflows' `## Agents involved` bullets of the form
+//     `- <Display Name> — `, plus each non-underscore `agent-factory/roles/<file>` the body names, each
+//     checked against the role set.
+//
 // Fail closed: a kit file with no `# Role:`/`# Workflow:` H1, an UNREADABLE frontmatter block, a
 // required field absent or declared twice, a directory read failure, or a page path that is a link
 // or another non-regular file prints a finding to stderr and process.exit(1) WITHOUT writing — every
@@ -112,7 +130,11 @@ import { parseFrontmatter, sectionEndIndex, unfencedHeadingIndex, } from "./fron
 // The rule that decides which files in the workflow directory are corpus members. It is DECLARED in
 // scripts/kit-model.ts beside WORKFLOW_COUNT and asked here; this module states no shape rule of its
 // own. See that declaration for why it is range-free and why it cannot live in either consumer.
-import { isNumberedWorkflowFile, listPluginSkillAdapters, listRoles } from "./kit-model.js";
+import { isNumberedWorkflowFile, listPluginSkillAdapters, listRoles, listSkillAdapters, listWorkflows, } from "./kit-model.js";
+// The host registry: the one list of supported hosts, each with its display name, how it dispatches roles
+// and how a user starts grugops on it. install/host-tools.ts is pure data and imports nothing, and this
+// scripts-to-registry edge is the direction that module allows.
+import { HOST_TOOLS } from "../install/host-tools.js";
 // ── Fixed literal paths (read/write-only by construction — never argv/env/content-derived) ───
 const ROOT = join(import.meta.dirname, "..");
 const ROLES_DIR = join(ROOT, "agent-factory/roles");
@@ -363,6 +385,8 @@ for (const file of workflowFiles) {
     const cadence = rawCadence !== "" ? rawCadence : "UNKNOWN - verify";
     declaredOrders.push({ file, order });
     workflows.push({
+        file,
+        text: text,
         name: h1[1].trim(),
         order,
         cadence,
@@ -396,6 +420,7 @@ for (const [value, files] of [...orderBuckets.entries()].sort((a, b) => a[0] - b
 // ── The plugin manifest: the plugin name and the repository URL (plan 43-05, D-15) ────────────
 // Both are required strings. The repository is the base of every skill page's source link, so it must
 // be an https URL with no trailing slash; anything else is refused rather than published as a link.
+let pluginName;
 let repository;
 {
     let manifest;
@@ -412,6 +437,7 @@ let repository;
     if (typeof m.repository !== "string" || !/^https:\/\/\S+[^/]$/.test(m.repository)) {
         fail(`.claude-plugin/plugin.json: \`repository\` must be an https URL with no trailing slash, found ${JSON.stringify(m.repository)}`);
     }
+    pluginName = m.name;
     repository = m.repository;
 }
 let pluginSkillFiles;
@@ -464,6 +490,114 @@ for (const rel of pluginSkillFiles) {
         allowedTools: tools === undefined || tools === "" ? "UNKNOWN - verify" : tools,
         text: text,
         sourceRel,
+    });
+}
+let twinFiles;
+try {
+    twinFiles = listSkillAdapters(ROOT);
+}
+catch (e) {
+    fail(`cannot list the standalone skill twins: ${e.message}`);
+}
+const twins = [];
+for (const rel of twinFiles) {
+    const twinRel = `.claude/skills/${rel}`;
+    let text;
+    try {
+        text = readFileSync(join(ROOT, ".claude", "skills", ...rel.split("/")), "utf8");
+    }
+    catch {
+        fail(`cannot read standalone skill twin: ${twinRel}`);
+    }
+    const parsed = parseFrontmatter(text);
+    if (!parsed.ok) {
+        fail(`${twinRel}: frontmatter is unreadable — ${parsed.reason}`);
+    }
+    const names = parsed.value.get("name") ?? [];
+    const descriptions = parsed.value.get("description") ?? [];
+    if (names.length !== 1 || names[0].trim() === "") {
+        fail(`${twinRel}: ${names.length} \`name:\` keys in the twin frontmatter, expected exactly 1 with a value`);
+    }
+    if (descriptions.length !== 1) {
+        fail(`${twinRel}: ${descriptions.length} \`description:\` keys in the twin frontmatter, expected exactly 1`);
+    }
+    twins.push({ rel: twinRel, name: names[0].trim(), description: descriptions[0].trim() });
+}
+const twinOf = new Map();
+for (const k of skills) {
+    const matches = twins.filter((t) => t.description === k.description);
+    if (matches.length !== 1) {
+        fail(`${k.sourceRel}: ${matches.length} standalone twin(s) under .claude/skills/ carry its description${matches.length > 0 ? ` (${matches.map((t) => t.rel).join(", ")})` : ""}, expected exactly 1 — the Claude Code command name cannot be derived; run \`npm run generate:skill-twins\` or remove the duplicate`);
+    }
+    twinOf.set(k.op, matches[0]);
+}
+for (const t of twins) {
+    const claimants = skills.filter((k) => twinOf.get(k.op) === t);
+    if (claimants.length > 1) {
+        fail(`${t.rel}: claimed by ${claimants.length} plugin skills (${claimants.map((k) => k.sourceRel).join(", ")}) that share one description, expected at most 1 — give each plugin skill its own description`);
+    }
+}
+// ── The dispatcher: the plugin skill named after the plugin (plan 43-05, D-15) ────────────────
+// A host that loads roles in turn reaches every skill through it, so exactly one must exist.
+const dispatchers = skills.filter((k) => k.name === pluginName);
+if (dispatchers.length !== 1) {
+    fail(`${dispatchers.length} plugin skill(s) carry \`name: ${pluginName}\` (the plugin.json name), expected exactly 1 — the dispatcher the sequential hosts start cannot be identified`);
+}
+const dispatcher = dispatchers[0];
+// ── Workflows named and roles reached, per skill (plan 43-05, D-15; T-43-17) ──────────────────
+// A workflow path the body names must be a kit workflow (listWorkflows), and a role file it names must be
+// a kit role (listRoles); an unknown one is refused by name, before any page is written, rather than
+// published as a dead link. Role files whose name starts with `_` are protocols, not roles (D-03).
+let kitWorkflows;
+try {
+    kitWorkflows = listWorkflows(ROOT);
+}
+catch (e) {
+    fail(`cannot list the kit workflows: ${e.message}`);
+}
+const roleByName = new Map(roles.map((r) => [r.name, r]));
+const roleByFile = new Map(roles.map((r) => [r.file, r]));
+const workflowByFile = new Map(workflows.map((w) => [w.file, w]));
+const namedFiles = (text, dir) => {
+    const re = new RegExp(`agent-factory/${dir}/([A-Za-z0-9._-]+\\.md)`, "g");
+    return [...new Set([...text.matchAll(re)].map((x) => x[1]))].sort();
+};
+const skillLinks = new Map();
+for (const k of skills) {
+    const wfs = [];
+    for (const f of namedFiles(k.text, "workflows")) {
+        const w = workflowByFile.get(f);
+        if (!kitWorkflows.includes(f) || w === undefined) {
+            fail(`${k.sourceRel}: names agent-factory/workflows/${f}, which is not a kit workflow (kit-model listWorkflows) — refusing to publish a dead or invented link`);
+        }
+        wfs.push(w);
+    }
+    wfs.sort((a, b) => a.order - b.order);
+    const reached = new Map();
+    for (const w of wfs) {
+        const agents = sectionBody(w.text, "Agents involved");
+        if (agents === null) {
+            fail(`${w.file}: no \`## Agents involved\` section — cannot say which roles ${k.sourceRel} reaches`);
+        }
+        for (const line of agents.split("\n")) {
+            const bullet = line.match(/^- (.+?) — /);
+            const role = bullet === null ? undefined : roleByName.get(bullet[1]);
+            if (role !== undefined)
+                reached.set(role.file, role);
+        }
+    }
+    for (const f of namedFiles(k.text, "roles")) {
+        if (f.startsWith("_"))
+            continue;
+        const role = roleByFile.get(f);
+        if (role === undefined) {
+            fail(`${k.sourceRel}: names agent-factory/roles/${f}, which is not a kit role (kit-model listRoles) — refusing to publish a dead or invented link`);
+        }
+        reached.set(f, role);
+    }
+    skillLinks.set(k.op, {
+        workflows: wfs,
+        roles: [...reached.values()].sort((a, b) => a.name.localeCompare(b.name)),
     });
 }
 // ── Deterministic ordering (D-08, mandatory for the byte-diff) ─────────────────────────────────
@@ -549,11 +683,44 @@ for (const r of roles) {
 // One page per plugin skill (D-15): the provenance line, `# <op>`, what the skill does (its
 // frontmatter description), the tools it may use, and its source as a repository URL.
 for (const k of skills) {
+    const isDispatcher = k === dispatcher;
+    const twin = twinOf.get(k.op);
+    const links = skillLinks.get(k.op);
+    // One row per registry host, in registry order; the first cell is the plain host name (never bold).
+    const invocation = HOST_TOOLS.map((h) => h.dispatch === "spawn"
+        ? `| ${cell(h.name)} | \`/${twin.name} "<request>"\` (standalone skill) or \`/${pluginName}:${k.name} "<request>"\` (plugin) |`
+        : `| ${cell(h.name)} | ${isDispatcher ? "" : "Through the dispatcher: "}${cell(h.invoke)} |`);
+    const workflowLines = links.workflows.map((w) => `- ${w.name}: [agent-factory/workflows/${w.file}](../../../agent-factory/workflows/${w.file})`);
+    const roleLines = links.roles.map((r) => `- [${r.name}](../${AGENTS_SUBDIR}/${r.file})`);
     pages.set(`${SKILLS_SUBDIR}/${k.op}.md`, [
         PROVENANCE,
         `# ${k.op}`,
         "",
         k.description,
+        "",
+        "## Invocation",
+        "",
+        "| Host | How to start it |",
+        "| --- | --- |",
+        ...invocation,
+        "",
+        ...(isDispatcher
+            ? []
+            : [
+                `A host whose row says "Through the dispatcher" has no command of its own for this skill: start the dispatcher, [${dispatcher.op}](${dispatcher.op}.md), and ask for the work.`,
+                "",
+            ]),
+        "## Workflows",
+        "",
+        ...(isDispatcher ? ["The Orchestrator picks the workflow for the request. The skill itself names:", ""] : []),
+        ...(workflowLines.length > 0 ? workflowLines : ["The skill names no workflow."]),
+        "",
+        "## Roles it reaches",
+        "",
+        ...(isDispatcher
+            ? ["The Orchestrator draws on the roles the request needs. The skill itself names, or runs a workflow that involves:", ""]
+            : []),
+        ...(roleLines.length > 0 ? roleLines : ["The skill names no role and no workflow that involves one."]),
         "",
         "## Allowed tools",
         "",
