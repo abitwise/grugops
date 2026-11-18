@@ -294,7 +294,13 @@ export const CLAIM_KIND_CARDINALITY: readonly {
   // retired `C-28-002` and `C-28-003` keep their rows and their kind, so they still count here. This
   // gate refused until the number moved; the number was taken from that refusal's own text
   // ("architecture declares 54 but the registry carries 56").
-  { kind: "architecture", count: 56 },
+  // 56 -> 58 (plan 43-12, 2026-11-18; D-21, D-22). TWO ROWS ADDED, NONE RECLASSIFIED. `C-28-071`
+  // registers the FAQ's answer on how grugops differs and `C-28-072` its enterprise answer, which names
+  // the git host as the hard floor in place of the old unqualified never-merge sentence. Each is
+  // `architecture`: it says where each control lives and asserts no merge or deploy outcome. This gate
+  // refused until the number moved; the number was taken from that refusal's own text
+  // ("architecture declares 56 but the registry carries 58").
+  { kind: "architecture", count: 58 },
   { kind: "install", count: 8 },
 ];
 

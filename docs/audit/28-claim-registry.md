@@ -56,6 +56,12 @@ are now `status: retired` (D-25): their rows and ids stay, so they add and remov
 Plan 43-11 task 2 then retired `C-28-008` and moved `C-28-001` to `docs/concepts.md` with its id:
 the count stays **70 rows**.
 
+**Annotation, plan 43-12 — the derived current count after the FAQ rewrite, ADDED rather than
+substituted.** The sentences above stand as written. As committed with the rewritten `docs/faq.md`
+the registry carries **72 rows**: the 70 above plus `C-28-071` (how grugops differs) and `C-28-072`
+(the enterprise answer, which names the git host as the hard floor). The number was DERIVED from
+`readRegistry().claims.length` at that commit.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -1124,6 +1130,45 @@ On Claude Code each grugops skill has its own command. On another host, start gr
 
 ```
 grugops gives the coding agent you already use a team of specialist roles for software delivery. One Orchestrator splits each request into subtasks on a shared queue and claims each one for a role agent, which does one job within hard limits and publishes what it found as notes to a shared verified context. A quality gate checks the work and makes a recommendation, and the workflows stop at a pull request and leave merge and deploy to a person. The roles, workflows, board and trace are plain markdown files you can read and diff.
+```
+
+### C-28-071
+
+- file: docs/faq.md
+- line: 11-15
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-12 (D-21, D-22). Each sentence measured against the kit. (1) Runs on the coding agent you already use: the installer lays an adapter per host in `install/host-tools.ts` `HOST_TOOLS` and ships no runtime of its own (CLAUDE.md § Constraints, Tech stack). (2) One markdown file per role with one job and hard limits: every one of the 19 files under `agent-factory/roles/` (the `_role-switch-protocol.md` helper aside) carries `## One job` and `## Hard limits`, as C-28-070 measured. (3) Roles do not hand data to each other: `agent-factory/roles/orchestrator.md` § Hard limits, "Never relay data between agents; the shared verified context is the only channel", and Workflow 16 (`agent-factory/workflows/16-context-read-write.md`), as C-28-057 measured on docs/concepts.md. (4) The board is `memory-bank/plans/board.md` and the trace is rendered into `memory-bank/plans/traceability/`, both in the target repository. The answer names no other framework, no host count, and no cost, token or speed benefit.
+
+```
+Q: How is it different from other agent frameworks?
+A: It runs on the coding agent you already use instead of replacing it. Each role is one markdown
+   file with one job and hard limits, so you can read the rules an agent was given. Roles do not
+   hand data to each other; they read and publish notes in the shared verified context. The board
+   and the trace are files in your repository, so you can review them like any other change.
+```
+
+### C-28-072
+
+- file: docs/faq.md
+- line: 24-33
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-12 (D-21, D-22). It replaces the old answer's unqualified sentence that agents never merge a protected branch or deploy prod on their own (last at `f41f49c8`). It names where each control lives and asserts no merge or deploy outcome, so it is `architecture`, not `safety`, as C-28-054 and C-28-060 are. `enterprise` mode runs the release and incident workflows: `agent-factory/workflows/12-release.md` and `agent-factory/workflows/13-incident.md` (`tier: enterprise`, "it runs whenever `mode=enterprise`"); `mode` is a key of `agent-factory/config/factory.config.md`. Security and compliance roles: `agent-factory/roles/security-nfr.md` and `agent-factory/roles/compliance-officer.md`. The release waits for a named person's approval at the checkpoint's default: Workflow 12 step 6 and § Failure handling, keyed to `production_requires_human_confirmation`, so lowering that floor does not falsify the sentence. The trace from requirement to release: Workflow 12, "Every shipped change then traces back through its UAT, test, and implementation refs to its product ticket". Stop at a pull request and leave merge and deploy to people: `agent-factory/roles/orchestrator.md` § Hard limits and `agent-factory/workflows/05-pr-quality-gate.md` step 6. Written rules only: docs/GUARANTEES.md § Where each floor is enforced. The hard floor is the git host, and grugops never configures it: the same section and `install/README.md` § 5 (a). The answer avoids the word `always`, the word C-28-023 measured `overstated`.
+
+```
+Q: Is it serious enough for enterprise use?
+A: It has the parts a regulated team asks for: a config dial whose `enterprise` mode runs the
+   release and incident workflows, security and compliance roles, a release that waits for a named
+   person's approval at the default checkpoint setting, and a trace from requirement to code, test
+   and release. The role files and workflows tell agents to stop at a pull request and to leave
+   merge and deploy to people. Those are written rules, and they hold only as well as an agent
+   follows them. The hard floor is your git host: branch protection or rulesets on protected
+   branches, and deployment environments with required reviewers for production. grugops never
+   configures your git host; you set those protections yourself. [GUARANTEES.md](GUARANTEES.md)
+   shows which safety claims hold on this repository.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

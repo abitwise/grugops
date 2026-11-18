@@ -62,6 +62,17 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - `tools/grugops/note.js read <folder>` prints the sealed notes of a task's current state in full
   and names each file in `notes/` that is not a sealed note, so a role on any host reads the
   context through the seal check. Workflows 16 and 17 point at it.
+- User docs pages under `docs/`: an index (`docs/README.md`), the core concept
+  (`docs/concepts.md`), how grugops works (`docs/how-it-works.md`, which follows one request from the
+  Orchestrator to the person who decides on merge and release) and usage (`docs/usage.md`, how to
+  start grugops on each host and how to get each job done).
+- Generated reference pages under `docs/reference/`: an index, a page for each role with its tier,
+  workflows, adapters per host and the sections of its role file, and a page for each skill with how
+  to start it on each host. `npm run generate:catalog` writes them, and `npm run freshness:catalog`
+  fails on a missing, extra or stale page.
+- A `retired` claim status in `docs/audit/28-claim-registry.md`. A retired row keeps its id, and
+  `node scripts/check-claim-anchors.js` checks that its text and anchor are gone from the page and
+  that its mechanism names the commit where the text last stood. A safety row cannot be retired.
 
 ### Changed
 
@@ -152,6 +163,18 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   when `human_admission` is not `off`: the role publishes a `claim`, the Orchestrator asks the human,
   and on a Claude Code plugin install it admits the finding through `propose_note` under the human's
   grant. A host with no hook has no such route. See residual R-41-11 in `docs/audit/41-residuals.md`.
+- README.md is a short front door: the tagline "Specialist agents. Shared context. Coordinated
+  work.", a four-sentence story, the quickstart and links into the docs. Host usage, the commands
+  and the copy-paste Orchestrator prompts moved to `docs/usage.md`; the lifecycle moved to
+  `docs/how-it-works.md`.
+- Install now copies the shipped user docs and worked examples into the kit home, as
+  `$GRUGOPS_HOME/docs/` and `$GRUGOPS_HOME/examples/` beside `agent-factory/`, and records them in
+  the kit-home record. A folder already at either path that the record does not name is kept as a
+  recorded `<name>.bak.<ISO>` backup. Checkout-only pages, such as the audit records, are not copied.
+- The five worked examples under `examples/` are rewritten for the v3 kit: the shared queue, typed
+  notes, Tech Lead scoring and the rendered trace. Examples 01 and 03 are labeled as illustrative
+  runs, not captured sessions, and link the commit that holds the original capture.
+- CLAUDE.md names the shipped `/grugops` commands in place of the retired `/grug` spellings.
 
 ### Fixed
 
@@ -212,6 +235,8 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - The `grugops-software-engineer` Claude Code adapter, replaced by the three engineer level adapters,
   and the software engineer's row in the `tiered` model preset. A repository installed by an earlier
   release keeps the old file: install and `install.js --check` name it, and you delete it by hand.
+- `docs/catalog/` (removed 2026-11-18). Its one page, `docs/catalog/README.md`, is replaced by the
+  generated `docs/reference/` index and its role and skill pages.
 
 ## [2.2.0] - 2026-10-19
 

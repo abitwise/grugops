@@ -75,7 +75,9 @@ import {
 // registering the human step of each job on docs/usage.md. Moved BY HAND, in the same commit as the map.
 // 54 -> 56 (plan 43-11, 2026-11-18): `C-28-069` and `C-28-070` entered as `architecture` rows
 // registering the README's tagline and story. Moved BY HAND, in the same commit as the map.
-const MIRROR_ARCHITECTURE_CLAIMS = 56;
+// 56 -> 58 (plan 43-12, 2026-11-18): `C-28-071` and `C-28-072` entered as `architecture` rows
+// registering two answers on docs/faq.md. Moved BY HAND, in the same commit as the map.
+const MIRROR_ARCHITECTURE_CLAIMS = 58;
 const MIRROR_INSTALL_CLAIMS = 8;
 
 /**

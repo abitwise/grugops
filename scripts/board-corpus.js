@@ -1939,7 +1939,7 @@ const LIVE_ROWS = [
         input: "- [ABC-001] Add request validation to /charge endpoint  (owner: BA/PM, sized: S, P2)",
         expectedDisposition: "row",
         expectedMeta: "captured",
-        note: "brownfield-bootstrap worked example, source line 64.",
+        note: "brownfield-bootstrap worked example, transcribed from source line 64 at commit 161bf23d. Plan 43-07 rewrote the example to v3 (066d8167) and its board row now reads `(owner: BA/PM, since: 2026-06-04)`; the row keeps the transcribed text, and `git show 161bf23d:examples/02-brownfield-bootstrap.md` holds it verbatim (plan 43-12).",
     },
     {
         id: "live-ex02-002",
@@ -1950,7 +1950,7 @@ const LIVE_ROWS = [
         input: "- [ABC-002] Pin the unversioned base image in the Dockerfile  (owner: BA/PM, sized: XS, P1)",
         expectedDisposition: "row",
         expectedMeta: "captured",
-        note: "brownfield-bootstrap worked example, source line 65.",
+        note: "brownfield-bootstrap worked example, transcribed from source line 65 at commit 161bf23d. Plan 43-07 rewrote the example to v3 (066d8167) and its board row now reads `(owner: BA/PM, since: 2026-06-04)`; the row keeps the transcribed text, and `git show 161bf23d:examples/02-brownfield-bootstrap.md` holds it verbatim (plan 43-12).",
     },
     {
         id: "live-ex02-003",
@@ -1961,7 +1961,7 @@ const LIVE_ROWS = [
         input: "- [ABC-003] Document the known build/test commands in AGENTS.md  (owner: BA/PM, sized: S, P2)",
         expectedDisposition: "row",
         expectedMeta: "captured",
-        note: "brownfield-bootstrap worked example, source line 66.",
+        note: "brownfield-bootstrap worked example, transcribed from source line 66 at commit 161bf23d. Plan 43-07 rewrote the example to v3 (066d8167) and its board row now reads `(owner: BA/PM, since: 2026-06-04)`; the row keeps the transcribed text, and `git show 161bf23d:examples/02-brownfield-bootstrap.md` holds it verbatim (plan 43-12).",
     },
     {
         id: "live-ex05-001",
@@ -1972,7 +1972,7 @@ const LIVE_ROWS = [
         input: "- [ABC-012] Portfolio FX conversion  (release: REL-0007, status: READY_TO_RELEASE)",
         expectedDisposition: "row",
         expectedMeta: "captured",
-        note: "release-run worked example, source line 68.",
+        note: "release-run worked example, transcribed from source line 68 at commit 161bf23d. Plan 43-08 rewrote the example to v3 (cc688d56) and its board rows now use the `(owner: Release Manager, since: …)` form; the row keeps the transcribed text, and `git show 161bf23d:examples/05-release-run.md` holds it verbatim (plan 43-12).",
     },
 ];
 export const BOARD_CORPUS = [
