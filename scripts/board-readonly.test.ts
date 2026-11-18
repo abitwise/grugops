@@ -3305,9 +3305,21 @@ const CLOSURE_BASELINES: readonly { readonly entry: string; readonly modules: re
     // host, read from the host registry, so it imports ../install/host-tools.js (a pure-data module that
     // imports nothing) and install/host-tools.js joined this closure. Re-measured from jsImportClosure,
     // not typed.
+    // 2026-11-18, plan 43-14: each role page lists the role's declared skills, so the generator imports
+    // ./role-skills-reader.js (readRoleSkills), and scripts/role-skills-reader.js joined this closure with
+    // its own imports, scripts/canonical-frontmatter.js and scripts/is-entry.js. Re-measured from
+    // jsImportClosure, not typed.
     {
       entry: "scripts/generate-catalog.js",
-      modules: ["install/host-tools.js", "scripts/frontmatter.js", "scripts/generate-catalog.js", "scripts/kit-model.js"],
+      modules: [
+        "install/host-tools.js",
+        "scripts/canonical-frontmatter.js",
+        "scripts/frontmatter.js",
+        "scripts/generate-catalog.js",
+        "scripts/is-entry.js",
+        "scripts/kit-model.js",
+        "scripts/role-skills-reader.js",
+      ],
     },
     // 2026-11-02, plan 40-21: see the dated comment on the hooks/admission-guard.js row (CR-01). Taken
     // from jsImportClosure, not typed.

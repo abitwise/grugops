@@ -1427,7 +1427,10 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
         expect(at, `${file}: ## ${h} present`).toBeGreaterThan(-1);
         expect(at, `${file}: ## ${h} in order`).toBeGreaterThan(last);
         last = at;
-        expect(section(text, h).join("\n").trimEnd(), `${file}: ## ${h} verbatim`).toBe(roleSection(roleText, h));
+        // The last section runs up to the closing `Full role:` line, which is the page's, not the role's.
+        const lines = section(text, h);
+        const k = lines.findIndex((l) => l.startsWith("Full role: "));
+        expect((k === -1 ? lines : lines.slice(0, k)).join("\n").trimEnd(), `${file}: ## ${h} verbatim`).toBe(roleSection(roleText, h));
       }
       expect(text, file).not.toContain("## Reads");
       expect(text, file).not.toContain("## Responsibilities");

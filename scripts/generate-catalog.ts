@@ -101,6 +101,16 @@
 // ROLES_DIR/WORKFLOWS_DIR/OUT_DIR are FIXED literal paths joined to the repo root (the script dir's
 // parent). None is ever derived from argv, env, or file content.
 //
+// ROLE PAGES (plan 43-14, D-14). Each page opens with the display name and the One job sentence, then a
+// `| Field | Value |` table: Tier, Capabilities (the frontmatter value), Skills (role-skills-reader's
+// readRoleSkills), Workflows (each workflow whose `## Agents involved` has a bullet `- <display name> — `)
+// and Source. Then `## Adapters per host`, one plain-text row per HOST_TOOLS host: kit-model's adapter
+// names for the host that spawns roles, the in-turn sentence for the others, and on the launch agent's
+// page each launch form from the registry with its live-run note or the not-live mark. Then the six
+// sections ROLE_PAGE_SECTIONS names, copied from the role file through sectionBody. A cell no source
+// answers reads UNKNOWN - verify. A role missing one of the six sections, or two roles with one display
+// name, are refused by name before anything is written.
+//
 // SKILL PAGES (plan 43-05, D-15). Each page says what the skill does (its frontmatter `description`),
 // how to start it on each host, the workflows its body names, the roles those workflows involve plus the
 // roles its body names, its `allowed-tools`, and its source. Nothing on a skill page is typed here:
@@ -145,15 +155,26 @@ import {
 // own. See that declaration for why it is range-free and why it cannot live in either consumer.
 import {
   isNumberedWorkflowFile,
+  listAgentAdapterSpecs,
   listPluginSkillAdapters,
   listRoles,
   listSkillAdapters,
   listWorkflows,
+  type AgentAdapterSpec,
 } from "./kit-model.js";
+// The declared skills of every role (plan 43-14, D-14). That reader owns the role admission and the
+// projection of the `skills` key; this generator asks it rather than reading the key a second way.
+import { readRoleSkills, type RoleSkillsReport } from "./role-skills-reader.js";
 // The host registry: the one list of supported hosts, each with its display name, how it dispatches roles
 // and how a user starts grugops on it. install/host-tools.ts is pure data and imports nothing, and this
 // scripts-to-registry edge is the direction that module allows.
-import { HOST_TOOLS } from "../install/host-tools.js";
+import {
+  HOST_TOOLS,
+  LAUNCH_AGENT_NAME,
+  LAUNCH_NOT_LIVE,
+  launchInvoke,
+  launchLiveNote,
+} from "../install/host-tools.js";
 
 // ── Fixed literal paths (read/write-only by construction — never argv/env/content-derived) ───
 const ROOT = join(import.meta.dirname, "..");
@@ -265,9 +286,18 @@ interface RoleEntry {
   stem: string;
   name: string;
   tier: string;
+  capabilities: string;
   summary: string;
   link: string;
+  /** The six extracted sections (ROLE_PAGE_SECTIONS), each body as the role file writes it. */
+  sections: Map<string, string>;
 }
+
+// The sections a role page copies from its role file, in page order (plan 43-14, D-14). Reads and
+// Responsibilities stay in the role file: the page says what the role does, when, what it leaves
+// behind and where it stops, and links the file for the rest.
+const ROLE_PAGE_SECTIONS = ["One job", "Activates when", "Output", "Board moves", "Hard limits", "Stop when"] as const;
+const UNKNOWN = "UNKNOWN - verify";
 interface WorkflowEntry {
   file: string;
   text: string;
@@ -337,14 +367,52 @@ for (const file of roleFiles) {
   if (body === null || body.trim() === "") {
     fail(`${file}: no \`## One job\` section — refusing to write a partial catalog`);
   }
+  // Capabilities (plan 43-14, D-14): the same multiplicity rule as `tier:`. Absent or empty is legal
+  // and reads UNKNOWN - verify on the page, never an invented value.
+  const caps = parsed.value.get("capabilities") ?? [];
+  if (caps.length > 1) {
+    fail(
+      `${file}: ${caps.length} \`capabilities:\` keys in one role frontmatter, expected at most 1 — every occurrence is retained rather than last-wins; delete the extra key`,
+    );
+  }
+  const capabilities = caps.length === 1 && caps[0].trim() !== "" ? caps[0].trim() : UNKNOWN;
+  // The six page sections, each through the one section-extent authority. A role missing one is
+  // refused by name: a page that drops a role's limits or stop conditions is the partial page this
+  // generator never writes.
+  const sections = new Map<string, string>();
+  for (const heading of ROLE_PAGE_SECTIONS) {
+    const s = sectionBody(text!, heading);
+    if (s === null || s.trim() === "") {
+      fail(`${file}: no \`## ${heading}\` section — refusing to write a partial role page`);
+    }
+    sections.set(heading, s!.replace(/\s+$/, ""));
+  }
   roles.push({
     file,
     stem: file.slice(0, -".md".length),
     name: h1![1].trim(),
     tier,
+    capabilities,
     summary: firstSentence(body!),
     link: `agent-factory/roles/${file}`,
+    sections,
   });
+}
+
+// ── No two roles may share a display name (plan 43-14, D-14) ──────────────────────────────────
+// A role page lists the workflows whose `## Agents involved` names the role by its display name, so
+// two roles with one name would make that match ambiguous. Both files are named; the buckets are
+// walked in name order so the message is the same on every machine.
+{
+  const byName = new Map<string, string[]>();
+  for (const r of roles) byName.set(r.name, [...(byName.get(r.name) ?? []), r.file]);
+  for (const [name, files] of [...byName.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))) {
+    if (files.length > 1) {
+      fail(
+        `${files.join(", ")}: ${files.length} roles carry the display name \`# Role: ${name}\` — a workflow bullet naming it would match more than one role page; give each role its own name`,
+      );
+    }
+  }
 }
 
 // ── Read + parse workflows (every corpus member isNumberedWorkflowFile admits) ────────────────
@@ -701,6 +769,54 @@ roles.sort((a, b) => {
 // measurement can do nothing else. The name above is the evidence now.
 workflows.sort((a, b) => a.order - b.order);
 
+// ── What each role page derives beyond its role file (plan 43-14, D-14) ───────────────────────
+// Workflows: each workflow whose `## Agents involved` has a bullet `- <display name> — ` names that
+// role. A bullet whose text before ` — ` is no role display name (WF04's `Receiving role (…)`, or a
+// bullet with no ` — ` at all) matches no role; it is counted in the output line, never linked.
+const workflowsOfRole = new Map<string, WorkflowEntry[]>();
+let unmatchedBullets = 0;
+{
+  const roleOfName = new Map(roles.map((r) => [r.name, r] as const));
+  for (const w of workflows) {
+    const agents = sectionBody(w.text, "Agents involved");
+    if (agents === null) {
+      fail(`${w.file}: no \`## Agents involved\` section — cannot say which role pages link this workflow`);
+    }
+    for (const line of agents!.split("\n")) {
+      if (!line.startsWith("- ")) continue;
+      const bullet = line.match(/^- (.+?) — /);
+      const role = bullet === null ? undefined : roleOfName.get(bullet[1]);
+      if (role === undefined) {
+        unmatchedBullets++;
+        continue;
+      }
+      const list = workflowsOfRole.get(role.file) ?? [];
+      if (!list.includes(w)) list.push(w);
+      workflowsOfRole.set(role.file, list);
+    }
+  }
+}
+// Skills: the role-skills reader's report. A role it refused reads UNKNOWN - verify plus the reason.
+let roleSkills!: RoleSkillsReport;
+try {
+  roleSkills = readRoleSkills(ROOT);
+} catch (e) {
+  fail(`cannot read the declared skills of the roles: ${(e as Error).message}`);
+}
+function skillsCell(stem: string): string {
+  const refused = roleSkills.refusals.find((x) => x.role === stem);
+  if (refused !== undefined) return cell(`${UNKNOWN} (${refused.reason})`);
+  const declared = Object.keys(roleSkills.skills).filter((k) => roleSkills.skills[k].includes(stem));
+  return declared.length === 0 ? "none declared" : declared.map((k) => `\`${cell(k)}\``).join(", ");
+}
+// Adapters: kit-model's adapter specs, the same derivation the adapter generator writes from.
+let adapterSpecs!: AgentAdapterSpec[];
+try {
+  adapterSpecs = listAgentAdapterSpecs(ROOT);
+} catch (e) {
+  fail(`cannot derive the agent adapters: ${(e as Error).message}`);
+}
+
 // ── Build every page into one map before anything is written ─────────────────────────────────
 const pages = new Map<string, string>();
 
@@ -762,11 +878,37 @@ for (const w of workflows) {
 lines.push(""); // trailing element → exactly one final "\n"
 pages.set(INDEX_PAGE, lines.join("\n"));
 
-// One page per role (D-13). This plan writes the opening of each page: the provenance line, the
-// display name from the `# Role:` heading, the first sentence of `## One job` and a link to the role
-// source, three levels up from docs/reference/agents/. Plan 43-14 adds the header block and the
-// extracted sections (D-14).
+// One page per role (D-13, D-14): the provenance line, the display name from the `# Role:` heading and
+// the first sentence of `## One job` (plan 43-04); then the header table, the adapters per host and the
+// six sections copied from the role file, and a link to the role source, three levels up from
+// docs/reference/agents/ (plan 43-14). Nothing here is typed per role: every cell is read from the role
+// file, the workflows, the role-skills reader, kit-model's adapter specs or the host registry, and a
+// cell none of them answers reads UNKNOWN - verify.
 for (const r of roles) {
+  const wfs = workflowsOfRole.get(r.file) ?? [];
+  const workflowsCell =
+    wfs.length === 0
+      ? UNKNOWN
+      : wfs.map((w) => `[${cell(w.name)}](../../../agent-factory/workflows/${w.file})`).join(", ");
+  const specs = adapterSpecs.filter((s) => s.roleFile === r.file);
+  const isLaunchRole = specs.some((s) => s.name === LAUNCH_AGENT_NAME);
+  // One row per registry host, in registry order. The first cell is the host's registry name in plain
+  // text, never bold: install/host-entry-docs.test.ts reads a table with one bold-host row per host and a
+  // launch token as a per-host launch table, and the launch role's page carries launch tokens.
+  const adapterRows = HOST_TOOLS.map((h) => {
+    if (h.dispatch === "spawn") {
+      return `| ${cell(h.name)} | ${specs.length === 0 ? UNKNOWN : specs.map((s) => `\`${s.name}\``).join(", ")} |`;
+    }
+    let text = "Loaded by the Orchestrator in turn; no per-role adapter.";
+    if (isLaunchRole && h.launchAgent !== null) {
+      // launchInvoke carries the live-run note when a human ran the form live; a form nobody ran live
+      // gets the registry's not-live mark here, so no page states an unverified launch as fact.
+      const note = launchLiveNote(h);
+      text += ` Launch: ${launchInvoke(h)}${note === null ? ` (${LAUNCH_NOT_LIVE})` : ""}`;
+    }
+    return `| ${cell(h.name)} | ${cell(text)} |`;
+  });
+  const sectionLines = ROLE_PAGE_SECTIONS.flatMap((h) => [`## ${h}`, r.sections.get(h)!, ""]);
   pages.set(
     `${AGENTS_SUBDIR}/${r.file}`,
     [
@@ -775,6 +917,21 @@ for (const r of roles) {
       "",
       r.summary,
       "",
+      "| Field | Value |",
+      "| --- | --- |",
+      `| Tier | ${r.tier} |`,
+      `| Capabilities | ${cell(r.capabilities)} |`,
+      `| Skills | ${skillsCell(r.stem)} |`,
+      `| Workflows | ${workflowsCell} |`,
+      `| Source | [${r.link}](../../../${r.link}) |`,
+      "",
+      "## Adapters per host",
+      "",
+      "| Host | Adapter |",
+      "| --- | --- |",
+      ...adapterRows,
+      "",
+      ...sectionLines,
       `Full role: [${r.link}](../../../${r.link})`,
       "",
     ].join("\n"),
@@ -899,6 +1056,6 @@ for (const rel of [...pages.keys()].sort()) {
   writeFileSync(outAbs(rel), pages.get(rel)!, "utf8");
 }
 console.log(
-  `generate-catalog: wrote ${pages.size} page(s) to docs/reference (the index, listing ${roles.length} roles, ${skills.length} skills and ${workflows.length} workflows, ${roles.length} role pages and ${skills.length} skill pages); removed ${strays.length} stray page(s)`,
+  `generate-catalog: wrote ${pages.size} page(s) to docs/reference (the index, listing ${roles.length} roles, ${skills.length} skills and ${workflows.length} workflows, ${roles.length} role pages and ${skills.length} skill pages); removed ${strays.length} stray page(s); ${unmatchedBullets} workflow bullet(s) name no role`,
 );
 process.exit(0);
