@@ -1,9 +1,9 @@
 <!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-catalog.js -->
 # grugops reference
 
-This is the generated reference for the grugops kit: 19 roles, each with its own page,
-and 19 workflows. The pages are generated from the role and workflow files by
-`scripts/generate-catalog.js` and are never hand-edited; re-run the generator and commit the
+This is the generated reference for the grugops kit: 19 roles and 7 skills, each with its
+own page, and 19 workflows. The pages are generated from the role, skill and workflow files
+by `scripts/generate-catalog.js` and are never hand-edited; re-run the generator and commit the
 result. Any unverified field reads `UNKNOWN - verify` rather than an invented value.
 
 ## Roles
@@ -29,6 +29,18 @@ result. Any unverified field reads `UNKNOWN - verify` rather than an invented va
 | Incident Responder | enterprise | Stop the bleeding first, then write a blameless postmortem. | [incident-responder](agents/incident-responder.md) | [agent-factory/roles/incident-responder.md](../../agent-factory/roles/incident-responder.md) |
 | Installer | enterprise | Make this factory usable in the current tool. | [installer](agents/installer.md) | [agent-factory/roles/installer.md](../../agent-factory/roles/installer.md) |
 | Release Manager | enterprise | Cut a release and hand it to a named human for approval. | [release-manager](agents/release-manager.md) | [agent-factory/roles/release-manager.md](../../agent-factory/roles/release-manager.md) |
+
+## Skills
+
+| Skill | What it does | Page | Source |
+| --- | --- | --- | --- |
+| gate | Run the grugops PR quality gate — install, lint, typecheck, unit, build, e2e, bounded self-fix, then report. Recommendation only; never merges. | [gate](skills/gate.md) | [skills/gate/SKILL.md](https://github.com/abitwise/grugops/blob/main/skills/gate/SKILL.md) |
+| grugops | The grugops factory dispatcher — route any software-delivery request through the Orchestrator (bootstrap, plan, implement, gate, UAT, release). | [grugops](skills/grugops.md) | [skills/grugops/SKILL.md](https://github.com/abitwise/grugops/blob/main/skills/grugops/SKILL.md) |
+| map | Map or bootstrap a repo with the grugops factory — greenfield scaffold or brownfield survey, then seed the factory state. | [map](skills/map.md) | [skills/map/SKILL.md](https://github.com/abitwise/grugops/blob/main/skills/map/SKILL.md) |
+| plan | Plan work with the grugops factory — turn an idea into epics, or turn an epic into ready tickets. | [plan](skills/plan.md) | [skills/plan/SKILL.md](https://github.com/abitwise/grugops/blob/main/skills/plan/SKILL.md) |
+| release | Cut a release with the grugops Release Manager. Human-confirmed deploy only — a named human must approve the production deploy. | [release](skills/release.md) | [skills/release/SKILL.md](https://github.com/abitwise/grugops/blob/main/skills/release/SKILL.md) |
+| ticket | Drive a ready ticket to a pull request with the grugops factory — implement on a branch, run the gate, stop at the PR. | [ticket](skills/ticket.md) | [skills/ticket/SKILL.md](https://github.com/abitwise/grugops/blob/main/skills/ticket/SKILL.md) |
+| uat | Build a UAT pack with the grugops factory — assemble the acceptance scenarios a human runs before sign-off. | [uat](skills/uat.md) | [skills/uat/SKILL.md](https://github.com/abitwise/grugops/blob/main/skills/uat/SKILL.md) |
 
 ## Workflows
 

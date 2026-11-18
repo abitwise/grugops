@@ -635,6 +635,15 @@ export function publicDocsScan() {
 //   FAIL  the public-docs scan set derived 33 document(s), expected exactly 14
 //         (root 4, examples 5, kitReadme 1, guarantees 1, skills 1, docs 21)
 //
+// MOVED 33 -> 40 ON 2026-11-18 IN PLAN 43-05, AND THE ENTRANTS ARE NAMED. Seven pages enter: the
+// generated skill pages docs/reference/skills/<op>.md for gate, grugops, map, plan, release, ticket
+// and uat, one per kit-model listPluginSkillAdapters() member (D-15, D-16). They move through the
+// `docs` part only, by the plan 43-02 rule (D-21), so the part goes 21 -> 28 and the scan 33 -> 40.
+// Read off this gate's own refusal with the pages written and the pin not yet moved, verbatim:
+//
+//   FAIL  the public-docs scan set derived 40 document(s), expected exactly 33
+//         (root 4, examples 5, kitReadme 1, guarantees 1, skills 1, docs 28)
+//
 // THE CORPUS CARRIES NO SECOND PIN, AND THAT IS ARITHMETIC RATHER THAN AN OVERSIGHT. The corpus and
 // the scan differ by exactly PUBLIC_DOCS_EXEMPT, which is a frozen one-member array: a corpus that
 // grew by a NON-exempt document grows the scan and trips this pin, and a corpus that grew by an
@@ -642,7 +651,7 @@ export function publicDocsScan() {
 // The corpus is additionally pinned from the other side by BANNED_CLAIM_SCAN_COUNT, which is
 // two-sided over a union this corpus is half of. A third pin would be a number to maintain, not a
 // question nobody is asking.
-export const PUBLIC_DOCS_SCAN_COUNT = 33;
+export const PUBLIC_DOCS_SCAN_COUNT = 40;
 // ---------------------------------------------------------------------------
 // The check.
 // ---------------------------------------------------------------------------

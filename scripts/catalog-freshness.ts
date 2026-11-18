@@ -1,6 +1,7 @@
-// catalog-freshness.ts — the reference-tree freshness gate (DOCS-02; plan 43-04, D-16, D-17).
+// catalog-freshness.ts — the reference-tree freshness gate (DOCS-02; plans 43-04 and 43-05, D-16, D-17).
 //
-// The reference tree under docs/reference/ (the index README.md and one page per role under agents/) is
+// The reference tree under docs/reference/ (the index README.md, one page per role under agents/ and one page
+// per plugin skill under skills/) is
 // generated, never hand-maintained: it is committed solely as the deterministic product of
 // scripts/generate-catalog.js. That contract only holds if the committed tree stays in step with the kit it
 // documents. This gate proves it: regenerate the whole tree into a throwaway temp mirror, then compare the
@@ -28,8 +29,10 @@
 //
 // THE MIRROR IS THE GENERATOR'S DERIVED IMPORT CLOSURE PLUS ITS DATA. The modules come from
 // jsImportClosure(SCRIPT_ROOT, "scripts/generate-catalog.js"), so a new import of the generator needs no edit
-// here. The two source directories are DATA, not imports, so no import walk can find them: they are listed by
-// hand below, and a mirror where either did not land is refused rather than regenerated from nothing.
+// here. The generator's sources are DATA, not imports, so no import walk can find them: the role and workflow
+// directories, the plugin skills (skills/), the standalone skill twins (.claude/skills/) and the plugin manifest
+// (.claude-plugin/plugin.json) are listed by hand below, and a mirror where any one did not land is refused
+// rather than regenerated from nothing.
 //
 // The generator keeps its output directory a fixed literal (docs/reference) joined to its own location
 // (path-traversal mitigation, ASVS V12). The gate never overrides it: the mirrored generator writes to
@@ -39,9 +42,10 @@
 // lstat (a link is listed and never followed). A committed page the generator does not produce is EXTRA; a
 // page the generator produces and the tree does not carry is MISSING; each is named by relative path. Every
 // rendered page the tree does carry is then compared byte for byte (Buffer.equals); a committed entry that is
-// not a regular file is a named failure, never read through. The rendered set must hold at least one page and
-// exactly ROLE_COUNT pages under agents/, so a regeneration that wrote nothing, or wrote a page set that has
-// drifted from the role count, is refused rather than compared.
+// not a regular file is a named failure, never read through. The rendered set must hold at least one page,
+// exactly ROLE_COUNT pages under agents/ and exactly PLUGIN_SKILL_ADAPTER_COUNT pages under skills/, so a
+// regeneration that wrote nothing, or wrote a page set that has drifted from either count, is refused rather
+// than compared.
 //
 // Fail-closed (D-07 / T-18-06): a regeneration that does not exit 0 is never reported fresh; the gate prints
 // the child's output and exits 1.
@@ -50,7 +54,8 @@
 // could never read as success.
 //
 // Node stdlib only, plus two in-repo modules: scripts/js-import-closure.js (the mirror) and
-// scripts/kit-model.js (ROLE_COUNT). Findings are in clear professional voice (a build-safety surface).
+// scripts/kit-model.js (ROLE_COUNT, PLUGIN_SKILL_ADAPTER_COUNT). Findings are in clear professional voice (a
+// build-safety surface).
 
 import { spawnSync } from "node:child_process";
 import {
@@ -68,7 +73,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { jsImportClosure } from "./js-import-closure.js";
-import { ROLE_COUNT } from "./kit-model.js";
+import { PLUGIN_SKILL_ADAPTER_COUNT, ROLE_COUNT } from "./kit-model.js";
 
 const SCRIPT_ROOT = join(import.meta.dirname, "..");
 const KIT_ROOT = process.env.CHECK_ROOT ? process.env.CHECK_ROOT : SCRIPT_ROOT;
@@ -76,8 +81,17 @@ const KIT_ROOT = process.env.CHECK_ROOT ? process.env.CHECK_ROOT : SCRIPT_ROOT;
 const GENERATOR_REL = "scripts/generate-catalog.js";
 const REFERENCE_REL = "docs/reference";
 const AGENTS_REL = `${REFERENCE_REL}/agents`;
-// The generator's data inputs. Data, not imports: no import walk can find them, so they are listed here.
-const DATA_SOURCES: readonly string[] = ["agent-factory/roles", "agent-factory/workflows"];
+const SKILLS_REL = `${REFERENCE_REL}/skills`;
+// The generator's data inputs. Data, not imports: no import walk can find them, so they are listed here. Each is
+// a directory except the plugin manifest, a regular file; a source of either kind that did not land is a loud
+// failure below, never a regeneration from less than the generator reads.
+const DATA_SOURCES: readonly string[] = [
+  "agent-factory/roles",
+  "agent-factory/workflows",
+  "skills",
+  ".claude/skills",
+  ".claude-plugin/plugin.json",
+];
 const REGEN_CMD = "npm run generate:catalog";
 
 const at = (root: string, rel: string): string => join(root, ...rel.split("/"));
@@ -119,14 +133,15 @@ for (const rel of DATA_SOURCES) {
   } catch {
     continue;
   }
-  if (!st.isDirectory()) continue;
+  if (!st.isDirectory() && !st.isFile()) continue;
+  mkdirSync(dirname(at(tmp, rel)), { recursive: true });
   cpSync(at(KIT_ROOT, rel), at(tmp, rel), { recursive: true });
   landed.push(rel);
 }
 const notLanded = DATA_SOURCES.filter((rel) => !landed.includes(rel));
 if (notLanded.length > 0) {
   die(
-    `Reference freshness check FAILED: the generator's data source(s) ${notLanded.join(", ")} did not land in the mirror (absent, or not a directory, under ${KIT_ROOT}) — refusing to compare against a regeneration that read no kit.`,
+    `Reference freshness check FAILED: the generator's data source(s) ${notLanded.join(", ")} did not land in the mirror (absent, or not a directory or regular file, under ${KIT_ROOT}) — refusing to compare against a regeneration that read less than the generator reads.`,
   );
 }
 writeFileSync(at(tmp, "package.json"), '{ "type": "module" }\n', "utf8");
@@ -188,6 +203,13 @@ const renderedAgents = rendered.filter((rel) => rel.startsWith(`${AGENTS_REL}/`)
 if (renderedAgents.length !== ROLE_COUNT) {
   die(
     `Reference freshness check FAILED: the regeneration wrote ${renderedAgents.length} page(s) under ${AGENTS_REL}/, expected exactly ROLE_COUNT = ${ROLE_COUNT} (one per role) — refusing to compare a page set that has drifted from the role count.`,
+  );
+}
+// Two-sided, the same way: exactly one page per plugin skill (plan 43-05, D-16, D-17).
+const renderedSkills = rendered.filter((rel) => rel.startsWith(`${SKILLS_REL}/`));
+if (renderedSkills.length !== PLUGIN_SKILL_ADAPTER_COUNT) {
+  die(
+    `Reference freshness check FAILED: the regeneration wrote ${renderedSkills.length} page(s) under ${SKILLS_REL}/, expected exactly PLUGIN_SKILL_ADAPTER_COUNT = ${PLUGIN_SKILL_ADAPTER_COUNT} (one per plugin skill) — refusing to compare a page set that has drifted from the plugin skill count.`,
   );
 }
 

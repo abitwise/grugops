@@ -1,12 +1,16 @@
-// generate-catalog.ts — grugops reference generator (DOCS-01; plan 43-04, D-13, D-16, D-17).
+// generate-catalog.ts — grugops reference generator (DOCS-01; plans 43-04 and 43-05, D-13, D-15, D-16,
+// D-17).
 //
-// Reads the finished kit (agent-factory/roles + agent-factory/workflows) and emits the reference
-// tree under docs/reference/:
+// Reads the finished kit (agent-factory/roles + agent-factory/workflows) and the plugin skills
+// (skills/<op>/SKILL.md, with .claude-plugin/plugin.json) and emits the reference tree under
+// docs/reference/:
 //
-//   - docs/reference/README.md — the index: one roles table and one workflows table, each row
-//     linking to its kit source file, and each role row linking to its reference page;
+//   - docs/reference/README.md — the index: one roles table, one skills table and one workflows
+//     table, each row linking to its source, and each role and skill row linking to its page;
 //   - docs/reference/agents/<role-stem>.md — one page per role (D-13), where the stem is the role
-//     file name without `.md`.
+//     file name without `.md`;
+//   - docs/reference/skills/<op>.md — one page per plugin skill (D-15), where the op is the skill's
+//     directory name under skills/.
 //
 // (Until plan 43-04 this generator wrote one file, docs/catalog/README.md. That folder is retired:
 // the index above replaces it, D-16, D-16a.)
@@ -18,8 +22,9 @@
 //
 // Membership: the role set is kit-model listRoles() (`.md`, not `_`-prefixed, so
 // _role-switch-protocol.md is excluded, D-03), so a role added later gets a page by existing (D-17);
-// workflows/ keeps every numbered file isNumberedWorkflowFile admits, in the numeric order each
-// declares. Workflows stay index rows with no page of their own (D-16).
+// the skill set is kit-model listPluginSkillAdapters(), so a plugin skill added later gets a page the
+// same way; workflows/ keeps every numbered file isNumberedWorkflowFile admits, in the numeric order
+// each declares. Workflows stay index rows with no page of their own (D-16).
 //
 // ALL PAGES ARE BUILT BEFORE ANY IS WRITTEN. The pages are collected into one map from relative
 // path to text. Nothing touches the disk until every page is built and every page path has been
@@ -107,16 +112,22 @@ import { parseFrontmatter, sectionEndIndex, unfencedHeadingIndex, } from "./fron
 // The rule that decides which files in the workflow directory are corpus members. It is DECLARED in
 // scripts/kit-model.ts beside WORKFLOW_COUNT and asked here; this module states no shape rule of its
 // own. See that declaration for why it is range-free and why it cannot live in either consumer.
-import { isNumberedWorkflowFile, listRoles } from "./kit-model.js";
+import { isNumberedWorkflowFile, listPluginSkillAdapters, listRoles } from "./kit-model.js";
 // ── Fixed literal paths (read/write-only by construction — never argv/env/content-derived) ───
 const ROOT = join(import.meta.dirname, "..");
 const ROLES_DIR = join(ROOT, "agent-factory/roles");
 const WORKFLOWS_DIR = join(ROOT, "agent-factory/workflows");
 const OUT_DIR = join(ROOT, "docs/reference");
+// The plugin manifest: its `name` is the plugin command namespace and its `repository` is the base of
+// each skill page's source URL (plan 43-05). Read as data, never imported.
+const PLUGIN_JSON = join(ROOT, ".claude-plugin/plugin.json");
 // Page paths are relative to OUT_DIR, POSIX-spelled, and built only from these two literals and a
 // role file name listRoles() returned (never from file content).
 const INDEX_PAGE = "README.md";
 const AGENTS_SUBDIR = "agents";
+const SKILLS_SUBDIR = "skills";
+// The file name every plugin skill entry carries (kit-model's shape rule for listPluginSkillAdapters).
+const SKILL_FILE = "SKILL.md";
 const PROVENANCE = "<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-catalog.js -->";
 // ── Fail-closed helper (a structural miss is a finding, never an unhandled throw) ─────────────
 // The VARIABLE carries the `=> never` annotation, not just the arrow — copied verbatim from
@@ -382,6 +393,79 @@ for (const [value, files] of [...orderBuckets.entries()].sort((a, b) => a[0] - b
         fail(`${files.join(", ")}: ${files.length} workflows declare \`order: ${value}\` — the workflows table is published in ascending order, so a shared value leaves their relative position decided by the directory read order and the generated document would differ between machines for no visible reason; give each workflow a distinct order`);
     }
 }
+// ── The plugin manifest: the plugin name and the repository URL (plan 43-05, D-15) ────────────
+// Both are required strings. The repository is the base of every skill page's source link, so it must
+// be an https URL with no trailing slash; anything else is refused rather than published as a link.
+let repository;
+{
+    let manifest;
+    try {
+        manifest = JSON.parse(readFileSync(PLUGIN_JSON, "utf8"));
+    }
+    catch (e) {
+        fail(`cannot read the plugin manifest ${PLUGIN_JSON}: ${e.message}`);
+    }
+    const m = manifest;
+    if (typeof m.name !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(m.name)) {
+        fail(`.claude-plugin/plugin.json: \`name\` must be a kebab-case string, found ${JSON.stringify(m.name)}`);
+    }
+    if (typeof m.repository !== "string" || !/^https:\/\/\S+[^/]$/.test(m.repository)) {
+        fail(`.claude-plugin/plugin.json: \`repository\` must be an https URL with no trailing slash, found ${JSON.stringify(m.repository)}`);
+    }
+    repository = m.repository;
+}
+let pluginSkillFiles;
+try {
+    pluginSkillFiles = listPluginSkillAdapters(ROOT);
+}
+catch (e) {
+    fail(`cannot list the plugin skills: ${e.message}`);
+}
+const skills = [];
+for (const rel of pluginSkillFiles) {
+    const sourceRel = `skills/${rel}`;
+    const op = rel.slice(0, -`/${SKILL_FILE}`.length);
+    if (!rel.endsWith(`/${SKILL_FILE}`) || op === "" || op.includes("/")) {
+        fail(`${sourceRel}: a plugin skill must sit one directory below skills/ — refusing to guess its page name`);
+    }
+    let text;
+    try {
+        text = readFileSync(join(ROOT, "skills", ...rel.split("/")), "utf8");
+    }
+    catch {
+        fail(`cannot read plugin skill file: ${sourceRel}`);
+    }
+    // Read through the ONE frontmatter authority; the three-facts-three-findings rule of the roles loop
+    // applies (an unreadable block, a key declared twice, a key absent are three different findings).
+    const parsed = parseFrontmatter(text);
+    if (!parsed.ok) {
+        fail(`${sourceRel}: frontmatter is unreadable — ${parsed.reason}`);
+    }
+    const one = (key) => {
+        const values = parsed.value.get(key) ?? [];
+        if (values.length > 1) {
+            fail(`${sourceRel}: ${values.length} \`${key}:\` keys in one skill frontmatter, expected at most 1 — every occurrence is retained rather than last-wins; delete the extra key`);
+        }
+        return values.length === 1 ? values[0].trim() : undefined;
+    };
+    const name = one("name");
+    if (name === undefined || name === "")
+        fail(`${sourceRel}: no \`name:\` in the skill frontmatter`);
+    const description = one("description");
+    if (description === undefined || description === "") {
+        fail(`${sourceRel}: no \`description:\` in the skill frontmatter — refusing to write a page that cannot say what the skill does`);
+    }
+    // No fabrication (D-09): an absent or empty allowed-tools reads UNKNOWN - verify.
+    const tools = one("allowed-tools");
+    skills.push({
+        op,
+        name: name,
+        description: description,
+        allowedTools: tools === undefined || tools === "" ? "UNKNOWN - verify" : tools,
+        text: text,
+        sourceRel,
+    });
+}
 // ── Deterministic ordering (D-08, mandatory for the byte-diff) ─────────────────────────────────
 // Roles: core group first, then enterprise; alphabetical (by display name) within each group.
 roles.sort((a, b) => {
@@ -408,9 +492,9 @@ const lines = [];
 lines.push(PROVENANCE);
 lines.push("# grugops reference");
 lines.push("");
-lines.push(`This is the generated reference for the grugops kit: ${roles.length} roles, each with its own page,`);
-lines.push(`and ${workflows.length} workflows. The pages are generated from the role and workflow files by`);
-lines.push("`scripts/generate-catalog.js` and are never hand-edited; re-run the generator and commit the");
+lines.push(`This is the generated reference for the grugops kit: ${roles.length} roles and ${skills.length} skills, each with its`);
+lines.push(`own page, and ${workflows.length} workflows. The pages are generated from the role, skill and workflow files`);
+lines.push("by `scripts/generate-catalog.js` and are never hand-edited; re-run the generator and commit the");
 lines.push("result. Any unverified field reads `UNKNOWN - verify` rather than an invented value.");
 lines.push("");
 lines.push("## Roles");
@@ -424,6 +508,16 @@ for (const r of roles) {
     // repo root) — portable across local viewers, VS Code preview, plain CommonMark, and npm's README
     // view, not just github.com's blob renderer (WR-02).
     lines.push(`| ${cell(r.name)} | ${r.tier} | ${cell(r.summary)} | [${r.stem}](${AGENTS_SUBDIR}/${r.file}) | [${r.link}](../../${r.link}) |`);
+}
+lines.push("");
+lines.push("## Skills");
+lines.push("");
+lines.push("| Skill | What it does | Page | Source |");
+lines.push("| --- | --- | --- | --- |");
+for (const k of skills) {
+    // The description is authored content, so it is escaped (WR-03). The source is a repository URL:
+    // skills/ does not ship to the kit home, so a relative link would be dead there.
+    lines.push(`| ${k.op} | ${cell(k.description)} | [${k.op}](${SKILLS_SUBDIR}/${k.op}.md) | [${k.sourceRel}](${repository}/blob/main/${k.sourceRel}) |`);
 }
 lines.push("");
 lines.push("## Workflows");
@@ -452,6 +546,23 @@ for (const r of roles) {
         "",
     ].join("\n"));
 }
+// One page per plugin skill (D-15): the provenance line, `# <op>`, what the skill does (its
+// frontmatter description), the tools it may use, and its source as a repository URL.
+for (const k of skills) {
+    pages.set(`${SKILLS_SUBDIR}/${k.op}.md`, [
+        PROVENANCE,
+        `# ${k.op}`,
+        "",
+        k.description,
+        "",
+        "## Allowed tools",
+        "",
+        k.allowedTools,
+        "",
+        `Source: [${k.sourceRel}](${repository}/blob/main/${k.sourceRel}). The standalone twin under \`.claude/skills/\` is generated from it and held equal by \`npm run freshness:skill-twins\`.`,
+        "",
+    ].join("\n"));
+}
 // ── Check every page path before touching the disk (T-43-13) ─────────────────────────────────
 // lstat never follows a link. The output directory and the agents directory must each be absent or
 // a real directory, and each page path must be absent or a regular file: writing through a link
@@ -469,7 +580,7 @@ function lstatOrNull(rel) {
         fail(`cannot inspect ${outRel(rel)} (${e.code ?? "error"}) — refusing to write`);
     }
 }
-for (const dir of ["", AGENTS_SUBDIR]) {
+for (const dir of ["", AGENTS_SUBDIR, SKILLS_SUBDIR]) {
     const st = lstatOrNull(dir);
     if (st !== null && !st.isDirectory()) {
         fail(`${outRel(dir)} is not a directory (a link or another file type) — refusing to write through it`);
@@ -513,8 +624,9 @@ const strays = strayPages("");
 for (const rel of strays)
     unlinkSync(outAbs(rel));
 mkdirSync(join(OUT_DIR, AGENTS_SUBDIR), { recursive: true });
+mkdirSync(join(OUT_DIR, SKILLS_SUBDIR), { recursive: true });
 for (const rel of [...pages.keys()].sort()) {
     writeFileSync(outAbs(rel), pages.get(rel), "utf8");
 }
-console.log(`generate-catalog: wrote ${pages.size} page(s) to docs/reference (the index, listing ${roles.length} roles and ${workflows.length} workflows, and ${roles.length} role pages); removed ${strays.length} stray page(s)`);
+console.log(`generate-catalog: wrote ${pages.size} page(s) to docs/reference (the index, listing ${roles.length} roles, ${skills.length} skills and ${workflows.length} workflows, ${roles.length} role pages and ${skills.length} skill pages); removed ${strays.length} stray page(s)`);
 process.exit(0);
