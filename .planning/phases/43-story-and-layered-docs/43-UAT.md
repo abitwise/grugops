@@ -1,9 +1,9 @@
 ---
-status: testing
+status: complete
 phase: 43-story-and-layered-docs
 source: [43-13-PLAN.md, 39-UAT.md tests 10 and 14, 43-READER-REVIEW.md, 43-VERIFICATION.md]
 started: 2026-11-18T08:40:11Z
-updated: 2026-11-18T17:30:00Z
+updated: 2026-11-18T19:43:34.219Z
 ---
 
 # Phase 43 milestone UAT: Phase 39 tests 10 and 14
@@ -14,12 +14,7 @@ level is reached only when the Tech Lead's plan names it) and TIER-05 (the Desig
 
 ## Current Test
 
-number: 15
-name: Fresh-reader check of the story docs (reader-review F-11)
-expected: |
-  A reader who has not seen grugops can say what grugops is, that it sits on top of their coding agent, how to
-  install it, what to type on their host, and who decides merge and deploy, without help.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -27,7 +22,8 @@ awaiting: user response
 
 expected: On a live Claude Code host, unscored work is never auto-delegated to a level adapter (junior, mid or
 senior). Each level is reached only when the Tech Lead's plan names it.
-result: accepted (human decision 2026-11-18, option A: the six runs answer the question; the limits stated below are
+result: pass
+acceptance: (human decision 2026-11-18, option A: the six runs answer the question; the limits stated below are
 accepted)
 evidence: `uat-evidence/test10-runs.md`
 source_ref: 39-UAT.md test 10 (39-11 D3)
@@ -53,7 +49,8 @@ an unnamed subagent.
 
 expected: In the same scratch repo, spawn grugops-designer and have it publish a design note. It reaches
 scripts/context-io.js through Bash, and the note is admitted, not refused as unsealed.
-result: accepted (human decision 2026-11-18, option A: accepted with the route reworded from `scripts/context-io.js`
+result: pass
+acceptance: (human decision 2026-11-18, option A: accepted with the route reworded from `scripts/context-io.js`
 to `tools/grugops/note.js`, the generated copy of the writer a scripted install ships; a separate scratch repository
 set up the same way is acceptable. The `expected:` line above is left as written; the rewording is this decision's)
 evidence: `uat-evidence/test14-designer-note.md`
@@ -77,11 +74,20 @@ expected: Give README.md, docs/concepts.md, docs/how-it-works.md and docs/usage.
 grugops and ask what grugops is, how to install it and how to start a job. The reader can say what grugops is, that it
 sits on top of their coding agent, how to install it, what to type on their host, and who decides merge and deploy,
 without help.
-result: pending
+result: pass
+reported: "pass" (human reply 2026-11-18, verbatim; no typed name, so no named acceptance is written for this test)
+evidence: `uat-evidence/test15-proxy-read.md`
 source_ref: 43-VERIFICATION.md human_verification; 43-READER-REVIEW.md item 10 (F-11, deferred to a fresh reader by
 the human on 2026-11-18)
 
 Tests 10 and 14 above stay accepted; this test was added after the phase verifier returned `human_needed`.
+
+The human ruled on a model proxy read, not a fresh human reader: one headless Claude Code run started outside the
+checkout, with no tools and no project CLAUDE.md, given only the four pages. It answered all five questions. It
+stumbled on: the README install command has no host flag (`--claude` is only in usage.md); none of the four pages
+names `factory.config.json`; the Claude Code plugin form's install is not described; who claims work (the "grug"
+agents or the Orchestrator); undefined terms (GAP-D1, sealed note, `coordinator: true`). These are recorded as
+observations in the evidence file, not as gaps; the human passed the test.
 
 ## Reader-review findings handed to this UAT
 
