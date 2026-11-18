@@ -1,145 +1,220 @@
 # Example: Greenfield bootstrap
 
-> Real run — captured 2026-06-03
+> Illustrative run — expected output, not a captured session
+>
+> Based on a real run captured 2026-06-03 on v1.0; updated to v3 by hand. The original capture is
+> in commit [ab0cda98](https://github.com/abitwise/grugops/commit/ab0cda98416c24310c02c180cb2a917889d413e6).
 
-This is the REAL bootstrap slice of the dogfood, not an illustration. A fresh, throwaway sample
-app was created **outside this repo** — a minimal TypeScript + Node + Fastify service (grugops's
-greenfield default stack) already answering `GET /health`. grugops was installed onto it via the
-portable `AGENTS.md` sequential path, then the Orchestrator ran the frozen
-`00-bootstrap-greenfield` flow: idea → Greenfield Mapper → AGENTS.md Scribe → BA/PM →
-System Analyst → Architect/Design → first ticket → seeded board + trace. The ticket→PR slice that
-follows from here is captured in `examples/03-ticket-to-pr.md`.
+This walks `agent-factory/workflows/00-bootstrap-greenfield.md` on a fresh sample: a small
+TypeScript + Node + Fastify service (the default stack in `.grugops/factory.config.json`) that
+already answers `GET /health`. IDs, note ids, names and dates are placeholders. The flow is
+`idea -> Orchestrator -> Greenfield Mapper -> AGENTS.md Scribe -> BA/PM -> System Analyst ->
+Architect/Design -> first ticket`. The ticket-to-PR slice that follows is
+`examples/03-ticket-to-pr.md`.
 
 ---
 
+## Install
+
+From a grugops checkout, install for Claude Code into the sample:
+
+```text
+node ~/grugops/install/install.js --target /path/to/sample --claude
+```
+
+The shared kit lands in `~/.grugops`, and `.grugops/install.json` names its root in the `kitRoot`
+field. Only per-repo files are written into the sample:
+
+- `AGENTS.md`, with every command slot at `UNKNOWN - verify`, and a start-here pointer in
+  `CLAUDE.md`.
+- The Claude Code agents under `.claude/agents/`, among them `grugops-orchestrator`,
+  `grugops-tech-lead` and the three engineer levels, the `/grugops` skills under
+  `.claude/skills/`, and ask rules in `.claude/settings.json`.
+- `.grugops/factory.config.json`, the config dial.
+- The seeded state: `memory-bank/` with `memory-bank/plans/board.md`, the empty `tickets/`,
+  `epics/`, `features/`, `nfr/` and `traceability/` folders, `nfr-catalog.md`, `traceability.md`
+  and `metrics.md`.
+- The runnables under `tools/grugops/`, among them `note.js`, `claim.js`, `trace-render.js` and
+  `state-check.js`.
+
+Other hosts take one flag each; `install/README.md` lists them.
+
 ## Input
 
-```text
-/grugops "bootstrap this version-reporting API as greenfield and propose a safe first ticket"
-```
-
-## Install (sequential AGENTS.md path)
-
-grugops was installed FROM this repo INTO the sample using the install harness's env overrides
-(no pollution of either repo):
+Start the session from the sample with the Orchestrator as the main thread:
 
 ```text
-GRUGOPS_SRC=<grugops repo> TARGET=<sample dir> INSTALL_MODE=copy sh install/install.sh
+claude --agent grugops-orchestrator
 ```
 
-That laid down the `AGENTS.md` substrate, the standalone `.claude/skills/grugops*` adapters, the
-`grugops-orchestrator` sub-agent wrapper, and the `CLAUDE.md` and Copilot pointer blocks. The kit
-body the pointers reference (`agent-factory/`, `memory-bank/plans/`, `memory-bank/`) was copied in via the
-documented "just install the markdown" minimal path. The installer **never** set the deploy
-approval env var — only a human may.
+Other hosts start differently; see the start table in `README.md`. Then type the request:
 
-This run predates the per-agent host entries, so the list above does not include them; the release
-it ran also wired Gemini CLI's settings file, which install no longer touches (Gemini CLI is
-discontinued, and its registry row is now Antigravity CLI). An install today writes the entry of each
-agent it is for (one flag per agent; see `install/README.md`): the Pi pointer `.pi/prompts/grugops.md`
-(see `install/README.md`, "Using grugops on Pi"), the agent skill `.agents/skills/grugops/SKILL.md`
-that Codex CLI and Antigravity CLI read, and the OpenCode command `.opencode/commands/grugops.md`.
-GitHub Copilot CLI's entry is the Copilot pointer block in the list above. It also writes a launch
-agent for each of Antigravity CLI (`.agents/agents/grugops-orchestrator.md`), OpenCode
-(`.opencode/agents/grugops-orchestrator.md`) and GitHub Copilot CLI
-(`.github/agents/grugops-orchestrator.agent.md`), each meant to start a session as the Orchestrator,
-and a launch file for Pi (`.pi/grugops-orchestrator.md`), which Pi appends to its system prompt when
-started with `--append-system-prompt`; Codex CLI gets none. The start forms, and which of them a
-human verified live, are in the "Using grugops on" sections of `install/README.md`.
+```text
+bootstrap this version-reporting API as greenfield and propose a safe first ticket
+```
 
 ## Orchestrator decision
 
-The Orchestrator read `factory.config.json` (`mode=lean · cadence=kanban · checkpoints.open_pr=block`,
-`default_stack` = ts/node-fastify/vue) and the empty board first, then classified:
+The Orchestrator reads `.grugops/factory.config.json` (`mode=lean`, `cadence=kanban`,
+`checkpoints.open_pr=block`, `default_stack` TypeScript, Node and Fastify) and the empty board,
+then writes its decision:
 
 ```markdown
 # Orchestrator Decision
 ## Request type
 greenfield-bootstrap — stand up the project plane for the version-reporting API.
-## Mode/Cadence/Checkpoints in effect
+## Mode/Cadence/Checkpoints
 mode=lean · cadence=kanban · checkpoints.open_pr=block
 ## Activated agents
 Greenfield Mapper, AGENTS.md Scribe, BA/PM, System Analyst, Architect/Design
 ## Why
-grug start with idea, not with bloat — shape the idea, write the substrate, cut one safe ticket.
+Shape the idea, confirm the commands, then cut one small, safe ticket.
 ## Required inputs
-the raw idea; factory.config.json (mode/cadence/default_stack); a near-empty repo
+the raw idea; .grugops/factory.config.json; a near-empty repo; memory-bank/00-index.md
 ## Workflow
 00-bootstrap-greenfield.md
 ## Board moves
-seed the 13 columns + WIP limits; first ticket lands in Ready for Dev
-## Expected handoffs
-product-handoff.md; system-handoff.md; architecture-handoff.md
+the first ticket walks Backlog -> Ready -> In Analysis -> In Design -> Ready for Dev
+## Expected notes
+BA/PM: product decisions. System Analyst: the behavior. Architect/Design: the structure, ADR and NFR.
 ## Stop conditions
-idea too vague to map -> stop and request clarity (it was clear, so this did not fire)
+idea too vague to map -> stop and ask the requester
 ## Next action
-Greenfield Mapper shapes the idea into memory-bank/greenfield-plan.md
+Queue a subtask for the Greenfield Mapper to shape the idea.
 ```
 
-## Board moves (real)
+Each role runs as a queued subtask that the Orchestrator claims with `node tools/grugops/claim.js`
+and closes with `claim.js done`, as `examples/03-ticket-to-pr.md` shows. Each role reads the
+shared context first with `node tools/grugops/note.js read abc-001`. No role hands its output to
+the next one.
 
-The board was seeded with the 13 frozen columns and the config WIP limits, then the first ticket
-landed in `Ready for Dev`:
+## The plan and the substrate
 
-```text
-## Ready for Dev (WIP 1/6)
-- [ABC-001] GET /version endpoint  (size: XS, priority: P2, since: 2026-06-04)
-
-## In Development (WIP 0/3)
-```
-
-## Expected files and published notes (real, produced on the sample)
-
-The bootstrap produced these REAL files on the sample tree:
-
-- `memory-bank/greenfield-plan.md` — the shaped idea / plan of record (Greenfield Mapper).
-- `AGENTS.md` — command slots filled with the sample's **real verified** commands by the Scribe
-  (`npm install`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`). In this
-  minimal sample `lint`, `typecheck`, and `build` are all wired to `tsc --noEmit -p tsconfig.json`
-  (the only static check present — there is no separate linter or build step), and the Scribe
-  recorded that honestly rather than inventing an `eslint`/build command. The genuinely
-  unverifiable slots — single-file eslint/prettier autofix, the formatter, and e2e — were honestly
-  left `UNKNOWN - verify`, never fabricated.
-- `memory-bank/50-decisions/ADR-0001-version-endpoint-inline.md` — the structural decision.
-- `memory-bank/plans/tickets/ABC-001.md` — the first ticket (status/column in lockstep with the board).
-
-The three analysis roles each recorded a result for the next role to read. **Clear voice — this
-paragraph is a correction, not an aside.** This run was captured on 2026-06-03, when a role
-recorded that result as a static file under a shared handoff directory. Phase 24 deleted those
-seventeen templates and replaced the relay with the **shared verified context**, so the same three
-results are now published as typed notes under `.grugops/context/ABC-001/notes/` through
-`scripts/context-io.ts`, per Workflow 16 (`agent-factory/workflows/16-context-read-write.md`). The
-old filenames are gone; the results are not, and they are what the next role reads:
-
-- **BA/PM** publishes a `decision` note — user value, acceptance criteria, size XS, priority P2.
-- **System Analyst** publishes a `decision` note — the `GET /version` request/response contract
-  (`200 { "version": string }`, `APP_VERSION` override).
-- **Architect/Design** publishes a `decision` note — inline route, no new module; seeds NFR-001.
-
-No role hands its output to the next one. Each pulls the verified context, does the work, and
-publishes back into it; a `finding` is admitted only with a real `§14-gate#<id>` or `human:<name>`
-stamp, and anything softer is recorded honestly as a `claim` or an `observation`.
-
-A representative slice of the greenfield plan (not a full dump):
+The Greenfield Mapper writes `memory-bank/greenfield-plan.md`, the plan of record. A slice:
 
 ```markdown
 # Greenfield plan — version-reporting API
 ## First slice (smallest credible change)
 add one endpoint (GET /version) on the existing app, with tests.
 ## Plan of record
-1. Bootstrap the project plane.  2. Cut ABC-001.  3. Drive it idea→PR (04 → 05).
+1. Bootstrap the project plane.  2. Cut ABC-001.  3. Drive it to a pull request (Workflows 04 and 05).
 ```
 
-## Trace + done
+The AGENTS.md Scribe works on the root `AGENTS.md` the install laid down. It fills a command slot
+only after running the command in the sample: `npm install`, `npm run lint`, `npm run typecheck`,
+`npm test` and `npm run build`. The sample has no separate linter or build step, so `lint`,
+`typecheck` and `build` all run `tsc --noEmit -p tsconfig.json`, and the Scribe records that
+rather than inventing an `eslint` or build command. The formatter and e2e slots stay
+`UNKNOWN - verify`.
 
-`memory-bank/plans/traceability.md` was seeded with the first ticket's row, and `memory-bank/plans/nfr-catalog.md` got
-NFR-001:
+## Product, behavior and structure
 
-| Ticket | Title | Epic | Feature | NFRs | Code (PR/files) | Tests | UAT | Release | Status |
-|--------|-------|------|---------|------|-----------------|-------|-----|---------|--------|
-| ABC-001 | GET /version endpoint | EPIC-001 | FEAT-001 | NFR-001 | — | — | — | — | Ready for Dev |
+BA/PM splits the idea into `EPIC-001` and `FEAT-001` and writes the first ticket to
+`memory-bank/plans/tickets/ABC-001.md`, with the epic and feature beside it under
+`memory-bank/plans/epics/` and `memory-bank/plans/features/`. The ticket's frontmatter:
 
-The bootstrap is done: `AGENTS.md`, the memory-bank + greenfield-plan, the three published notes,
-the first ticket, the seeded board, and the config are all present. `node
-scripts/validate-agent-factory.mjs` exits 0 (`ALL CHECKS PASSED`) on the resulting sample tree,
-bare and `--strict`. From here the ticket→PR slice is captured in `examples/03-ticket-to-pr.md`.
+```markdown
+---
+id: ABC-001
+title: GET /version endpoint
+status: ready-for-dev
+column: Ready for Dev
+size: XS
+priority: P2
+epic: EPIC-001
+feature: FEAT-001
+---
+```
+
+The frontmatter above is the ticket at the end of the bootstrap. Its body holds the user value
+and the acceptance criteria. BA/PM publishes its product decisions as a `decision` note, with the
+trace ids on its refs:
+
+```text
+$ node tools/grugops/note.js add abc-001 --kind decision --by ba-pm --confidence high \
+    --ref ABC-001 --ref EPIC-001 --ref FEAT-001 --body-file /tmp/abc-001-product.md
+noted abc-001 20260604T090000Z-ba-pm-decision-3b4c5d6e
+```
+
+The System Analyst publishes a `decision` note with the response contract: `200
+{ "version": string }`, with an `APP_VERSION` override. Its refs carry `ABC-001`.
+
+Architect/Design decides to add the route inline in `src/app.ts`, with no new module. It writes
+`memory-bank/50-decisions/ADR-0001-version-endpoint-inline.md`, seeds
+`memory-bank/plans/nfr/NFR-001.md` and adds its line to `memory-bank/plans/nfr-catalog.md`:
+
+```text
+- [NFR-001](nfr/NFR-001.md) performance: GET /version p95 under 300 ms
+```
+
+It publishes a `decision` note whose refs carry `ABC-001`, `ADR-0001` and `NFR-001`.
+
+## The board
+
+The board ships seeded with its columns and the WIP limits from the config. `ABC-001` walks the
+early columns as each owner signs off, and lands in `Ready for Dev`. The board keeps one line
+per ticket; the detail stays in the ticket file:
+
+```text
+## Ready for Dev (WIP 1/6)
+- [ABC-001] GET /version endpoint  (owner: Orchestrator, since: 2026-06-04)
+
+## In Development (WIP 0/3)
+```
+
+## The rendered trace
+
+Before the bootstrap commit, the Orchestrator renders the trace from the published note refs and
+checks the state:
+
+```text
+$ node tools/grugops/trace-render.js .
+Rendered the trace: 1 task(s) and 3 note(s) read; skipped notes: unparseable 0, unopenable 0, not-a-regular-file 0, above-ceiling 0, vanished 0, unsealed 0; unreadable tasks 0; 2 file(s) written, 0 file(s) removed.
+$ node tools/grugops/state-check.js .
+...
+No findings.
+```
+
+The rendered `memory-bank/plans/traceability/ABC-001.md`, shown here as output:
+
+```markdown
+<!-- GENERATED by grugops trace-render from published note refs — do not hand-edit -->
+# Trace: ABC-001
+
+## Requirement
+
+- EPIC-001
+- FEAT-001
+- ADR-0001
+- NFR-001
+
+## Code
+
+None recorded.
+
+## Tests
+
+None recorded.
+
+## UAT
+
+None recorded.
+
+## Release
+
+None recorded.
+```
+
+The index `memory-bank/plans/traceability.md` gains one line for the ticket:
+`| ABC-001 | [ABC-001](traceability/ABC-001.md) |`.
+
+## Done, and the human step
+
+The bootstrap is done: `AGENTS.md` with its confirmed commands, `memory-bank/greenfield-plan.md`,
+the three published notes, the epic, the feature and the first ticket, the ADR and the NFR, the
+board with `ABC-001` in `Ready for Dev`, the rendered trace and `.grugops/factory.config.json`.
+
+The Orchestrator commits these files on the branch `grugops/bootstrap-greenfield-abc-001`, never
+on a protected branch, and stops. Sam, the sample's maintainer, reviews the branch and decides
+whether to merge it. No agent merges, and no agent deploys. From here, `examples/03-ticket-to-pr.md`
+drives `ABC-001` to a pull request.
