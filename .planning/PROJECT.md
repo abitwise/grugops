@@ -8,7 +8,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 
 ## Core Value
 
-A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. **The role is the intelligence. The workflow is the guardrail. The verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.**
+A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. **The role is the intelligence. The workflow is the guardrail. The verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.**
 
 The v2.0 differentiator is strict and mechanical: **"verified" means passed the §14 behavior gate**, recorded as an auditable `verified_by` stamp that the writing agent cannot forge or self-set — never a black-box blackboard.
 

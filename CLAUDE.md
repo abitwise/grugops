@@ -7,7 +7,7 @@ grugops is a file-based **agent factory** for software delivery: a small kit of 
 
 It is lean by default and scales to enterprise governance on a single config flag. It is for solo builders who want just-enough discipline and for regulated teams who need auditable, gated, release-controlled agentic delivery. It is **not** a platform, runtime, database, queue, or hosted service — the intelligence lives in the host coding agent; grugops only supplies role, guardrail, memory, state, dial, proof, and gates.
 
-**Core Value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grug`, and gets a disciplined delivery team — a visible board, a shared verified context that nothing enters unverified, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. **The role is the intelligence. The workflow is the guardrail. The shared verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.**
+**Core Value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared verified context that nothing enters unverified, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. **The role is the intelligence. The workflow is the guardrail. The shared verified context is the memory. The board is the state. The gate is the backpressure. Humans decide; agents execute.**
 
 ### Constraints
 
@@ -19,7 +19,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - **Installers**: Idempotent, additive, dry-run-capable, reversible; never overwrite or delete user content — Why: installing must be safe to re-run and undo
 - **No fabrication**: Unknown commands are marked `UNKNOWN - verify`; never fake a passing gate, a test result, or a citation — Why: the trace is the proof
 - **Minimal AGENTS.md**: Keep the substrate short and high-signal; push detail into the files it points to — Why: long machine-written context files measurably lower agent success and raise cost
-- **Brand**: Always lowercase `grugops`; `/grug` command shape; original art only; keep grugbrain.dev attribution and the non-affiliation disclaimer visible — Why: brand consistency + IP safety
+- **Brand**: Always lowercase `grugops`; `/grugops` command shape (`$grugops` on Codex); original art only; keep grugbrain.dev attribution and the non-affiliation disclaimer visible — Why: brand consistency + IP safety
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:research/STACK.md -->
@@ -44,7 +44,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | **`${CLAUDE_PLUGIN_ROOT}`** | CC v2.1.x | Absolute path to the installed plugin dir | Any bundled script path inside hooks/MCP/monitor configs. Path changes on update — treat as ephemeral, never write state there. |
 | **`${CLAUDE_PLUGIN_DATA}`** | CC v2.1.x | Persistent per-plugin state dir (survives updates) | Only if grugops ever bundles installed deps; not needed for a markdown kit. |
 | **`${CLAUDE_PROJECT_DIR}`** | CC v2.1.x | Project root, also passed to hook subprocesses | Reference project-local scripts from standalone (non-plugin) hooks. |
-| **`$ARGUMENTS` / `$0` `$1` / `$name`** | CC v2.1.x | Pass the user request into the `/grug` command | `$ARGUMENTS` = full request string; `$ARGUMENTS[N]`/`$N` = indexed (shell-quoted); `$name` = named via `arguments:` frontmatter. |
+| **`$ARGUMENTS` / `$0` `$1` / `$name`** | CC v2.1.x | Pass the user request into the `/grugops` skill | `$ARGUMENTS` = full request string; `$ARGUMENTS[N]`/`$N` = indexed (shell-quoted); `$name` = named via `arguments:` frontmatter. |
 | **`jq`** | any | Not used by grugops | grugops ships no Bash hook. Its one hook, the MCP admission gate, reads its stdin JSON in Node (`JSON.parse`), so no `jq` dependency exists. |
 ### Development Tools
 | Tool | Purpose | Notes |
@@ -62,11 +62,11 @@ It is lean by default and scales to enterprise governance on a single config fla
 #   in Claude Code:
 ## Format Schemas (verified, copy-paste correct)
 ### 1. `.claude-plugin/plugin.json` (manifest)
-- **`name`** (string, REQUIRED): kebab-case, no spaces. **This is the command namespace.** Naming the plugin `grug` makes commands read `/grug:<command>`; naming it `grugops` makes them `/grugops:<command>`. To get the brand's literal `/grug` (no colon), you cannot do it in plugin form — see decision below.
+- **`name`** (string, REQUIRED): kebab-case, no spaces. **This is the command namespace.** The plugin ships as `grugops`, so its commands read `/grugops:<command>`; naming it `grug` (a `grug:` namespace) was an option not taken. An un-namespaced command (no colon) cannot come from plugin form — see decision below.
 - **`version`** (string, optional but STRONGLY recommended): SemVer string. **If set, users only get updates when you bump it** — bump on every release. If omitted on a git-hosted plugin, every commit is a new version (the simpler-but-noisier option). Avoid setting `version` in both `plugin.json` and the marketplace entry; `plugin.json` wins silently.
 - **`description`** (optional): shown in the plugin manager.
 - **`author`** (optional object): `name` (+ optional `email`, `url`).
-- **`displayName`** (optional, CC v2.1.143+): human-readable UI label; may contain spaces/casing. NOT used for namespacing — so it cannot give you literal `/grug`.
+- **`displayName`** (optional, CC v2.1.143+): human-readable UI label; may contain spaces/casing. NOT used for namespacing — so it cannot give an un-namespaced command such as the standalone `/grugops`.
 - **`homepage`, `repository`, `license`, `keywords`** (optional): standard metadata. `license` is an SPDX id.
 - **Component path fields** (optional; only when overriding defaults): `agents`, `commands`, `skills`, `hooks`, `mcpServers`, `lspServers`, `outputStyles`, `experimental.themes`, `experimental.monitors`, `userConfig`, `dependencies`. Default discovery means you usually omit all of these.
 - **Path behavior:** `commands`/`agents` override the default folder; `skills` adds to the default `skills/`. Unrecognized top-level fields are ignored (warned by validate). Wrong-type fields fail to load.
@@ -88,7 +88,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - **Subagent vs single-agent sequential load — the key architectural fact:** Each subagent runs in its **own context window** with its own system prompt; the parent gets back only a summary. **Subagents can nest:** "By default, a subagent can spawn subagents of its own, up to three layers below the main conversation" (code.claude.com/docs/en/sub-agents, fetched 2026-09-28); `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` sets the depth and `1` turns nesting off; v2.1.219 raised the default to three (v2.1.217-v2.1.218 defaulted to one). For grugops: the Orchestrator is designed to run as the main thread and spawn role agents; the platform also lets a subagent spawn subagents up to the depth limit, and the round-4 capture on 2.1.281 observed the coordinator adapter running as a subagent that spawned role agents, a route the human accepted (D-33-R4-04). Two valid designs:
 ### 4. Slash command — two forms
 - Command frontmatter fields (all optional): `description`, `argument-hint`, `allowed-tools`, `disallowed-tools`, `model`, `disable-model-invocation`, `user-invocable`, `arguments`.
-- **Skills equivalence:** `.claude/skills/grug/SKILL.md` also yields `/grug` and supports the same frontmatter plus supporting files. For a destructive action you never want Claude to auto-trigger (e.g. `/grug-release`), set `disable-model-invocation: true`.
+- **Skills equivalence:** `.claude/skills/grugops/SKILL.md` yields `/grugops` and supports the same frontmatter plus supporting files. For a destructive action you never want Claude to auto-trigger (e.g. `/grugops-release`), set `disable-model-invocation: true`.
 ### 5. Hooks — the MCP admission gate (the Bash prod-deploy guard was retired by 33.1 D-17)
 - grugops ships one hook: the MCP admission gate (`hooks/hooks.json` matches the admission tool, a structured call). It matches no `Bash` call, because deciding from shell text what a command does could not be closed (33.1 D-17). The platform facts below still hold.
 - **`PreToolUse` can block; `PostToolUse` cannot** (the tool already ran — use it for lint/log only).
@@ -99,7 +99,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 ### 6. AGENTS.md + per-tool entry files
 | Tool | Entry file it reads | Adapter the installer lays down | Verified |
 |------|---------------------|---------------------------------|----------|
-| **Claude Code** | `AGENTS.md` is read; plus `CLAUDE.md` / `.claude/rules/*.md`. | Standalone: `.claude/agents/*.md` (thin wrappers) + `.claude/commands/grug.md` (literal `/grug`). OR plugin form (§16.4). One-line `CLAUDE.md` pointer optional. | HIGH |
+| **Claude Code** | `AGENTS.md` is read; plus `CLAUDE.md` / `.claude/rules/*.md`. | Standalone: `.claude/agents/*.md` (thin wrappers) + `.claude/skills/grugops*/SKILL.md` (literal `/grugops`, `/grugops-<op>`). OR plugin form (§16.4). One-line `CLAUDE.md` pointer optional. | HIGH |
 | **Codex CLI** | `AGENTS.md` (root + nested) + global `~/.codex/AGENTS.md`; repository skills from `.agents/skills/`. | `.agents/skills/grugops/SKILL.md`, the agent skill it shares with Antigravity CLI (34.1 D-20). Codex does not turn skills into slash commands: the user types `$grugops` or picks it from `/skills` (34.1 D-21). Optional `~/.codex/AGENTS.override.md`. | HIGH (learn.chatgpt.com/docs/build-skills, retrieved 2026-10-11) |
 | **Antigravity CLI** | `AGENTS.md` and `GEMINI.md`, read natively (workspace rules can also live in `.agents/rules/*.md`); workspace skills from `.agents/skills/`. | `.agents/skills/grugops/SKILL.md`, the agent skill it shares with Codex CLI (34.1 D-20). Antigravity CLI offers each skill as a slash command, so this one gives `/grugops`. No settings file. Detected by `.gemini` in the target root, a signal that is `UNKNOWN - verify` (34.1 D-22). Launch agent: `.agents/agents/grugops-orchestrator.md`, picked as the primary agent in the `/agents` panel (verified live by a human on 2026-10-18 on Antigravity CLI 1.4.2). | HIGH for the entry files and the skill path (antigravity.google/docs/rules/, /docs/skills/, /docs/cli/gcli-migration/, retrieved 2026-10-11) |
 | **OpenCode** | `AGENTS.md` (project root + global `~/.config/opencode/AGENTS.md`) + `opencode.json` config; project commands from `.opencode/commands/`. | `.opencode/commands/grugops.md`, a command file that gives `/grugops`, plus one `permission.external_directory` rule for the kit path merged into the project `opencode.json` (34.1 D-14). Launch agent: `.opencode/agents/grugops-orchestrator.md`, a primary agent picked in the `/agents` panel (verified live by a human on 2026-10-18 on OpenCode 2.0.26). Optional native-agent mapping (markdown agent files: `review.md` → `review` agent). | HIGH (opencode.ai/docs/commands/, retrieved 2026-10-11) |
@@ -108,8 +108,8 @@ It is lean by default and scales to enterprise governance on a single config fla
 ## Alternatives Considered
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| Ship **both** standalone `.claude/` AND plugin form | Plugin-only | Never for grugops — the brand requires literal `/grug` (only standalone delivers it) AND wants versioned distribution (only the plugin delivers that). Ship both; they coexist. |
-| Plugin `commands/` (flat `.md`) for `/grug` | Plugin `skills/<name>/SKILL.md` | Use `skills/` if you want supporting files, auto model-invocation, or `disable-model-invocation` control on destructive commands like release. Both produce the same `/grug:<name>`. Commands are simpler and still fully supported. |
+| Ship **both** standalone `.claude/` AND plugin form | Plugin-only | Never for grugops — the brand requires the literal, un-namespaced `/grugops` (only standalone delivers it) AND wants versioned distribution (only the plugin delivers that). Ship both; they coexist. |
+| Plugin `skills/<name>/SKILL.md` (what shipped: `/grugops:<name>`) | Plugin `commands/` (flat `.md`) | Use `commands/` only for a flat command with no supporting files. grugops ships skills, which carry supporting files and `disable-model-invocation` control on destructive operations like release, and has no `commands/` folder. Both forms produce the same `/grugops:<name>`. |
 | `version` pinned in `plugin.json`, bumped per release | Omit `version` (git SHA = version) | Omit only for a fast internal dev loop where every commit-as-release is acceptable. For a public, shareable kit, pin and bump — predictable updates. |
 | Set `version: "2.0.0"` to match spec | Start at `0.x` / `1.0.0` | Consider `0.x` if you want SemVer's "anything may change" latitude during dogfooding. The spec says `2.0.0` (continuity with the v2 spec); if you adopt it you commit to MAJOR-bump-on-break immediately. Flag for the human to decide. |
 | Symlink role files in standalone install | Copy role files | Copy when targeting Windows without symlink privilege, or when shipping the **plugin** (plugins are copied to cache — symlinks to `../agent-factory/` will break). See "What NOT to use." |
@@ -126,11 +126,11 @@ It is lean by default and scales to enterprise governance on a single config fla
 | **Relative-path plugin sources behind a raw-URL marketplace** | URL-served `marketplace.json` doesn't fetch plugin files; `./` sources 404. | Use a git-hosted marketplace (GitHub `owner/repo`), or `github`/`npm` plugin sources. |
 | **Faking a gate/test/citation; inventing repo commands** | Destroys the trace, which is the entire value prop. | `UNKNOWN - verify`. Never fabricate (spec §19.9). |
 ## Stack Patterns by Variant
-- Use the **standalone `.claude/` form**: `.claude/commands/grug.md` (+ `grug-map.md`, `grug-plan.md`, `grug-ticket.md`, `grug-gate.md`, `grug-uat`, `grug-release`) → `/grug`, `/grug-map`, ...
+- Use the **standalone `.claude/` form**: `.claude/skills/grugops/SKILL.md` (+ `grugops-map`, `grugops-plan`, `grugops-ticket`, `grugops-gate`, `grugops-uat`, `grugops-release`) → `/grugops`, `/grugops-map`, ...
 - Because: only standalone command/skill files give an un-namespaced command name.
-- Use the **plugin form**, name the plugin `grug` → commands read `/grug:plan`, `/grug:ticket`, etc.
+- Use the **plugin form**, named `grugops` → commands read `/grugops:plan`, `/grugops:ticket`, etc.
 - Keep `grugops` as the repo / marketplace / package name regardless (brand §5.2).
-- Because: plugins always namespace `/<plugin>:<command>`; `/grug:plan` is the acceptable branded shape.
+- Because: plugins always namespace `/<plugin>:<command>`; `/grugops:plan` is the shipped branded shape.
 - Orchestrator = main thread via plugin `settings.json` `{ "agent": "grug-orchestrator" }`; it spawns role subagents with the `Agent` tool.
 - Because: running the Orchestrator as the main thread is the designed dispatch path; nesting (a subagent spawning subagents, up to `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`) is allowed by the platform but not relied on.
 - Single-agent sequential role-load model (Orchestrator loads each role file into its own context in turn).
@@ -147,7 +147,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | `install.js` (compiled from `install.ts`) | Node **22+ LTS** | Uses `node:fs`/`node:path` + ESM; built with `tsc`, committed `.js` run directly (D-13). |
 | SemVer 2.0.0 / Keep a Changelog 1.1.0 | Stable, no compat concerns | Both are mature, stable specs. |
 ## Open Questions / Flags for Roadmap
-- **`UNKNOWN - verify` (LOW):** Exact behavior of the standalone-`/grug` command when grugops is *also* installed as the `grug` plugin in the same session (potential `/grug` vs `/grug:...` confusion). Resolve during dogfood (spec acceptance §20).
+- **`UNKNOWN - verify` (LOW):** Exact behavior of the standalone `/grugops` skill when grugops is *also* installed as the `grugops` plugin in the same session (potential `/grugops` vs `/grugops:...` confusion). Resolve during dogfood (spec acceptance §20).
 - **Decided (human, 2026-09-18):** the artifact version is `2.1.0`, aligned with the `v2.1` milestone tag, and the SemVer break-contract applies from this release. `0.1.0` was the pre-release seed (D-28); it is retired.
 - **Verify during dogfood:** Whether plugin-cache copying breaks the wrappers' `agent-factory/roles/*.md` references (they should resolve against the user's repo, not the plugin cache — confirm).
 ## Sources
