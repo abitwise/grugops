@@ -12,8 +12,10 @@ release), while a few single-job "grug" agents claim that work and execute withi
 limits. No agent hands data to another — the shared verified context is the only channel.
 The intelligence lives in the host coding agent; grugops only supplies
 <!-- claim: C-28-023 -->
-the role, the guardrail, the memory, the state, the dial, the proof, and the gates. Humans
-always hold merge and deploy.
+the role, the guardrail, the memory, the state, the dial, the proof, and the gates. Merge and
+deploy are human decisions. Your git host enforces them through branch protection and required
+reviewers, which you set up; on Claude Code, grugops's ask rules are a speed bump. See
+[`docs/GUARANTEES.md`](../docs/GUARANTEES.md) for which safety claims hold on this repository.
 
 ## Start here
 
