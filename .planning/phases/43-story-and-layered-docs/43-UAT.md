@@ -133,6 +133,14 @@ The reply did not end with a typed name, so the human was asked to end it with o
 Acceptance: accepted by Olger — name added by the agent at Olger's instruction ("add my name, i approve",
 2026-11-18); the name was not typed in the reply.
 
+Confirmation by typed name (2026-11-18). The phase security audit found T-43-41 open because neither reply above ended
+with a typed name; the human was asked to type it, choosing between typing it (option A) and accepting the waiver as a
+risk (option B). Reply 3, verbatim:
+
+> T-43-28 A, T-43-41 A, redact yes. Olger
+
+Acceptance (typed): accepted by Olger, 2026-11-18, confirming tests 10 and 14 and the picks as recorded above.
+
 What the picks mean (the options as they were put to the human):
 
 - **Test 10, option A (accept):** the six runs answer the question. No level adapter was reached before a Tech Lead
