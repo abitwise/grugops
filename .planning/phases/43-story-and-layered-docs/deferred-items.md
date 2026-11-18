@@ -49,3 +49,11 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
 - **F-09:** reword the first clause of C-28-033 in docs/how-it-works.md ("every shipped change is accountable end to end", for example toward "leaves a trail from requirement to release"); keep "exactly what it needs" (human decision 2026-11-04).
 - **F-10:** bring docs/skills.md and install/README.md into the claim registry's anchored set.
 - **F-12:** fix in the reference-page generator: the Orchestrator's own page row `Loaded by the Orchestrator in turn`, and named workflows for the Compliance Officer and Installer pages (both now `UNKNOWN - verify`).
+
+## Code review follow-ups (source: 43-REVIEW.md, human decision option A on 2026-11-18; CR-01, WR-01, IN-01, IN-02 fixed, see 43-REVIEW-FIX.md)
+
+- **WR-02:** the kit home gets the checkout's generated `docs/GUARANTEES.md` (all checkpoints at default), while agent-factory/README.md and docs/how-it-works.md present it as showing which safety claims hold "on this repository". A user who lowered a floor still reads every safety row as held. Needs a wording decision (or a per-repo regeneration path).
+- **WR-03:** `CLAUDE.md:134` names the removed `grug-orchestrator` agent (`{ "agent": "grug-orchestrator" }`). The section is generated from GSD `research/STACK.md`; fix it there (joins the known CLAUDE.md/STACK.md stack-block mismatch). check-story-docs' `/grug` check matches only a slash-prefixed `/grug`, so it misses this form.
+- **IN-03:** the reference-page generator links only workflow bullets shaped `- <Name> — `, so the Orchestrator page omits Workflow 17; Compliance Officer and Installer read `UNKNOWN - verify` for Workflows (overlaps F-12).
+- **IN-04:** the story-docs link check skips `<…>` targets with spaces, HTML `href`/`src`, and targets containing `)`, so a dead link in those forms passes.
+- **Test environment note (from the CR-01 fix):** `install/install.test.ts` "readUserFile: a unix socket is `not-regular` (socket)" times out when TMPDIR is a long path (the socket path exceeds the 108-byte limit); it passes under a short TMPDIR. Not a code defect; the full suite runs with the default TMPDIR.
