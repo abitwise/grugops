@@ -252,3 +252,9 @@ None - no external service configuration required.
 ---
 *Phase: 43-story-and-layered-docs*
 *Completed: 2026-11-18*
+
+## Self-Check: PASSED
+
+- FOUND: docs/reference/README.md, docs/reference/agents/orchestrator.md (19 pages), scripts/generate-catalog.ts, scripts/catalog-freshness.ts
+- ABSENT (as intended): docs/catalog/README.md
+- FOUND in HEAD's history: 5b34e14c, ba5678e4

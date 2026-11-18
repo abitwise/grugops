@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 43
 current_phase_name: Story and layered docs
 status: executing
-stopped_at: Completed 43-03-PLAN.md
-last_updated: "2026-11-18T00:49:00.683Z"
+stopped_at: Completed 43-04-PLAN.md
+last_updated: "2026-11-18T01:35:43.770Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 43 execution started
-state_head: 2db85f9f7ae3bd42508ea4d077ebd82dc015d7a5
+state_head: 599b3310556392ac8dfee73478354a81ab4acf1c
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 165
-  completed_plans: 153
+  completed_plans: 154
   percent: 89
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43 (Story and layered docs) — EXECUTING
-Plan: 4 of 15
+Plan: 5 of 15
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 43 execution started
 
@@ -871,6 +871,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43 P01 | 35 min | 3 tasks | 8 files |
 | Phase 43 P02 | 20 min | 2 tasks | 10 files |
 | Phase 43 P03 | 44min | 3 tasks | 15 files |
+| Phase 43 P04 | 15 min | 2 tasks | 37 files |
 
 ## Accumulated Context
 
@@ -2431,6 +2432,9 @@ Recent decisions affecting current work:
 - [Phase 43]: 43-02: every shipped page under docs/ joins both claim gates by existing; each plan that writes or deletes one moves PUBLIC_DOCS_SCAN_COUNT and BANNED_CLAIM_SCAN_COUNT off the gates' refusals, and the test mirrors need no edit
 - [Phase 43]: 43-03: CI runs story-docs as node scripts/check-story-docs.js (the gate-module spelling CI reachability derives from); npm run check:story-docs is the local alias
 - [Phase 43]: 43-03: install/README.md Reduced tier says parallel scheduling is available with the same GAP-D1 open gap, no longer that it is used
+- [Phase 43]: 43-04: docs/catalog/ is deleted, not left as a pointer (D-16a); the reference index docs/reference/README.md replaces it
+- [Phase 43]: 43-04: the reference-tree gate (freshness:catalog) honours CHECK_ROOT so planted cases run in a hermetic mirror
+- [Phase 43]: 43-04: the index paragraph names role and workflow files only until plan 43-05 adds skill pages (no fabrication)
 
 ### Pending Todos
 
@@ -2773,8 +2777,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-18T00:48:58.957Z
-Stopped at: Completed 43-03-PLAN.md
+Last session: 2026-11-18T01:35:42.183Z
+Stopped at: Completed 43-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
