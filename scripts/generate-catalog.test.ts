@@ -48,6 +48,7 @@ import {
 } from "./kit-model.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { readRoleSkills } from "./role-skills-reader.js";
+import { zeroConfigAssignments } from "./model-tiers.js";
 import { HOST_TOOLS, LAUNCH_AGENT_NAME, LAUNCH_NOT_LIVE, launchInvoke, launchLiveNote } from "../install/host-tools.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -1536,5 +1537,105 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
       expect(/\bparallel\b/i.test(t), rel).toBe(false);
       expect(t, rel).not.toContain("scripts/model-tiers.ts");
     }
+  });
+});
+
+// ── The levels section (plan 43-14, D-13) ─────────────────────────────────────────────────────────
+//
+// A role whose adapter specs carry a level gets a generated `## Levels` section after its header table:
+// one row per level adapter with the model and effort the zero-config answer gives it, a sentence that
+// the models dial can change them, and the role file's own `## Levels` text. The section is keyed on the
+// specs' `level`, never on a role name, so a second role given `levels:` gets one too.
+describe("generate-catalog.js — the levels section (plan 43-14, D-13)", () => {
+  const SPECS = listAgentAdapterSpecs(ROOT);
+  const ZERO = zeroConfigAssignments(SPECS);
+  const DIAL_LINK = "[agent-factory/config/factory.config.md](../../../agent-factory/config/factory.config.md)";
+
+  function mirror(): string {
+    const m = mkdtempSync(join(tmpdir(), "grugops-catalog-levels-"));
+    tmpDirs.push(m);
+    mirrorGeneratorInto(m);
+    return m;
+  }
+  const run = (m: string): { status: number | null; text: string } => {
+    const r = spawnSync("node", [join(m, "scripts", "generate-catalog.js")], { encoding: "utf8" });
+    return { status: r.status, text: `${r.stdout}${r.stderr}` };
+  };
+  const page = (m: string, file: string): string => readFileSync(join(m, "docs", "reference", "agents", file), "utf8");
+  const levelsSection = (text: string): string[] => {
+    const lines = text.split("\n");
+    const at = lines.indexOf("## Levels");
+    if (at === -1) return [];
+    const end = lines.findIndex((l, i) => i > at && l.startsWith("## "));
+    return lines.slice(at + 1, end === -1 ? lines.length : end);
+  };
+
+  it("the Software Engineer page has one `## Levels` with a row per level adapter from the zero-config answer, the dial sentence and the role's own levels text", () => {
+    const m = mirror();
+    const r = run(m);
+    expect(r.status, r.text).toBe(0);
+    const leveled = SPECS.filter((s) => s.level !== null);
+    expect(leveled.length, "PREMISE: a role declares levels").toBeGreaterThan(0);
+    const file = leveled[0].roleFile;
+    const text = page(m, file);
+    expect(text.split("\n").filter((l) => l === "## Levels").length, `${file}: one levels section`).toBe(1);
+    const sec = levelsSection(text);
+    expect(sec, file).toContain("| Adapter | Level | Model | Effort |");
+    for (const s of leveled.filter((x) => x.roleFile === file)) {
+      expect(sec, s.name).toContain(`| ${s.name} | ${s.level} | ${ZERO.models.get(s.adapterStem)} | ${ZERO.efforts.get(s.adapterStem)} |`);
+    }
+    const body = sec.join("\n");
+    expect(body).toContain(DIAL_LINK);
+    // The role file's own levels text, which says who names the level.
+    const own = readFileSync(join(ROOT, "agent-factory", "roles", file), "utf8").split("\n");
+    const at = own.indexOf("## Levels");
+    expect(at, `PREMISE: ${file} has its own levels section`).toBeGreaterThan(-1);
+    const firstPara = own[at + 1];
+    expect(firstPara).toContain("Tech Lead");
+    expect(body).toContain(firstPara);
+    // After the header table and before the adapters table.
+    const lines = text.split("\n");
+    expect(lines.indexOf("## Levels")).toBeGreaterThan(lines.findIndex((l) => l.startsWith("| Source | ")));
+    expect(lines.indexOf("## Levels")).toBeLessThan(lines.indexOf("## Adapters per host"));
+    expect(text).not.toContain("scripts/model-tiers.ts");
+  });
+
+  it("no role without a level adapter has a generated `## Levels` section", () => {
+    const m = mirror();
+    expect(run(m).status).toBe(0);
+    const leveledFiles = new Set(SPECS.filter((s) => s.level !== null).map((s) => s.roleFile));
+    for (const file of listRoles(ROOT).filter((f) => !leveledFiles.has(f))) {
+      expect(page(m, file).split("\n").includes("## Levels"), file).toBe(false);
+    }
+  });
+
+  it("a second role given a `levels:` line gets the section too, with no name check in the generator", () => {
+    const m = mirror();
+    const p = join(m, "agent-factory", "roles", "tech-lead.md");
+    const before = readFileSync(p, "utf8");
+    const after = before.replace(/^tier: /m, "levels: junior senior\ntier: ");
+    expect(after, "the plant applied").not.toBe(before);
+    writeFileSync(p, after);
+    const r = run(m);
+    expect(r.status, r.text).toBe(0);
+    const sec = levelsSection(page(m, "tech-lead.md"));
+    expect(sec).toContain("| Adapter | Level | Model | Effort |");
+    expect(sec.some((l) => l.startsWith("| grugops-tech-lead-junior | junior | "))).toBe(true);
+    expect(sec.some((l) => l.startsWith("| grugops-tech-lead-senior | senior | "))).toBe(true);
+    // The role file has no `## Levels` section of its own, so that part reads UNKNOWN - verify.
+    expect(sec.join("\n")).toContain("UNKNOWN - verify");
+  });
+
+  it("fail-closed: a level the zero-config answer refuses → exit 1 naming the refusal, and every page is byte-unchanged", () => {
+    const m = mirror();
+    expect(run(m).status).toBe(0);
+    const before = snapshotDir(join(m, "docs", "reference"));
+    const p = join(m, "agent-factory", "roles", "tech-lead.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/^tier: /m, "levels: a b\ntier: "));
+    const r = run(m);
+    expect(r.status, r.text).toBe(1);
+    expect(r.text).toContain("tech-lead.md");
+    expect(r.text).not.toContain("ERR_MODULE_NOT_FOUND");
+    expect(sameSnapshot(snapshotDir(join(m, "docs", "reference")), before)).toBe(true);
   });
 });
