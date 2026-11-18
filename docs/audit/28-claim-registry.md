@@ -53,6 +53,8 @@ substituted.** The sentences above stand as written. As committed with the new R
 registry carries **70 rows**: the 68 above plus `C-28-069` (the tagline) and `C-28-070` (the story).
 The number was DERIVED from `readRegistry().claims.length` at that commit. `C-28-002` and `C-28-003`
 are now `status: retired` (D-25): their rows and ids stay, so they add and remove no row.
+Plan 43-11 task 2 then retired `C-28-008` and moved `C-28-001` to `docs/concepts.md` with its id:
+the count stays **70 rows**.
 
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
@@ -109,12 +111,12 @@ Three consequences, recorded rather than left to be discovered:
 
 ### C-28-001
 
-- file: README.md
-- line: 4
+- file: docs/concepts.md
+- line: 8
 - kind: safety
 - depends_on: open_pr, production_requires_human_confirmation, protected_branch_merge
 - status: overstated
-- mechanism: Three assertions in one hard-wrapped line, each measured separately, and the row takes the WORST of the three — which is why fixing two of them moves this row from `false` to `overstated` rather than to `true`. (1) `handoff packets` — was FIXED in 28-05; the phrase now reads `a shared verified context`, which is the artifact class that actually ships (`.grugops/context/<task>/notes/`, sole writer `scripts/context-io.ts`). (2) The linear arrow chain `business analysis → … → release` — was FIXED in 28-05; the sentence now states decompose-and-enqueue over a shared queue with the shared verified context as the only memory, matching `AGENTS.md:21` and `agent-factory/roles/orchestrator.md`'s § *Responsibilities* items 4 to 7 (`Split the request into subtasks.`, then the enqueue, the Workflow 17 pointer and the gate) and its § *Hard limits* (`Never relay data between agents; the shared verified context is the only channel.`) (quotes refreshed in plan 40-10 to the plain-English text plan 40-07 wrote). (3) `Humans always hold merge and deploy` — UNCHANGED and still overstated, for exactly the reason measured in full at C-28-023: the failing word is `always`, the mechanical guard is Claude-Code-plugin-only (`hooks/hooks.json`, `install/install.ts:1571`), and `.planning/PROJECT.md` records an irreducible same-uid / no-hook / direct-filesystem forgery residual. It is backstopped by the `autonomy=pr` floor, which is why it is overstated rather than false. Assertion (3) is ACCEPTED here on the same basis and with the same named residual as C-28-023 / F-28-208; it was deliberately not reworded, because C-28-023 registers the identical claim and is an `accepted` row this plan is not permitted to touch. Plan 34-08 added Pi to the host list in parentheses, so the list names every row of the host registry (`install/host-tools.ts` `HOST_TOOLS`); the three measured assertions are unchanged. Plan 34.1-04 (D-12) replaced Gemini CLI with Antigravity CLI in that list, following the registry row; the three measured assertions are unchanged. Since plan 41-06 (D-04), the Orchestrator runs the claim command at dispatch in the agent's name; the record names the agent, so `agents claim that work` holds as ownership, and Phase 43 owns any rewording.
+- mechanism: Three assertions in one hard-wrapped line, each measured separately, and the row takes the WORST of the three — which is why fixing two of them moves this row from `false` to `overstated` rather than to `true`. (1) `handoff packets` — was FIXED in 28-05; the phrase now reads `a shared verified context`, which is the artifact class that actually ships (`.grugops/context/<task>/notes/`, sole writer `scripts/context-io.ts`). (2) The linear arrow chain `business analysis → … → release` — was FIXED in 28-05; the sentence now states decompose-and-enqueue over a shared queue with the shared verified context as the only memory, matching `AGENTS.md:21` and `agent-factory/roles/orchestrator.md`'s § *Responsibilities* items 4 to 7 (`Split the request into subtasks.`, then the enqueue, the Workflow 17 pointer and the gate) and its § *Hard limits* (`Never relay data between agents; the shared verified context is the only channel.`) (quotes refreshed in plan 40-10 to the plain-English text plan 40-07 wrote). (3) `Humans always hold merge and deploy` — UNCHANGED and still overstated, for exactly the reason measured in full at C-28-023: the failing word is `always`, the mechanical guard is Claude-Code-plugin-only (`hooks/hooks.json`, `install/install.ts:1571`), and `.planning/PROJECT.md` records an irreducible same-uid / no-hook / direct-filesystem forgery residual. It is backstopped by the `autonomy=pr` floor, which is why it is overstated rather than false. Assertion (3) is ACCEPTED here on the same basis and with the same named residual as C-28-023 / F-28-208; it was deliberately not reworded, because C-28-023 registers the identical claim and is an `accepted` row this plan is not permitted to touch. Plan 34-08 added Pi to the host list in parentheses, so the list names every row of the host registry (`install/host-tools.ts` `HOST_TOOLS`); the three measured assertions are unchanged. Plan 34.1-04 (D-12) replaced Gemini CLI with Antigravity CLI in that list, following the registry row; the three measured assertions are unchanged. Since plan 41-06 (D-04), the Orchestrator runs the claim command at dispatch in the agent's name; the record names the agent, so `agents claim that work` holds as ownership, and Phase 43 owns any rewording. Plan 43-11 (D-02) moved this anchor and paragraph byte for byte from README.md to docs/concepts.md § In one paragraph, keeping the id; the three measured assertions are unchanged, and `SAFETY_CLAIM_HOMES` in `scripts/check-audit-register.ts` names docs/concepts.md as its home.
 - disposition: accepted
 - finding_id: F-28-201
 
@@ -206,8 +208,8 @@ In the versioned Claude Code plugin form the same operations are namespaced with
 - line: 65
 - kind: architecture
 - depends_on: —
-- status: true
-- mechanism: `agent-factory/README.md` exists and its § `Usage across the supported host tools` table carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), each naming its entry file and its role dispatch. Plan 34-06 made the count derived rather than written: `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table to the registry two-sided, and `scripts/check-uat-oracles.ts` builds its asymmetric rows from the registry. Plan 34-08 made the claim text count-free (`any supported host tool`) and updated this verbatim block in the same commit. Plan 43-10 (D-10) moved that table to docs/usage.md § Usage across the supported host tools; agent-factory/README.md keeps the heading with a pointer line to it, and its § Start here still tells any host tool to start at `agent-factory/roles/orchestrator.md`, so the guide still explains how to point a host tool at the Orchestrator. The derivation and the two checks above now read docs/usage.md.
+- status: retired
+- mechanism: Retired by plan 43-11 (D-25) because the README rewrite (D-01) removed it: the `## Where to go next` list replaces the "Go deep" step, linking docs/concepts.md, docs/how-it-works.md, docs/usage.md, docs/reference/README.md and install/README.md. The text last stood at `65ec4751` in README.md. While it stood it was measured as follows. `agent-factory/README.md` exists and its § `Usage across the supported host tools` table carries one row per registry host (`install/host-tools.ts` `HOST_TOOLS`), each naming its entry file and its role dispatch. Plan 34-06 made the count derived rather than written: `install/host-tools.test.ts` ("every per-host table equals the registry") holds the table to the registry two-sided, and `scripts/check-uat-oracles.ts` builds its asymmetric rows from the registry. Plan 34-08 made the claim text count-free (`any supported host tool`) and updated this verbatim block in the same commit. Plan 43-10 (D-10) moved that table to docs/usage.md § Usage across the supported host tools; agent-factory/README.md keeps the heading with a pointer line to it, and its § Start here still tells any host tool to start at `agent-factory/roles/orchestrator.md`, so the guide still explains how to point a host tool at the Orchestrator. The derivation and the two checks above now read docs/usage.md.
 
 ```
 3. **Go deep** — the internal start-here guide explains how to point any supported host tool at the Orchestrator and walk a ticket from idea to PR. See **[`agent-factory/README.md`](agent-factory/README.md)**.
@@ -1248,7 +1250,8 @@ every row of each kind, retired ones included, because retiring a row does not d
 removes their text from `README.md`.
 
 **As committed by plan 43-11 task 1: two rows are `retired`,** `C-28-002` and `C-28-003`, the old
-tagline and the `grug-brained` sentence the README rewrite removed.
+tagline and the `grug-brained` sentence the README rewrite removed. **As committed by plan 43-11 task 2: three
+rows are `retired`,** adding `C-28-008`, the "Go deep" step the `## Where to go next` list replaced.
 
 ## Two-sided completeness (D-14)
 

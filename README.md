@@ -13,9 +13,6 @@
 <!-- claim: C-28-070 -->
 grugops gives the coding agent you already use a team of specialist roles for software delivery. One Orchestrator splits each request into subtasks on a shared queue and claims each one for a role agent, which does one job within hard limits and publishes what it found as notes to a shared verified context. A quality gate checks the work and makes a recommendation, and the workflows stop at a pull request and leave merge and deploy to a person. The roles, workflows, board and trace are plain markdown files you can read and diff.
 
-<!-- claim: C-28-001 -->
-grugops is a file-based agent factory for software delivery. It is a small kit of readable markdown — role prompts, workflows, a shared verified context, checklists, a config dial, a visible Kanban/Sprint board, and a traceability trail — plus per-tool installers, that drops on top of a coding-agent CLI you already use (Claude Code, Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, Pi). One Orchestrator decomposes each request into subtasks and enqueues them on a shared queue, drawing on whichever specialist roles the work needs — business analysis, product, system analysis, architecture, engineering, QE/E2E, security/NFR/compliance, UAT, release — while a few single-job "grug" agents claim that work and execute within hard limits. No agent hands data to another; the shared verified context is the only memory between them. It is lean by default and scales to enterprise governance on a single config flag. Humans always hold merge and deploy.
-
 ## Quickstart
 
 <!-- claim: C-28-004 -->
@@ -29,25 +26,38 @@ grugops version `2.2.0`.
    node ~/grugops/install/install.js --target /path/to/your-project
    ```
 
-   From inside the project you can drop `--target`; the installer then asks you to confirm the current directory. It refuses to install into the grugops checkout itself. The shared kit lands in `~/.grugops` and only per-repo state is written into your project. Every flag, including `--check` and `--update`, is in [`install/README.md`](install/README.md).
+   From inside the project you can drop `--target`. The installer refuses to install into the grugops checkout itself. The shared kit lands in `~/.grugops`; your project gets only per-repo state.
 
 <!-- claim: C-28-006 -->
    The installer never overwrites or deletes your content; re-running it is safe, and `node ~/grugops/install/uninstall.js --target /path/to/your-project` removes only what was added. Set `DRY_RUN=1` to preview the changes first.
 
-2. **Drive it** — start a session in your coding agent. The start table for every host is in [`docs/usage.md`](docs/usage.md#start-a-session).
+2. **Drive it** — start a session in your coding agent; what to type on each host is the start table in [docs/usage.md](docs/usage.md#start-a-session), and every flag is in [install/README.md](install/README.md).
 
-<!-- claim: C-28-008 -->
-3. **Go deep** — the internal start-here guide explains how to point any supported host tool at the Orchestrator and walk a ticket from idea to PR. See **[`agent-factory/README.md`](agent-factory/README.md)**.
+## How it works
 
-## Changelog
+- [You make a request](docs/how-it-works.md#you-make-a-request) in the coding agent you already use.
+- [The Orchestrator splits it](docs/how-it-works.md#the-orchestrator-splits-the-request) into subtasks on a [shared queue](docs/how-it-works.md#the-queue-and-claims).
+- [Role agents do one job each and publish notes](docs/how-it-works.md#role-agents-publish-notes) to the shared verified context.
+- [A gate checks the work](docs/how-it-works.md#the-gate-recommends) and makes a recommendation.
+- [A person decides on merge and deploy](docs/how-it-works.md#a-person-merges-and-deploys).
 
-<!-- claim: C-28-009 -->
-The release history lives in [`CHANGELOG.md`](CHANGELOG.md) and follows Keep a Changelog.
+## Where to go next
+
+- [The core concept](docs/concepts.md): the ideas behind the kit.
+- [How grugops works](docs/how-it-works.md): one request, step by step.
+- [Usage](docs/usage.md): start a session and get each job done.
+- [Reference](docs/reference/README.md): every role, workflow and skill.
+- [Install guide](install/README.md): every installer flag.
 
 ## Safety guarantees
 
 <!-- generated: guarantees-pointer -->
 Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](docs/GUARANTEES.md).
+
+## Changelog
+
+<!-- claim: C-28-009 -->
+The release history lives in [`CHANGELOG.md`](CHANGELOG.md) and follows Keep a Changelog.
 
 ## Acknowledgements
 

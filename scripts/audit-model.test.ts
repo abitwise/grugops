@@ -2605,6 +2605,11 @@ describe("audit-model: the anchored-block authority against the LIVE registry (p
   // repository's recorded set-literal-drift failure class.
   const claims = readRegistry(REPO_ROOT).claims;
   const docs = anchoredDocs(claims);
+  // (Plan 43-11, 2026-11-18; D-25) A `status: retired` row owes its file no anchor: its text and anchor
+  // left the page on purpose, and check-claim-anchors checks they are ABSENT. Both routes below read
+  // only the standing rows, as the gate partitions them. A retired id still anchored in a document
+  // is not in route B, so route A names it as an anchor with no standing row.
+  const standing = claims.filter((c) => c.status !== "retired");
 
   it("every live anchored block is found, in extent, and byte-identical", () => {
     expect(docs.length, "the live registry must name markdown documents").toBeGreaterThan(0);
@@ -2613,7 +2618,7 @@ describe("audit-model: the anchored-block authority against the LIVE registry (p
       const scan = scanAnchoredDocument(readFileSync(join(REPO_ROOT, doc), "utf8"));
       expect(scan.attempts, `${doc} carries no near-anchor attempt`).toEqual([]);
       const byId = new Map(scan.anchors.map((a) => [a.id, a]));
-      for (const claim of claims.filter((c) => c.file === doc)) {
+      for (const claim of standing.filter((c) => c.file === doc)) {
         const anchor = byId.get(claim.id);
         expect(anchor, `${doc} anchors ${claim.id}`).toBeDefined();
         const block = anchoredBlockAt(scan, anchor!, claim.verbatim);
@@ -2643,7 +2648,7 @@ describe("audit-model: the anchored-block authority against the LIVE registry (p
       const scan = scanAnchoredDocument(readFileSync(join(REPO_ROOT, doc), "utf8"));
       for (const a of scan.anchors) if (registered.has(a.id)) fromDocuments.push(a.id);
     }
-    const fromRegistry = claims
+    const fromRegistry = standing
       .filter((c) => c.file.endsWith(MARKDOWN_SUFFIX))
       .map((c) => c.id);
 

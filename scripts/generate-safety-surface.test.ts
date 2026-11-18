@@ -169,6 +169,10 @@ function buildMirror(opts: {
   mkdirSync(join(dir, "agent-factory", "roles"), { recursive: true });
   mkdirSync(join(dir, "agent-factory", "workflows"), { recursive: true });
   mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+  // (Plan 43-11, 2026-11-18) C-28-001's home is docs/concepts.md, which the public-docs scan vouches
+  // for through the shipped-docs walk. That walk reads `docs` and `examples` and returns null when one
+  // is missing, so the mirror carries an empty `examples/`.
+  mkdirSync(join(dir, "examples"), { recursive: true });
   // The public documents the safety arm's roster names, so `publicDocsScan()` vouches for them on
   // the mirror as it does live. Without them equality four's containment arm reds on every case.
   for (const doc of SAFETY_CLAIM_HOMES.map((h) => h.file).filter((f) => f.endsWith(".md"))) {

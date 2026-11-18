@@ -2,6 +2,11 @@
 
 grugops is a kit of markdown files that sits on top of the coding-agent CLI you already use. The coding agent does the work; grugops gives it roles, rules, a shared memory, a visible state and gates. Five ideas carry the kit, and this page explains each one. [How grugops works](how-it-works.md) follows one request through them step by step.
 
+## In one paragraph
+
+<!-- claim: C-28-001 -->
+grugops is a file-based agent factory for software delivery. It is a small kit of readable markdown — role prompts, workflows, a shared verified context, checklists, a config dial, a visible Kanban/Sprint board, and a traceability trail — plus per-tool installers, that drops on top of a coding-agent CLI you already use (Claude Code, Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, Pi). One Orchestrator decomposes each request into subtasks and enqueues them on a shared queue, drawing on whichever specialist roles the work needs — business analysis, product, system analysis, architecture, engineering, QE/E2E, security/NFR/compliance, UAT, release — while a few single-job "grug" agents claim that work and execute within hard limits. No agent hands data to another; the shared verified context is the only memory between them. It is lean by default and scales to enterprise governance on a single config flag. Humans always hold merge and deploy.
+
 ## Specialist roles
 
 <!-- claim: C-28-056 -->

@@ -195,7 +195,8 @@ export const SAFETY_CLAIM_HOMES: readonly {
   readonly claim: string;
   readonly file: string;
 }[] = [
-  { claim: "C-28-001", file: "README.md" },
+  // C-28-001 README.md -> docs/concepts.md (plan 43-11, 2026-11-18; D-02): moved byte for byte with its id.
+  { claim: "C-28-001", file: "docs/concepts.md" },
   { claim: "C-28-010", file: "AGENTS.md" },
   { claim: "C-28-018", file: "AGENTS.md" },
   { claim: "C-28-023", file: "agent-factory/README.md" },

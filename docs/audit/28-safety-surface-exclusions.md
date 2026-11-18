@@ -37,7 +37,6 @@ error.
 |---|---|
 | `.claude-plugin/plugin.json` | home of safety claim C-28-038 |
 | `AGENTS.md` | home of safety claim C-28-010; home of safety claim C-28-018 |
-| `README.md` | home of safety claim C-28-001 |
 | `agent-factory/README.md` | home of safety claim C-28-023; home of safety claim C-28-032 |
 | `agent-factory/roles/_role-switch-protocol.md` | register row flagged `safety_surface: yes` (`kind: protocol`) |
 | `agent-factory/roles/agents-md-scribe.md` | register row flagged `safety_surface: yes` (`kind: role`) |
@@ -78,3 +77,4 @@ error.
 | `agent-factory/workflows/16-context-read-write.md` | register row flagged `safety_surface: yes` (`kind: workflow`) |
 | `agent-factory/workflows/17-task-claim.md` | register row flagged `safety_surface: yes` (`kind: workflow`) |
 | `agent-factory/workflows/18-context-compaction.md` | register row flagged `safety_surface: yes` (`kind: workflow`) |
+| `docs/concepts.md` | home of safety claim C-28-001 |

@@ -169,7 +169,8 @@ function normalizeObservation(raw) {
  * derived from this list's length rather than written twice.
  */
 export const SAFETY_CLAIM_HOMES = [
-    { claim: "C-28-001", file: "README.md" },
+    // C-28-001 README.md -> docs/concepts.md (plan 43-11, 2026-11-18; D-02): moved byte for byte with its id.
+    { claim: "C-28-001", file: "docs/concepts.md" },
     { claim: "C-28-010", file: "AGENTS.md" },
     { claim: "C-28-018", file: "AGENTS.md" },
     { claim: "C-28-023", file: "agent-factory/README.md" },

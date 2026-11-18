@@ -51,7 +51,7 @@ that tier.
 
 | claim | file | measured status | floors, and where each is held | standing |
 |---|---|---|---|---|
-| `C-28-001` | `README.md` | overstated | `open_pr` at `block`; `production_requires_human_confirmation` at `block`; `protected_branch_merge` at `block` | held |
+| `C-28-001` | `docs/concepts.md` | overstated | `open_pr` at `block`; `production_requires_human_confirmation` at `block`; `protected_branch_merge` at `block` | held |
 | `C-28-010` | `AGENTS.md` | overstated | `open_pr` at `block`; `production_requires_human_confirmation` at `block`; `protected_branch_merge` at `block` | held |
 | `C-28-018` | `AGENTS.md` | overstated | `protected_branch_merge` at `block`; `production_requires_human_confirmation` at `block`; `test_integrity` at `block` | held |
 | `C-28-023` | `agent-factory/README.md` | overstated | `open_pr` at `block`; `production_requires_human_confirmation` at `block`; `protected_branch_merge` at `block` | held |

@@ -84,7 +84,8 @@ const MIRROR_INSTALL_CLAIMS = 8;
  * about — and it could not express the count-preserving REHOME the adversarial pass found either.
  */
 const MIRROR_SAFETY_HOMES: readonly { claim: string; file: string }[] = [
-  { claim: "C-28-001", file: "README.md" },
+  // C-28-001 README.md -> docs/concepts.md (plan 43-11, 2026-11-18; D-02): moved byte for byte with its id.
+  { claim: "C-28-001", file: "docs/concepts.md" },
   { claim: "C-28-010", file: "AGENTS.md" },
   { claim: "C-28-018", file: "AGENTS.md" },
   { claim: "C-28-023", file: "agent-factory/README.md" },
@@ -97,11 +98,16 @@ const MIRROR_SAFETY_CLAIMS = MIRROR_SAFETY_HOMES.length;
 const MIRROR_ROOT_DOC = "README.md";
 /**
  * The home carrying EXACTLY ONE safety claim, so flipping that one cell is the only way a file can
- * LEAVE the union. It is `README.md` on the live tree, which is why round 3's WR-06 recipe used it.
+ * LEAVE the union. It was `README.md` on the live tree, which is why round 3's WR-06 recipe used it;
+ * since plan 43-11 moved C-28-001 it is `docs/concepts.md`.
  */
-const MIRROR_SOLE_DOC = "README.md";
+// (Plan 43-11, 2026-11-18; D-02) README.md -> docs/concepts.md: C-28-001 moved there with its id, so the
+// live home carrying exactly one safety claim is now docs/concepts.md.
+const MIRROR_SOLE_DOC = "docs/concepts.md";
 /** The markdown documents the mirror must carry for `publicDocsScan()` to vouch for the arm. */
-const MIRROR_PUBLIC_DOCS = ["README.md", "AGENTS.md", "agent-factory/README.md"];
+// (Plan 43-11, 2026-11-18) docs/concepts.md joins: it is C-28-001's home, a shipped docs page the
+// public-docs scan vouches for on the live tree.
+const MIRROR_PUBLIC_DOCS = ["README.md", "AGENTS.md", "agent-factory/README.md", "docs/concepts.md"];
 /** The one non-markdown member: both derivations are markdown-blind, so it is declared by name. */
 const MIRROR_NON_MARKDOWN = ".claude-plugin/plugin.json";
 
@@ -251,6 +257,10 @@ function buildMirror(
   mkdirSync(join(dir, "agent-factory", "roles"), { recursive: true });
   mkdirSync(join(dir, "agent-factory", "workflows"), { recursive: true });
   mkdirSync(join(dir, "docs", "audit"), { recursive: true });
+  // (Plan 43-11, 2026-11-18) The shipped-docs walk reads every root in SHIPPED_DOCS_ROOTS, `docs` and
+  // `examples`, and returns null when one is missing, so docs/concepts.md would not be vouched for
+  // without an `examples/` directory, empty here.
+  mkdirSync(join(dir, "examples"), { recursive: true });
   // A root markdown document, so the mirror's `publicDocsScan()` has a member exactly as the live
   // tree does. Without it the vouching derivation is empty on every mirror and equality four's
   // containment arm would red for a reason no case here is about.
