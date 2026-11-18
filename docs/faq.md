@@ -22,12 +22,12 @@ A: The kit is plain markdown built on the AGENTS.md open standard. The installer
 
 <!-- claim: C-28-072 -->
 Q: Is it serious enough for enterprise use?
-A: It has the parts a regulated team asks for: a config dial whose `enterprise` mode runs the
-   release and incident workflows, security and compliance roles, a release that waits for a named
-   person's approval at the default checkpoint setting, and a trace from requirement to code, test
-   and release. The role files and workflows tell agents to stop at a pull request and to leave
-   merge and deploy to people. Those are written rules, and they hold only as well as an agent
-   follows them. The hard floor is your git host: branch protection or rulesets on protected
+A: It has the parts a regulated team asks for. The config dial's `enterprise` mode runs the release
+   and incident workflows, and there are security and compliance roles. A release waits for a named
+   person's approval at the default checkpoint setting, and the trace links each requirement to its
+   code, tests and release. The role files and workflows tell agents to stop at a pull request and
+   to leave merge and deploy to people. Those are written rules, and they hold only as well as an
+   agent follows them. The hard floor is your git host: branch protection or rulesets on protected
    branches, and deployment environments with required reviewers for production. grugops never
    configures your git host; you set those protections yourself. [GUARANTEES.md](GUARANTEES.md)
    shows which safety claims hold on this repository.

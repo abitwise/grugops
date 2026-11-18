@@ -79,7 +79,7 @@ Example commands (Claude Code), one per grugops skill:
 <!-- claim: C-28-007 -->
 In the versioned Claude Code plugin form the same operations are namespaced with a colon — `/grugops:<op>` (for example `/grugops:plan`, `/grugops:ticket`, `/grugops:release`). Both forms coexist; only the dispatch differs, never the content.
 
-The plugin-form equivalents are the same words after the colon — `/grugops:map`, `/grugops:ticket`, `/grugops:release`, and so on. Each one starts at the Orchestrator and ends at a pull request or a human approval; merge and deploy stay with you.
+The plugin-form equivalents are the same words after the colon — `/grugops:map`, `/grugops:ticket`, `/grugops:release`, and so on. Each one starts at the Orchestrator and ends at a pull request or a human approval; the workflows tell the agent to leave merge and deploy to you.
 
 The page for each command:
 
