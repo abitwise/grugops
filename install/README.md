@@ -315,16 +315,19 @@ idempotent, so re-running is safe). The uninstaller keeps `.grugops/install.json
 could not finish, so re-running it after the fix finishes the reversal (see "When uninstall keeps
 `.grugops/install.json`" under Undo).
 
-Code `1` from `install.js` can also mean the **kit-home overlap refusal**. The kit is written to
-`${GRUGOPS_HOME:-$HOME/.grugops}/agent-factory`, and install refuses, before it writes anything, when
-that kit home and the target overlap: the kit root is the target, either lies inside the other, or the
-kit home is the target or lies inside it (for example `GRUGOPS_HOME` set to the repository, or to a
-directory inside it). The paths are compared after resolving symbolic links, and a path whose real
-location cannot be read is refused as well. The refusal is always on: `DRY_RUN=1` does not exempt it
-and `--allow-self` does not override it. It writes one sentence to stderr, prints nothing on stdout,
-and changes nothing in the target or the kit home. The remedy is to set `GRUGOPS_HOME` to a directory
-outside the repository. A target inside the kit home but outside its `agent-factory/` (for example
-`GRUGOPS_HOME=$HOME` with the repository at `$HOME/code/repo`) is not an overlap.
+Code `1` from `install.js` can also mean the **kit-home overlap refusal**. Install writes three kit
+entries in `${GRUGOPS_HOME:-$HOME/.grugops}`: `agent-factory/` (the kit), `docs/` and `examples/`. It
+refuses, before it writes anything, when the kit home or any of those three entries overlaps the
+target: an entry is the target, lies inside it, or holds it, or the kit home is the target or lies
+inside it (for example `GRUGOPS_HOME` set to the repository, or to a directory inside it). The paths
+are compared after resolving symbolic links, and a path whose real location cannot be read is refused
+as well. The refusal is always on: `DRY_RUN=1` does not exempt it and `--allow-self` does not override
+it. It writes one sentence to stderr, prints nothing on stdout, and changes nothing in the target or
+the kit home. The remedy is to set `GRUGOPS_HOME` to a directory outside the repository. A target
+inside the kit home but outside all three entries (for example `GRUGOPS_HOME=$HOME` with the
+repository at `$HOME/code/repo`) is not an overlap. With `GRUGOPS_HOME=$HOME`, a repository at or
+under `$HOME/agent-factory`, `$HOME/docs` or `$HOME/examples` (for example `$HOME/docs/site`) is
+refused.
 
 Code `1` from `uninstall.js` means the **self-checkout refusal**: the target you named is the
 grugops source checkout itself (or a second checkout of it — it carries `install/install.js` and
