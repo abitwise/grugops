@@ -673,3 +673,144 @@ describe("plan 43-06: an install ships the user docs and examples into the kit h
     expect(snapshotTree(c.grugopsHome)).toBe(before);
   });
 });
+
+// ── PLAN 43-15 (D-11, D-27): THE DOCS AND EXAMPLES TAKE THE KIT'S REPLACE, --update AND DRY_RUN ARMS ─────────
+//
+// Plan 43-06 proved the fresh arm and the backup arm for the shipped docs entries. These cases mirror the kit's own
+// cases above one for one, for `docs` and `examples` (SHIPPED_DOCS_ROOTS, read from the import):
+//   - a re-install over recorded entries replaces them with no backup, and an edit inside them is overwritten (D-31
+//     item 14, the kit's own rule);
+//   - --update over recorded entries that are identical replaces them with no backup, and over ones that differ keeps
+//     each as a recorded `<entry>.bak.<ISO>` holding the edit (D-06, D-09);
+//   - DRY_RUN prints would-copy for each entry plus would-back-up or would-replace as its arm says, and the kit home is
+//     byte-unchanged.
+// The target's state roots are compared byte for byte around every case (plantStateRoots above).
+
+const EDITED_DOC = "docs/faq.md";
+const EDITED_EXAMPLE = "examples/01-greenfield-bootstrap.md";
+/** The `<entry>.bak.*` names in the kit home, for one kit entry. */
+const entryBackupsIn = (c: KitHomeCase, entry: string): string[] =>
+  existsSync(c.grugopsHome) ? readdirSync(c.grugopsHome).filter((n) => n.startsWith(`${entry}.bak.`)).sort() : [];
+/** Every `<entry>.bak.*` name in the kit home, over all kit entries. */
+const allBackupsIn = (c: KitHomeCase): string[] => [KIT_ENTRY_PATH, ...SHIPPED_DOCS_ROOTS].flatMap((e) => entryBackupsIn(c, e));
+/** Whether the kit home's copy of a shipped page is byte-identical to the source page. */
+const sameAsSource = (c: KitHomeCase, rel: string): boolean =>
+  readFileSync(join(c.grugopsHome, ...rel.split("/"))).equals(readFileSync(join(REPO, ...rel.split("/"))));
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** The report lines of one label whose subject is the kit entry `entry` (its path ends `/<entry>` or `\<entry>`). */
+function entryLines(r: Run, label: string, entry: string): string[] {
+  const re = new RegExp(`^ {2}${escapeRe(label)}\\s+(?:${escapeRe(entry)} → |\\S*[/\\\\]${escapeRe(entry)}(?: |$))`);
+  return r.stdout.split("\n").filter((l) => re.test(l));
+}
+
+describe("plan 43-15: the shipped docs and examples take the kit's replace, --update and DRY_RUN arms (D-11, D-27)", () => {
+  it("premise: the edited pages are shipped pages, one under each shipped docs root", () => {
+    const shipped = shippedDocs(REPO);
+    expect(shipped).not.toBeNull();
+    expect(shipped).toContain(EDITED_DOC);
+    expect(shipped).toContain(EDITED_EXAMPLE);
+    expect([EDITED_DOC, EDITED_EXAMPLE].map((p) => p.split("/")[0]).sort()).toEqual([...SHIPPED_DOCS_ROOTS].sort());
+  });
+
+  it("a re-install over recorded docs and examples replaces them with no backup: an edit inside them is overwritten, an added page is gone, and the record still names every kit entry", () => {
+    const c = kitHomeCase("docs-recorded");
+    const stateCheck = plantStateRoots(c.target);
+    expect(install(c).status).toBe(0);
+    writeAt(c.grugopsHome, EDITED_DOC, "9.9.9-edited-in-kit-home docs\n");
+    writeAt(c.grugopsHome, EDITED_EXAMPLE, "9.9.9-edited-in-kit-home examples\n");
+    writeAt(c.grugopsHome, "docs/ADDED-IN-KIT-HOME.md", "a page added in the kit home\n");
+    const r = install(c);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    expect(sameAsSource(c, EDITED_DOC), "the edit inside docs/ was not overwritten").toBe(true);
+    expect(sameAsSource(c, EDITED_EXAMPLE), "the edit inside examples/ was not overwritten").toBe(true);
+    expect(existsSync(join(c.grugopsHome, "docs", "ADDED-IN-KIT-HOME.md")), "a page added inside the recorded docs survived").toBe(false);
+    // Joined to one line, so a failure reports the backup names on one line.
+    expect(allBackupsIn(c).join(", "), "a recorded entry was kept as a backup instead of replaced").toBe("");
+    expect(recordOf(c).ledger).toEqual(KIT_ENTRY_RECORD);
+    for (const e of SHIPPED_DOCS_ROOTS) {
+      const copied = entryLines(r, "copied", e);
+      expect(copied.length, `${e}\n${r.stdout}`).toBe(1);
+      expect(copied[0]).toContain(`(replaced the shipped ${e} install recorded writing there)`);
+    }
+    expect(stagingLeftIn(c)).toEqual([]);
+    expect(stateCheck()).toEqual([]);
+  });
+
+  it("--update over recorded docs and examples that are identical replaces them with no backup; over ones that differ it keeps each as a recorded backup holding the edit", () => {
+    const c = kitHomeCase("docs-update");
+    const stateCheck = plantStateRoots(c.target);
+    expect(install(c).status).toBe(0);
+    const same = update(c);
+    expect(same.status, same.stdout).toBe(0);
+    expect(allBackupsIn(c)).toEqual([]);
+    expect(recordOf(c).ledger).toEqual(KIT_ENTRY_RECORD);
+    for (const e of SHIPPED_DOCS_ROOTS) expect(entryLines(same, "copied", e)[0] ?? "", same.stdout).toContain(`(replaced the shipped ${e} install recorded writing there)`);
+    const edits: ReadonlyArray<readonly [string, string, string]> = [
+      ["docs", EDITED_DOC, "9.9.9-displaced docs\n"],
+      ["examples", EDITED_EXAMPLE, "9.9.9-displaced examples\n"],
+    ];
+    for (const [, rel, body] of edits) writeAt(c.grugopsHome, rel, body);
+    const r = update(c);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    // The kit itself is identical, so it is replaced with no backup.
+    expect(entryBackupsIn(c, KIT_ENTRY_PATH)).toEqual([]);
+    const rec = recordOf(c);
+    for (const [entry, rel, body] of edits) {
+      const baks = entryBackupsIn(c, entry);
+      expect(baks.length, `${entry} backups: ${baks.join(", ")}`).toBe(1);
+      expect(baks[0]).toMatch(new RegExp(`^${entry}\\.bak\\.\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}\\.\\d{3}Z$`));
+      expect(readFileSync(join(c.grugopsHome, baks[0], ...rel.split("/").slice(1)), "utf8"), `${entry}: the backup does not hold the edit`).toBe(body);
+      expect(sameAsSource(c, rel), `${entry}: the new copy is not the shipped page`).toBe(true);
+      const backup = rec.ledger.find((e) => e.kind === "backup" && e.of === entry);
+      expect(backup, JSON.stringify(rec)).toMatchObject({ path: baks[0], origin: "kit-home", of: entry });
+      expect(String(backup!.content)).toMatch(/^tree:sha256:[0-9a-f]{64}$/);
+      const backedUp = entryLines(r, "backed-up", entry);
+      expect(backedUp.length, `${entry}\n${r.stdout}`).toBe(1);
+      expect(backedUp[0]).toContain(`the shipped ${entry} install recorded writing there differs from the new one (--update keeps it)`);
+    }
+    expect(rec.ledger.filter((e) => e.kind === "kit")).toEqual(KIT_ENTRY_RECORD);
+    expect(stagingLeftIn(c)).toEqual([]);
+    expect(stateCheck()).toEqual([]);
+  });
+
+  it("DRY_RUN prints would-copy for docs and examples plus would-back-up (unrecorded), would-replace (recorded) or, under --update, would-back-up for the one that differs, and writes nothing in the kit home", () => {
+    const c = kitHomeCase("docs-dry-run");
+    const stateCheck = plantStateRoots(c.target);
+    for (const e of SHIPPED_DOCS_ROOTS) writeAt(c.grugopsHome, `${e}/MYNOTES.md`, `the user's own ${e} notes\n`);
+    const before = snapshotTree(c.grugopsHome);
+    const unrec = install(c, [], true);
+    expect(unrec.status, unrec.stdout).toBe(0);
+    for (const e of SHIPPED_DOCS_ROOTS) {
+      expect(entryLines(unrec, "would-copy", e).length, `${e}\n${unrec.stdout}`).toBe(1);
+      const backUp = entryLines(unrec, "would-back-up", e);
+      expect(backUp.length, `${e}\n${unrec.stdout}`).toBe(1);
+      expect(backUp[0]).toMatch(new RegExp(`[/\\\\]${e}\\.bak\\.\\d{4}-`));
+      expect(entryLines(unrec, "would-replace", e)).toEqual([]);
+    }
+    expect(snapshotTree(c.grugopsHome)).toBe(before);
+    expect(install(c).status).toBe(0);
+    const recorded = snapshotTree(c.grugopsHome);
+    const rec = install(c, [], true);
+    expect(rec.status, rec.stdout).toBe(0);
+    for (const e of SHIPPED_DOCS_ROOTS) {
+      expect(entryLines(rec, "would-copy", e).length, `${e}\n${rec.stdout}`).toBe(1);
+      const replace = entryLines(rec, "would-replace", e);
+      expect(replace.length, `${e}\n${rec.stdout}`).toBe(1);
+      expect(replace[0]).toContain(`(the shipped ${e} install recorded writing there)`);
+    }
+    expect(rec.stdout).not.toMatch(/^ {2}would-back-up\s/m);
+    expect(snapshotTree(c.grugopsHome)).toBe(recorded);
+    // --update: the docs differ from the shipped pages, the examples do not.
+    writeAt(c.grugopsHome, EDITED_DOC, "9.9.9-edited docs\n");
+    const edited = snapshotTree(c.grugopsHome);
+    const upd = update(c, true);
+    expect(upd.status, upd.stdout).toBe(0);
+    for (const e of SHIPPED_DOCS_ROOTS) expect(entryLines(upd, "would-copy", e).length, `${e}\n${upd.stdout}`).toBe(1);
+    expect(entryLines(upd, "would-back-up", "docs").length, upd.stdout).toBe(1);
+    expect(entryLines(upd, "would-replace", "docs"), upd.stdout).toEqual([]);
+    expect(entryLines(upd, "would-replace", "examples").length, upd.stdout).toBe(1);
+    expect(entryLines(upd, "would-back-up", "examples"), upd.stdout).toEqual([]);
+    expect(snapshotTree(c.grugopsHome)).toBe(edited);
+    expect(stateCheck()).toEqual([]);
+  });
+});

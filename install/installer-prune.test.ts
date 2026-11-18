@@ -53,6 +53,8 @@ import { agentCommand } from "./host-tools.js";
 import { BOARD_REL, LEGACY_HANDOFFS_REL, STATE_ROOTS, STATE_ROOT_REL } from "./state-layout.js";
 import { ledgerOf, readMarkerObject, withLedger, type RawEntry } from "./ledger.test-support.js";
 import { modeText, treeRecord } from "./user-file.js";
+// (Plan 43-15, D-11, D-27) The shipped docs roots, the kit-home entries beside the kit.
+import { SHIPPED_DOCS_ROOTS } from "./kit-source.js";
 import { hostCapabilityOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 
 const SCRATCH = realpathSync(mkdtempSync(join(tmpdir(), "grugops-prune-")));
@@ -669,5 +671,105 @@ describe("prune removes only recorded, unchanged, prunable backups (plan 33.1-40
     expect(existsSync(defaultKit), "the printed command wrote the default kit home <HOME>/.grugops").toBe(false);
     expect(ran.premise.conflictingTargetEmpty, "the printed command wrote into the conflicting TARGET").toBe(true);
     expect(String(readMarkerObject(w.t).grugopsHome), "the printed command moved the marker's kit home").toBe(w.kitHome);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+// Plan 43-15 (D-11, D-27): prune reaches the recorded docs and examples backups by record, and only by record.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// Since plan 43-06 the kit home holds `docs/` and `examples/` beside the kit as kit entries, and install keeps what
+// it displaces there as a recorded `docs.bak.<ISO>` or `examples.bak.<ISO>` (origin kit-home), as it does for the
+// kit. This case makes one of each through two different arms (a user's own unrecorded `docs/` kept by an install,
+// an edit inside the recorded `examples/` kept by --update), plants a hand-made, unrecorded `docs.bak.<ISO>` and
+// `examples.bak.<ISO>` beside them, and proves: DRY_RUN prune changes nothing; prune removes the two recorded backups
+// through the record and leaves the two unrecorded ones byte for byte, naming each; uninstall never touches the kit
+// home; and the target's state roots are byte-unchanged throughout.
+
+const HAND_ISO = "2026-01-02T03-04-05.678Z";
+/** The docs entries of the kit home (plan 43-06): kit-source.ts SHIPPED_DOCS_ROOTS, read from the import, never typed. */
+const DOCS_ENTRIES: readonly string[] = SHIPPED_DOCS_ROOTS;
+
+describe("plan 43-15: --prune-old-kit removes the recorded docs and examples backups by record and keeps an unrecorded one (D-11, D-27)", () => {
+  it("premise: the shipped docs roots are docs and examples, the two this case names in its prose", () => {
+    expect([...DOCS_ENTRIES].sort()).toEqual(["docs", "examples"]);
+  });
+
+  it("recorded docs.bak and examples.bak go, through the record; unrecorded ones are left byte for byte and named; uninstall never touches the kit home; the target's state roots are unchanged", () => {
+    const w = world("docs-prune");
+    // One user file under every STATE_ROOTS root of the target (read from the import, never typed).
+    const notes = STATE_ROOTS.map((root) => `${root}/USER-NOTE-43-15.md`);
+    for (const rel of notes) {
+      mkdirSync(at(w.t, rel.slice(0, rel.lastIndexOf("/"))), { recursive: true });
+      writeFileSync(at(w.t, rel), `the user's own file under ${rel}, which no install path may touch\n`);
+    }
+    const noteBytes = new Map(notes.map((rel) => [rel, readFileSync(at(w.t, rel))]));
+    // A user's own docs/ in the kit home: install keeps it as a recorded docs.bak.<ISO> (the backup arm).
+    mkdirSync(join(w.kitHome, "docs"), { recursive: true });
+    writeFileSync(join(w.kitHome, "docs", "MYNOTES.md"), "the user's own notes in a kit-home folder named docs\n");
+    const first = install(w);
+    expect(first.status, first.stdout).toBe(0);
+    // An edit inside the recorded examples/: --update keeps it as a recorded examples.bak.<ISO>.
+    writeFileSync(join(w.kitHome, "examples", "01-greenfield-bootstrap.md"), "edited in the kit home\n");
+    const upd = install(w, ["--update"]);
+    expect(upd.status, upd.stdout).toBe(0);
+    const stateRoots = (): string => STATE_ROOTS.map((root) => `${root}\n${snapshotTree(at(w.t, root))}`).join("\n");
+    const roots0 = stateRoots();
+
+    const recorded = kitHomeBackups(w.kitHome);
+    expect(recorded.map((e) => e.of).sort(), JSON.stringify(recorded)).toEqual([...DOCS_ENTRIES].sort());
+    for (const e of recorded) {
+      expect(e.origin).toBe("kit-home");
+      expect(String(e.path)).toMatch(new RegExp(`^${String(e.of)}\\.bak\\.${ISO.source}$`));
+      expect(existsSync(join(w.kitHome, String(e.path))), `${String(e.path)} is not there`).toBe(true);
+    }
+    // A hand-made backup-shaped copy of each entry, which install never recorded.
+    const hand = DOCS_ENTRIES.map((entry) => `${entry}.bak.${HAND_ISO}`);
+    for (const name of hand) {
+      mkdirSync(join(w.kitHome, name));
+      writeFileSync(join(w.kitHome, name, "MYCOPY.md"), `the user's own copy, kept as ${name}\n`);
+    }
+    const handBefore = new Map(hand.map((n) => [n, stateOf(join(w.kitHome, n))]));
+
+    // DRY_RUN: the same decisions, and nothing changes, the records included.
+    const t0 = snapshotTree(w.t);
+    const h0 = snapshotTree(w.kitHome);
+    const d = prune(w, true);
+    expect(d.status, d.stdout).toBe(0);
+    expect(snapshotTree(w.t)).toBe(t0);
+    expect(snapshotTree(w.kitHome)).toBe(h0);
+    for (const e of recorded) {
+      expect(linesOf(d, "would-remove").filter((l) => lineNamesPath(l, join(w.kitHome, String(e.path)))).length, `${String(e.path)}\n${d.stdout}`).toBe(1);
+    }
+    for (const n of hand) {
+      expect(linesOf(d, "would-remove").filter((l) => l.includes(n)), d.stdout).toEqual([]);
+      expect(linesOf(d, "left").filter((l) => pathText(l).includes(`kit home: ${n} (not recorded by install`)).length, d.stdout).toBe(1);
+    }
+
+    // The real run.
+    const r = prune(w);
+    expect(r.status, r.stdout).toBe(0);
+    for (const e of recorded) {
+      expect(existsSync(join(w.kitHome, String(e.path))), `${String(e.path)} is still there`).toBe(false);
+      expect(linesOf(r, "removed").filter((l) => lineNamesPath(l, join(w.kitHome, String(e.path)))).length, r.stdout).toBe(1);
+    }
+    for (const n of hand) {
+      expect(stateOf(join(w.kitHome, n)), `${n} changed`).toBe(handBefore.get(n));
+      expect(linesOf(r, "left").filter((l) => pathText(l).includes(`kit home: ${n} (not recorded by install`)).length, r.stdout).toBe(1);
+    }
+    expect(kitHomeBackups(w.kitHome)).toEqual([]);
+    const kits = (JSON.parse(readFileSync(join(w.kitHome, ".grugops-kit.json"), "utf8")) as { ledger: RawEntry[] }).ledger.filter((e) => e.kind === "kit");
+    expect(kits.map((e) => e.path).sort(), "a kit entry was lost").toEqual(["agent-factory", ...DOCS_ENTRIES].sort());
+    expect(stateRoots(), "prune changed the target's state roots").toBe(roots0);
+
+    // Uninstall never touches the kit home, real or DRY_RUN.
+    const h1 = snapshotTree(w.kitHome);
+    for (const dry of [true, false]) {
+      const u = runUninstall(w.t, w.kitHome, { home: w.home, dryRun: dry, timeoutMs: 120_000 });
+      finished(u, `${dry ? "DRY_RUN " : ""}uninstall`);
+      expect(u.status, u.stdout).toBe(0);
+      expect(snapshotTree(w.kitHome), `${dry ? "DRY_RUN " : ""}uninstall changed the kit home`).toBe(h1);
+    }
+    for (const rel of notes) expect(readFileSync(at(w.t, rel)).equals(noteBytes.get(rel)!), `${rel} changed`).toBe(true);
   });
 });

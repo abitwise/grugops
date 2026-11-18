@@ -35,6 +35,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { dirList, ledgerOf, plantLegacyGemini, type RawEntry } from "./ledger.test-support.js";
 import { HOST_TOOLS, PI_PROMPT_REL, hostPointers } from "./host-tools.js";
+// (Plan 43-15, D-11, D-27) The kit entries: the kit root and the shipped docs roots beside it, read, never typed.
+import { KIT_ENTRY_PATH } from "./install-marker.js";
+import { SHIPPED_DOCS_ROOTS } from "./kit-source.js";
 import {
   INSTALL_JS,
   MARKER_REL,
@@ -504,5 +507,78 @@ describe("--dry-run is DRY_RUN=1 spelled as an argument (plan 38-09)", () => {
     const sameRun = (out: string): string => out.replace(/grugops-install-render-[A-Za-z0-9]{6}/g, "grugops-install-render-XXXXXX");
     expect(sameRun(byArgument.stdout)).toBe(sameRun(byEnvironment.stdout));
     expect(existsSync(kitHome)).toBe(false);
+  });
+});
+
+// ── PLAN 43-15 (D-11, D-27): THE PREVIEW NAMES THE SHIPPED DOCS AND EXAMPLES AS IT NAMES THE KIT ──────────
+//
+// Since plan 43-06 the kit home holds the shipped user docs (`docs/`) and the worked examples (`examples/`) beside
+// the kit, as kit entries (SHIPPED_DOCS_ROOTS, read from the import). A DRY_RUN decides their arm as it decides the
+// kit's, prints a would-copy line for each, a would-back-up or would-replace line as its arm says, and writes
+// nothing in the kit home or the target. The edited pages below are one shipped doc and one worked example.
+
+const EDITED_SHIPPED_PAGES: readonly string[] = ["docs/faq.md", "examples/01-greenfield-bootstrap.md"];
+
+/** The report lines of one label whose subject is the kit-home entry `entry`. */
+function kitEntryLines(stdout: string, label: string, entry: string): string[] {
+  return reported(stdout, label).filter((m) => m.startsWith(`${entry} → `) || new RegExp(`[/\\\\]${entry}( |$)`).test(subject(m) + " "));
+}
+
+describe("plan 43-15: the DRY_RUN preview names the shipped docs and examples beside the kit, and changes nothing", () => {
+  it("premise: the edited pages lie one under each shipped docs root", () => {
+    expect(EDITED_SHIPPED_PAGES.map((p) => p.split("/")[0]).sort()).toEqual([...SHIPPED_DOCS_ROOTS].sort());
+  });
+
+  it("flow 1 with docs: a DRY_RUN fresh install prints would-copy for the kit, the docs and the examples, each at the kit home, and creates no kit home", () => {
+    const target = makeFixture();
+    const home = join(mkTmp(), "home-never-created");
+    const r = expectDryRunUnchanged(target, home, () => runInstall(target, home, true), 0, INSTALL_BANNER);
+    for (const entry of [KIT_ENTRY_PATH, ...SHIPPED_DOCS_ROOTS]) {
+      const label = entry === KIT_ENTRY_PATH ? "kit" : entry;
+      const lines = reported(r.stdout, "would-copy").filter((m) => m.startsWith(`${label} → `));
+      expect(lines.length, `${entry}\n${r.stdout}`).toBe(1);
+      expect(lines[0].endsWith(`${entry}`), lines[0]).toBe(true);
+    }
+    for (const e of SHIPPED_DOCS_ROOTS) {
+      expect(kitEntryLines(r.stdout, "would-back-up", e), r.stdout).toEqual([]);
+      expect(kitEntryLines(r.stdout, "would-replace", e), r.stdout).toEqual([]);
+    }
+    expect(existsSync(home)).toBe(false);
+  });
+
+  it("flow 3 with docs: a DRY_RUN re-install over a real install whose docs and examples were edited prints would-replace for each, and changes nothing", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    for (const rel of EDITED_SHIPPED_PAGES) writeFileSync(join(home, ...rel.split("/")), `edited in the kit home: ${rel}\n`);
+    const r = expectDryRunUnchanged(target, home, () => runInstall(target, home, true), 0, INSTALL_BANNER);
+    for (const e of SHIPPED_DOCS_ROOTS) {
+      expect(kitEntryLines(r.stdout, "would-copy", e).length, `${e}\n${r.stdout}`).toBe(1);
+      expect(kitEntryLines(r.stdout, "would-replace", e).length, `${e}\n${r.stdout}`).toBe(1);
+      expect(kitEntryLines(r.stdout, "would-back-up", e), r.stdout).toEqual([]);
+    }
+  });
+
+  it("flow 5 with docs: a DRY_RUN --update over a real install whose docs and examples were edited prints would-back-up for each, and changes nothing", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, false).status).toBe(0);
+    for (const rel of EDITED_SHIPPED_PAGES) writeFileSync(join(home, ...rel.split("/")), `edited in the kit home: ${rel}\n`);
+    const r = expectDryRunUnchanged(
+      target,
+      home,
+      () => runInstall(target, home, true, "--update"),
+      0,
+      "== update complete (DRY_RUN — nothing changed) ==",
+    );
+    for (const e of SHIPPED_DOCS_ROOTS) {
+      expect(kitEntryLines(r.stdout, "would-copy", e).length, `${e}\n${r.stdout}`).toBe(1);
+      const backUp = kitEntryLines(r.stdout, "would-back-up", e);
+      expect(backUp.length, `${e}\n${r.stdout}`).toBe(1);
+      expect(backUp[0]).toMatch(new RegExp(`[/\\\\]${e}\\.bak\\.\\d{4}-`));
+      expect(kitEntryLines(r.stdout, "would-replace", e), r.stdout).toEqual([]);
+    }
+    // The kit itself is unedited, so --update would replace it with no backup.
+    expect(reported(r.stdout, "would-back-up").filter((m) => m.includes(`${KIT_ENTRY_PATH}.bak.`)), r.stdout).toEqual([]);
   });
 });
