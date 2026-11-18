@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 43
 current_phase_name: Story and layered docs
 status: executing
-stopped_at: Completed 43-06-PLAN.md
-last_updated: "2026-11-18T02:27:34.969Z"
+stopped_at: Completed 43-07-PLAN.md
+last_updated: "2026-11-18T02:36:55.247Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 43 execution started
-state_head: bb4e16eae39b5c6adc57da25cbd29a37e978bd19
+state_head: c593f863f58d6091d37bee89fd3edfc7e0950b0b
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 165
-  completed_plans: 155
+  completed_plans: 156
   percent: 89
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43 (Story and layered docs) — EXECUTING
-Plan: 6 of 15
+Plan: 7 of 15
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 43 execution started
 
@@ -873,6 +873,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43 P03 | 44min | 3 tasks | 15 files |
 | Phase 43 P04 | 15 min | 2 tasks | 37 files |
 | Phase 43 P06 | 50 min | 2 tasks | 10 files |
+| Phase 43 P07 | 9min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -2437,6 +2438,9 @@ Recent decisions affecting current work:
 - [Phase 43]: 43-04: the reference-tree gate (freshness:catalog) honours CHECK_ROOT so planted cases run in a hermetic mirror
 - [Phase 43]: 43-04: the index paragraph names role and workflow files only until plan 43-05 adds skill pages (no fabrication)
 - [Phase 43]: 43-06: the shipped docs land beside the kit as kit entries (KIT_ENTRY_PATHS = agent-factory + SHIPPED_DOCS_ROOTS), staged page by page from shippedDocs; the overlap guard covers every kit entry
+- [Phase 43]: Example 03 scores ABC-001 F3 = 1 (a new HTTP route is a public interface), so sum 2 maps to mid by rubric rule 4
+- [Phase 43]: Worked examples follow host-repo rules: work pointers as observation notes, QE pass as a claim at UNKNOWN - verify, READY_FOR_HUMAN_REVIEW with the no-gate-stamp line
+- [Phase 43]: Example 02 board rows moved to the (owner, since) shape; board-corpus.ts provenance for live-ex02-001..003 is for 43-12
 
 ### Pending Todos
 
@@ -2779,8 +2783,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-18T02:27:33.313Z
-Stopped at: Completed 43-06-PLAN.md
+Last session: 2026-11-18T02:36:53.673Z
+Stopped at: Completed 43-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
