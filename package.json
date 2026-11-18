@@ -16,6 +16,7 @@
     "freshness": "tsc --outDir .tmp-build && node scripts/freshness.js",
     "check:build-parity": "tsc --outDir .tmp-build && node scripts/check-build-parity.js",
     "check:public-docs": "tsc --outDir .tmp-build && node scripts/check-public-docs-vocabulary.js",
+    "check:story-docs": "tsc --outDir .tmp-build && node scripts/check-story-docs.js",
     "check:audit-register": "tsc --outDir .tmp-build && node scripts/check-audit-register.js",
     "check:residual-citations": "tsc --outDir .tmp-build && node scripts/check-residual-citations.js",
     "check:claim-anchors": "tsc --outDir .tmp-build && node scripts/check-claim-anchors.js",

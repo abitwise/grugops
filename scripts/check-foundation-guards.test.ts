@@ -2381,8 +2381,20 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 115 with this module tracked (2026-11-16, plan 42-02).
+ *
+ * 115 -> 116 (plan 43-03, STORY-05, D-22, D-23), ONE MODULE:
+ *   - `scripts/check-story-docs.ts` — the story-docs gate: CLAUDE.md names no `/grug` command word, any public page
+ *     that mentions parallel work states the GAP-D1 gap, and no shipped docs link is dead in a kit home. It imports
+ *     `node:` builtins, `isEntrypoint` from ./is-entry.js and `reportMeasured` from ./vacuity.js; tasks 2 and 3 of
+ *     the same plan add `publicDocsCorpus` from ./check-public-docs-vocabulary.js, `shippedDocs` from
+ *     ../install/kit-source.js and `fencedLineFlags` from ./frontmatter.js.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no section
+ *     bound, reads no grant and renders no spawn verdict. Its committed `.js` twin landed in the same commit as the
+ *     module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
+ *   members reports 116 with this module tracked (2026-11-18, plan 43-03).
  */
-const NON_TEST_MODULE_COUNT = 115;
+const NON_TEST_MODULE_COUNT = 116;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -3028,7 +3040,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // imports `admitRole` and `roleSkillsOf` from ./canonical-frontmatter.js, and both readers must agree on that
     // import set like every other module both can see. Re-derived: the scoped walk over `scripts/` minus tests
     // reports 73 with the module tracked (2026-11-16).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(73);
+    // 73 → 74 (plan 43-03, STORY-05): `scripts/check-story-docs.ts`, the story-docs gate. Both readers must agree
+    // on its import set like every other module both can see. Re-derived: the scoped walk over `scripts/` minus
+    // tests reports 74 with the module tracked (2026-11-18).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(74);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3066,7 +3081,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 70 → 71 (plan 37-24): `runnable-stamp.ts`, three specs per module as ever (2026-10-23).
     // 71 → 72 (plan 40-01): `check-role-rules.ts`, three specs per module as ever (2026-11-01).
     // 72 → 73 (plan 42-02): `role-skills-reader.ts`, three specs per module as ever (2026-11-16).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(73 * 3);
+    // 73 → 74 (plan 43-03): `check-story-docs.ts`, three specs per module as ever (2026-11-18).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(74 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3305,7 +3321,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 72 (2026-11-01).
       // 72 → 73 (plan 42-02): `role-skills-reader.ts`, the same module the flat reader gained; both pins move in
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 73 (2026-11-16).
-    ).toBe(73);
+      // 73 → 74 (plan 43-03): `check-story-docs.ts`, the same module the flat reader gained; both pins move in
+      // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 74 (2026-11-18).
+    ).toBe(74);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -10086,7 +10104,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // block-sequence refusal and no-declaration cases added. The pin moved because a module landed, not to make a red go
 // away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 85 on this tree (2026-11-16, plan
 // 42-08).
-const TRIPWIRE_MODULES = 85;
+//
+// 85 -> 86 (plan 43-03, 2026-11-18): ONE test module, `scripts/check-story-docs.test.ts` — the mutation cases for the
+// story-docs gate's three checks and the cases that read its package.json and ci.yml wiring. The pin moved because a
+// module landed, not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
+// 86 on this tree (2026-11-18, plan 43-03).
+const TRIPWIRE_MODULES = 86;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
@@ -12897,7 +12920,12 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       // inventory, `scripts/check-role-rules.js`, named directly by a ci.yml step beside the
       // public-docs vocabulary gate. It fails on any baseline role fact a role-corpus file no longer
       // carries. The number moved because the SET moved, in the same commit as the module (2026-11-01).
-      targets: 13,
+      // 13 -> 14 (plan 43-03, task 1, D-22, D-23). `check:story-docs` joined: the story-docs gate,
+      // `scripts/check-story-docs.js`, named directly by a ci.yml step beside the public-docs
+      // vocabulary gate. It fails on a `/grug` command word in CLAUDE.md, a public page that mentions
+      // parallel work without the GAP-D1 sentence, and a shipped docs link that is dead in a kit home.
+      // The number moved because the SET moved, in the same commit as the module (2026-11-18).
+      targets: 14,
       proof: "ci.yml names the gate module, or CI_EXEMPT names a reason AND something still runs it",
     },
     "suite-test-file": {

@@ -325,6 +325,11 @@ jobs:
           # itself byte-unchanged across the transition. That history is why a red here is credible:
           # this guard has been watched catching the exact drift it exists for.
           node scripts/check-public-docs-vocabulary.js
+          # D-22, D-23, D-11 (plan 43-03): the story-docs gate. CLAUDE.md names no `/grug` command word;
+          # any public page that mentions parallel work states the GAP-D1 gap in the agreed words; no
+          # shipped docs link is dead in an installed kit home. Fix the DOCUMENT on a red; the gate has
+          # no exemption list. Locally: `npm run check:story-docs`.
+          node scripts/check-story-docs.js
           # D-27 (plan 40-01): the derived role-rule inventory. Every role-corpus file must still carry
           # each fact the committed pre-rewrite baseline (docs/audit/40-role-rule-inventory.json) records.
           node scripts/check-role-rules.js
