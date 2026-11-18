@@ -2014,11 +2014,13 @@ the enumerated `Agent(...)` grant in the coordinator adapter's frontmatter **is 
 runtime** — on this path only. Claude Code prints the agent name in the session startup header
 (`@grugops-orchestrator`); that header is how you confirm the tier is live.
 
+Role agents run in parallel on hosts with a spawn tool; the own-session capture is `UNKNOWN - verify` (GAP-D1).
+
 ### Reduced — a default session (what the `/grugops` skill entry gets)
 
 The headline entry — `/grugops` in an ordinary Claude Code session — runs in a default main
-thread. That session already has the `Agent` tool, so parallel scheduling is available and is
-used, up to the same `queue.wip_limit`. But the enumerated grant is **not runtime-enforced
+thread. That session already has the `Agent` tool, so parallel scheduling is available, up to
+the same `queue.wip_limit`, with the same open gap as the full tier. But the enumerated grant is **not runtime-enforced
 here**: a default session declares no allowlist, so nothing mechanical holds a spawn inside the
 specialist names the grant lists. The coordinator says exactly that when it announces the tier, and stays
 inside the grant by instruction rather than by enforcement. That is a weaker guarantee than the

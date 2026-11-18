@@ -9,7 +9,14 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { GRUG_COMMAND_WORD, grugCommandFindings } from "./check-story-docs.js";
+import {
+  GAP_D1_SENTENCE,
+  GRUG_COMMAND_WORD,
+  gapD1Findings,
+  gapD1ScanSet,
+  grugCommandFindings,
+} from "./check-story-docs.js";
+import { publicDocsCorpus } from "./check-public-docs-vocabulary.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "check-story-docs.js");
@@ -95,6 +102,62 @@ describe("check 1 — the /grug command word (D-23)", () => {
     const { status, out } = runGate(mirror);
     expect(status).toBe(1);
     expect(checkLine(out, "STORY-05 /grug command word")).toContain("ZERO elements visited");
+  });
+});
+
+describe("check 2 — the GAP-D1 sentence on pages that mention parallel work (D-22)", () => {
+  const page = (text: string): { file: string; text: string }[] => [{ file: "docs/page.md", text }];
+
+  it("the sentence is the exact agreed text", () => {
+    expect(GAP_D1_SENTENCE).toBe(
+      "parallel on hosts with a spawn tool; the own-session capture is `UNKNOWN - verify` (GAP-D1)",
+    );
+  });
+
+  it("a page that says agents run in parallel without the sentence is a finding naming the file", () => {
+    const f = gapD1Findings(page("Role agents run in parallel.\n"));
+    expect(f.map((x) => x.file)).toEqual(["docs/page.md"]);
+  });
+
+  it("the same page with the sentence is not a finding", () => {
+    expect(gapD1Findings(page(`Role agents run in ${GAP_D1_SENTENCE}.\n`))).toEqual([]);
+  });
+
+  it("an en dash in `UNKNOWN – verify` is still a finding", () => {
+    const dashed = GAP_D1_SENTENCE.replace("UNKNOWN - verify", "UNKNOWN \u2013 verify");
+    expect(dashed).not.toBe(GAP_D1_SENTENCE);
+    expect(gapD1Findings(page(`Role agents run in ${dashed}.\n`))).toHaveLength(1);
+  });
+
+  it("the sentence without its backticks is still a finding", () => {
+    const bare = GAP_D1_SENTENCE.replaceAll("`", "");
+    expect(gapD1Findings(page(`Role agents run in ${bare}.\n`))).toHaveLength(1);
+  });
+
+  it("`Parallel` capitalized triggers; `parallelism` and `unparalleled` do not", () => {
+    expect(gapD1Findings(page("Parallel scheduling is used.\n"))).toHaveLength(1);
+    expect(gapD1Findings(page("Some parallelism, an unparalleled kit.\n"))).toEqual([]);
+  });
+
+  it("a page with no `parallel` needs no sentence", () => {
+    expect(gapD1Findings(page("The Orchestrator claims one ticket at a time.\n"))).toEqual([]);
+  });
+
+  it("the scan set is the public-docs corpus plus the install guide", () => {
+    const corpus = publicDocsCorpus();
+    expect(corpus.length).toBeGreaterThan(5);
+    expect(corpus).not.toContain("install/README.md");
+    expect(gapD1ScanSet()).toEqual([...corpus, "install/README.md"]);
+  });
+
+  it("the live tree: 0 findings over the corpus plus one, every page visited", () => {
+    const { status, out } = runGate(ROOT);
+    const line = checkLine(out, "STORY-05 GAP-D1");
+    const n = publicDocsCorpus().length + 1;
+    const flat = out.replaceAll("\n", " | ");
+    expect(line, flat).toContain(`PASS  STORY-05 GAP-D1`);
+    expect(line).toContain(`0 findings over ${n}/${n} elements`);
+    expect(status, flat).toBe(0);
   });
 });
 

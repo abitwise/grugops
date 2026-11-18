@@ -20,6 +20,11 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 
 ### Added
 
+- `npm run check:story-docs`, a docs gate that also runs in CI, with three checks. CLAUDE.md names
+  only the shipped `/grugops` commands. Any public page, and the install guide, that mentions
+  parallel work states the open gap in these exact words:
+  parallel on hosts with a spawn tool; the own-session capture is `UNKNOWN - verify` (GAP-D1).
+  No link in a shipped docs page or in `agent-factory/README.md` is dead in an installed kit home.
 - `install.js --dry-run`: the flag form of `DRY_RUN=1` for every `install.js` mode. It prints the plan
   and changes nothing on disk.
 - `install.js --migrate --archive-done-context`: renames the context folder of each finished ticket,

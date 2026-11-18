@@ -700,6 +700,17 @@ describe("30-10 B-8 — the corpus/scan consumer split is derived and its direct
         "set is a DENOMINATOR the residual rule scans, so a smaller set produces FEWER findings and " +
         "the narrowing would fail OPEN — which is why the corpus, not the scan, is taken.",
     },
+    {
+      // (Plan 43-03, D-22) The story-docs gate's GAP-D1 check.
+      module: "scripts/check-story-docs.ts",
+      accessor: "publicDocsCorpus",
+      why:
+        "it asks WHICH DOCUMENTS ARE PUBLIC: a page that says parallel work happens without stating " +
+        "the open own-session gap is just as wrong in a changelog as in a README, so the vocabulary " +
+        "gate's exemption has no bearing on it. The set is a DENOMINATOR the GAP-D1 check scans, so " +
+        "a smaller set produces FEWER findings and the narrowing would fail OPEN — which is why the " +
+        "corpus, not the scan, is taken.",
+    },
   ];
 
   it("the tree's consumers of each accessor are EXACTLY the declared ones, both directions", () => {

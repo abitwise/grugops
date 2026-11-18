@@ -6,6 +6,10 @@
 //      Claude Code session in this repository reads CLAUDE.md as an instruction, so a stale command
 //      name there is a wrong instruction. There is no exemption list: a historical mention is
 //      reworded without the slash token.
+//   2. Any public page, and the install guide, that mentions parallel work carries the GAP-D1
+//      sentence (D-22): parallel scheduling is real on hosts with a spawn tool, and the own-session
+//      capture that would prove it live is still `UNKNOWN - verify`. The match is an exact byte
+//      substring, so an en dash or missing backticks is a finding.
 //
 // Each check builds a `Measured` and folds it with `reportMeasured` (scripts/vacuity.ts), so a check
 // that visited nothing, or a scan set that came up short, is a failure and never a PASS line.
@@ -18,6 +22,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isEntrypoint } from "./is-entry.js";
 import { reportMeasured, type Measured } from "./vacuity.js";
+// The public-docs corpus is declared once, in the vocabulary gate; this gate never types a list of
+// pages. Both modules read CHECK_ROOT, so a mirror run scans the mirror's corpus.
+import { publicDocsCorpus, publicDocsDerivationRefusals } from "./check-public-docs-vocabulary.js";
 
 const ROOT = process.env.CHECK_ROOT ? process.env.CHECK_ROOT : join(import.meta.dirname, "..");
 
@@ -94,9 +101,69 @@ function runGrugCheck(): void {
   reportMeasured(m, emit, renderLine);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Check 2 — the GAP-D1 sentence on pages that mention parallel work (D-22).
+// ---------------------------------------------------------------------------------------------
+
+// The exact sentence from 43-CONTEXT <specifics>, backticks included.
+export const GAP_D1_SENTENCE =
+  "parallel on hosts with a spawn tool; the own-session capture is `UNKNOWN - verify` (GAP-D1)";
+
+// `parallel` as a whole word, any case. `parallelism` and `unparalleled` do not trigger.
+export const PARALLEL_WORD = /\bparallel\b/i;
+
+// The install guide is not in the public-docs corpus, and it says role agents run in parallel.
+export const GAP_D1_EXTRA: readonly string[] = ["install/README.md"];
+
+/** A finding that names a whole file. */
+export interface FileFinding {
+  readonly file: string;
+  readonly reason: string;
+}
+
+/** One finding per page that says `parallel` and lacks the exact GAP-D1 sentence. */
+export function gapD1Findings(pages: readonly { readonly file: string; readonly text: string }[]): FileFinding[] {
+  const out: FileFinding[] = [];
+  for (const { file, text } of pages) {
+    if (!PARALLEL_WORD.test(text)) continue;
+    if (text.includes(GAP_D1_SENTENCE)) continue;
+    const line = text.split("\n").findIndex((l) => PARALLEL_WORD.test(l)) + 1;
+    out.push({
+      file,
+      reason: `says "parallel" (first at line ${line}) without the GAP-D1 sentence: ${GAP_D1_SENTENCE}`,
+    });
+  }
+  return out;
+}
+
+/** The pages check 2 reads: the public-docs corpus plus the install guide, each once. */
+export function gapD1ScanSet(): string[] {
+  return [...new Set([...publicDocsCorpus(), ...GAP_D1_EXTRA])];
+}
+
+function runGapD1Check(): void {
+  for (const r of publicDocsDerivationRefusals()) {
+    emit.fail(`STORY-05 GAP-D1: the public-docs corpus derivation refused: ${r}`);
+  }
+  const scan = gapD1ScanSet();
+  const pages: { file: string; text: string }[] = [];
+  for (const rel of scan) {
+    const text = readOrNull(rel);
+    if (text !== null) pages.push({ file: rel, text });
+  }
+  const m: Measured<FileFinding> = {
+    label: "STORY-05 GAP-D1 (a page that mentions parallel work states the open own-session gap)",
+    visited: pages.length,
+    expected: scan.length,
+    findings: gapD1Findings(pages),
+  };
+  reportMeasured(m, emit, (f) => `    ${f.file}: ${f.reason}`);
+}
+
 function runAll(): void {
   process.stdout.write("== Story docs (plan 43-03) ==\n");
   runGrugCheck();
+  runGapD1Check();
   process.stdout.write("\n== Result ==\n");
   if (FAILS === 0) {
     process.stdout.write("ALL CHECKS PASSED\n");
