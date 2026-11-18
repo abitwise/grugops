@@ -2,8 +2,8 @@
 //
 // WHAT THIS FILE IS FOR, STATED PLAINLY. scripts/audit-model.ts parses two HAND-AUTHORED markdown
 // artifacts that a gate reads to decide whether the build is green. This repository has no prior
-// instance of that contract: docs/catalog/README.md is GENERATED, so its gate compares bytes rather
-// than parsing intent. A parser over hand-authored input has exactly one safe posture — refuse
+// instance of that contract: the reference pages under docs/reference/ are GENERATED, so their gate
+// compares bytes rather than parsing intent. A parser over hand-authored input has exactly one safe posture — refuse
 // everything it cannot vouch for — and the reason is arithmetic rather than taste: a SKIPPED row is
 // a silent truncation, and a truncated set satisfies every completeness equality downstream of it.
 //

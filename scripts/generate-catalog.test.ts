@@ -41,6 +41,7 @@ import {
   isNumberedWorkflowFile,
   listRoleDisplayNames,
   listRoles,
+  listWorkflowDisplayNames,
 } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -134,51 +135,13 @@ function restoreReference(snap: Map<string, Buffer>): void {
 // `${r.stdout}${r.stderr}` directly, so the helper was dead rather than merely unused-for-now.
 // Removed at its site; no assertion changed.
 
-// The 19 role display names (from each file's `# Role:` H1) — load-bearing literals.
-const ROLE_NAMES = [
-  "AGENTS.md Scribe",
-  "Architect/Design",
-  "BA/PM",
-  "Brownfield Mapper",
-  "Compliance Officer",
-  "Designer", // (Plan 39-06, TIER-05) the new role's display name, from its `# Role:` heading
-  "Factory Coach",
-  "Frontend/UI",
-  "Greenfield Mapper",
-  "Incident Responder",
-  "Installer",
-  "Orchestrator",
-  "QE/E2E",
-  "Release Manager",
-  "Security/NFR",
-  "Software Engineer",
-  "System Analyst",
-  "Tech Lead", // (Plan 39-05, TIER-01) the new role's display name, from its `# Role:` heading
-  "UAT Planner",
-];
-
-// The 19 workflow display names (from each file's `# Workflow:` H1) — load-bearing literals.
-const WORKFLOW_NAMES = [
-  "Bootstrap greenfield",
-  "Bootstrap brownfield",
-  "Idea to epics",
-  "Epic to tickets",
-  "Ticket to PR",
-  "PR quality gate",
-  "UAT pack",
-  "Backlog refinement",
-  "Sprint planning",
-  "Daily sweep",
-  "Sprint review",
-  "Retro",
-  "Release",
-  "Incident",
-  "UI design to build",
-  "Security audit (OWASP ASVS)",
-  "task claim + schedule",
-  "context read/write",
-  "context compaction",
-];
+// The role and workflow display names, DERIVED from kit-model (plan 43-04, D-17): each file's
+// `# Role:` / `# Workflow:` heading, read through listRoleDisplayNames and listWorkflowDisplayNames
+// over the same sets the generator walks. No name list and no count is typed in this file; the
+// fixture-agreement case below holds both sets against ROLE_COUNT and WORKFLOW_COUNT, which
+// guard_kit_counts pins two-sided.
+const ROLE_NAMES: readonly string[] = listRoleDisplayNames(ROOT);
+const WORKFLOW_NAMES: readonly string[] = listWorkflowDisplayNames(ROOT);
 
 // Count data rows in a GitHub-flavored markdown table body for a given source-dir prefix.
 // A data row links to `agent-factory/<dir>/<file>.md`; the header/separator rows do not, so this
@@ -227,9 +190,9 @@ describe("generate-catalog.js (DOCS-01)", () => {
     }
   });
 
-  // (3) complete set: all 17 role names + all 19 workflow names present (incl. frontend-ui via its
-  // source link, and workflows 14 + 15 + 16 + 17 + 18); exactly 17 role data rows + 19 workflow data rows.
-  it("contains all 17 roles and all 19 workflows with exact row counts", () => {
+  // (3) complete set: every role and workflow display name present (incl. frontend-ui via its source
+  // link, and workflows 14 + 15); exactly ROLE_COUNT role rows + WORKFLOW_COUNT workflow rows.
+  it("contains every role and every workflow with exact row counts (ROLE_COUNT, WORKFLOW_COUNT)", () => {
     const before = snapshotReference();
     try {
       const r = spawnSync("node", [GEN_JS], { encoding: "utf8" });
@@ -244,10 +207,10 @@ describe("generate-catalog.js (DOCS-01)", () => {
       expect(text).toContain("agent-factory/workflows/14-ui-design-to-build.md");
       expect(text).toContain("agent-factory/workflows/15-security-audit.md");
 
-      // Exactly 17 role rows + 19 workflow rows (count via source-link matches, not `.` tallies).
-      // (Plan 39-03, TIER-06) The role-row count is the kit authority's ROLE_COUNT, not typed here.
+      // Exactly ROLE_COUNT role rows + WORKFLOW_COUNT workflow rows (count via source-link matches,
+      // not `.` tallies). Both counts are the kit authority's constants, never typed here (D-17).
       expect(countRowsLinkingInto(text, "roles")).toBe(ROLE_COUNT);
-      expect(countRowsLinkingInto(text, "workflows")).toBe(19);
+      expect(countRowsLinkingInto(text, "workflows")).toBe(WORKFLOW_COUNT);
     } finally {
       restoreReference(before);
     }
@@ -430,6 +393,22 @@ describe("generate-catalog.js (DOCS-01)", () => {
       .map((l) => Number(l.split(" | ")[0].replace(/^\| /, "")));
     expect(orders.length).toBe(WORKFLOW_COUNT);
     expect(orders).toEqual([...orders].sort((a, b) => a - b));
+  });
+
+  it("the committed index links exactly the committed role pages, both ways, and both equal the listRoles() stems", () => {
+    // Read-only over the committed tree. The index's `agents/<file>` link targets, the files under
+    // docs/reference/agents/ and the kit-model role set are three derivations of one fact; any two
+    // disagreeing (a page with no row, a row with no page, a role with neither) is red.
+    const index = readFileSync(OUT, "utf8");
+    const linked = [...index.matchAll(/\]\(agents\/([^)\s/]+\.md)\)/g)].map((x) => x[1]).sort();
+    const onDisk = readdirSync(join(REF_DIR, "agents")).sort();
+    const roles = [...listRoles(ROOT)].sort();
+    expect(roles.length, "PREMISE: the role set is not empty").toBeGreaterThan(0);
+    expect(new Set(linked).size, "each page is linked once").toBe(linked.length);
+    expect(linked.filter((f) => !onDisk.includes(f)), "linked from the index, no page on disk").toEqual([]);
+    expect(onDisk.filter((f) => !linked.includes(f)), "a page on disk the index does not link").toEqual([]);
+    expect(linked).toEqual(roles);
+    expect(onDisk).toEqual(roles);
   });
 
   it("deletes a stray .md page under docs/reference/ and leaves a non-page file alone", () => {

@@ -11,10 +11,11 @@ install/*.js    text eol=lf
 scripts/**/*.js text eol=lf
 hooks/*.js      text eol=lf
 
-# Pin the committed generated catalog to LF for the same reason: the catalog
-# generator emits literal "\n", and its byte-stability (the `npm run generate:catalog`
-# no-op contract and the DOCS-01 reproducibility test) must hold across platforms.
-docs/catalog/README.md text eol=lf
+# Pin the committed generated reference pages to LF for the same reason: the
+# reference generator (scripts/generate-catalog.js) emits literal "\n", and its
+# byte-stability (the `npm run generate:catalog` no-op contract, the DOCS-01
+# reproducibility test and the freshness:catalog tree gate) must hold across platforms.
+docs/reference/** text eol=lf
 
 # Pin ALL remaining committed text sources to LF. Root cause (2026-07-21, CI run
 # 29824410110): the two pins above only covered committed .js build outputs and the

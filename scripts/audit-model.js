@@ -22,8 +22,8 @@
 // ---------------------------------------------------------------------------------------------
 // THE CONTRACT THIS REPOSITORY HAS NO PRIOR INSTANCE OF, AND THE ONE POSTURE THAT IS SAFE FOR IT.
 //
-// docs/catalog/README.md is the only docs/ markdown file a scripts/ gate reads today, and it is
-// GENERATED — scripts/catalog-freshness.ts never parses it, it regenerates and compares bytes. The
+// The reference pages under docs/reference/ are GENERATED — scripts/catalog-freshness.ts never
+// parses them, it regenerates and compares bytes. The
 // register and the registry are HAND-AUTHORED and READ BY A GATE THAT DECIDES WHETHER THE BUILD IS
 // GREEN. That is a genuinely new trust boundary here.
 //
@@ -57,8 +57,8 @@ import { FENCE_DELIMITER_LINE, fencedLineFlags, sectionEndIndex, unfencedHeading
 // The fixed artifact paths.
 //
 // These are FIXED REPO-RELATIVE LITERALS resolved against a root PARAMETER, following the posture
-// scripts/catalog-freshness.ts records for its OUT: under a test mirror the ROOT is redirected and
-// the path literal never is. Neither is ever taken from argv, env or file content (ASVS V12).
+// scripts/generate-catalog.ts records for its output directory: under a test mirror the ROOT is
+// redirected and the path literal never is. Neither is ever taken from argv, env or file content (ASVS V12).
 // ---------------------------------------------------------------------------
 export const REGISTER_PATH = "docs/audit/28-disposition-register.md";
 export const REGISTRY_PATH = "docs/audit/28-claim-registry.md";
