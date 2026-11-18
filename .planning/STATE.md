@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: 43
 current_phase_name: Story and layered docs
 status: executing
-stopped_at: Completed 43-07-PLAN.md
-last_updated: "2026-11-18T02:36:55.247Z"
+stopped_at: Completed 43-08-PLAN.md
+last_updated: "2026-11-18T02:46:07.552Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 43 execution started
-state_head: c593f863f58d6091d37bee89fd3edfc7e0950b0b
+state_head: 5392ef50f1799fb00c4eb46e1362106b31d63058
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 165
-  completed_plans: 156
+  completed_plans: 157
   percent: 89
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43 (Story and layered docs) — EXECUTING
-Plan: 7 of 15
+Plan: 8 of 15
 Status: Ready to execute
 Last activity: 2026-11-17 — Phase 43 execution started
 
@@ -874,6 +874,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43 P04 | 15 min | 2 tasks | 37 files |
 | Phase 43 P06 | 50 min | 2 tasks | 10 files |
 | Phase 43 P07 | 9min | 3 tasks | 3 files |
+| Phase 43 P08 | 8 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -2441,6 +2442,8 @@ Recent decisions affecting current work:
 - [Phase 43]: Example 03 scores ABC-001 F3 = 1 (a new HTTP route is a public interface), so sum 2 maps to mid by rubric rule 4
 - [Phase 43]: Worked examples follow host-repo rules: work pointers as observation notes, QE pass as a claim at UNKNOWN - verify, READY_FOR_HUMAN_REVIEW with the no-gate-stamp line
 - [Phase 43]: Example 02 board rows moved to the (owner, since) shape; board-corpus.ts provenance for live-ex02-001..003 is for 43-12
+- [Phase 43]: 43-08: example 05 states the deploy gate in three tiers (git host hard floor, ask-rule speed bump, prose) with no unqualified always; the host check cannot see prod, so the release record says only the named human's confirmation protects the deploy
+- [Phase 43]: 43-08: example 05's board row moved to the (owner, since) shape, so board-corpus.ts live-ex05-001 is no longer verbatim; plan 43-12 updates its provenance
 
 ### Pending Todos
 
@@ -2783,8 +2786,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-18T02:36:53.673Z
-Stopped at: Completed 43-07-PLAN.md
+Last session: 2026-11-18T02:46:06.008Z
+Stopped at: Completed 43-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
