@@ -5,53 +5,53 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Install renames a user's own `docs/` or `examples/` folder in the kit home, and `--prune-old-kit` then deletes it"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The install guide's overlap paragraph contradicts the new overlap refusal"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: skipped
     title: "The checkout's GUARANTEES.md now ships into every user's kit home, labelled as describing \"this repository\""
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: skipped
     title: "CLAUDE.md still instructs `{ \"agent\": \"grug-orchestrator\" }`, a retired agent name, and the new gate cannot see it"
   - id: IN-01
     severity: info
-    disposition: open
+    disposition: fixed
     title: "CHANGELOG says the story-docs gate has three checks; it has four"
   - id: IN-02
     severity: info
-    disposition: open
+    disposition: fixed
     title: "Stale cardinality in the comment beside `PUBLIC_DOCS_SCAN_COUNT`"
   - id: IN-03
     severity: info
-    disposition: open
+    disposition: skipped
     title: "Reference pages miss role participation that a workflow states in a different bullet shape"
   - id: IN-04
     severity: info
-    disposition: open
+    disposition: skipped
     title: "The story-docs link check skips some link forms, so a dead link in them passes"
-open: 8
+open: 0
 total: 8
-recorded: 2026-11-18T15:06:41.982Z
+recorded: 2026-11-18T16:09:13.540Z
 ---
 
 # Phase 43: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| IN-01 | info | open | - |
-| IN-02 | info | open | - |
-| IN-03 | info | open | - |
-| IN-04 | info | open | - |
+| CR-01 | critical | fixed | 43-REVIEW-FIX.md |
+| WR-01 | warning | fixed | 43-REVIEW-FIX.md |
+| WR-02 | warning | skipped | 43-REVIEW-FIX.md |
+| WR-03 | warning | skipped | 43-REVIEW-FIX.md |
+| IN-01 | info | fixed | 43-REVIEW-FIX.md |
+| IN-02 | info | fixed | 43-REVIEW-FIX.md |
+| IN-03 | info | skipped | 43-REVIEW-FIX.md |
+| IN-04 | info | skipped | 43-REVIEW-FIX.md |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
