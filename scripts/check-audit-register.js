@@ -236,7 +236,14 @@ export const CLAIM_KIND_CARDINALITY = [
     // moved `C-28-033` keeps its id and its kind, so it does not move this number. This gate refused
     // until the number moved; the number was taken from that refusal's own text ("architecture
     // declares 33 but the registry carries 41").
-    { kind: "architecture", count: 41 },
+    // 41 -> 46 (plan 43-09, 2026-11-18; D-08, D-21). FIVE ROWS ADDED, NONE RECLASSIFIED. `C-28-056` ..
+    // `C-28-060` register the absolutes on the new core-concept page docs/concepts.md: specialist
+    // roles, the shared verified context, the board as state, the gate as backpressure, and humans
+    // deciding. Each is `architecture` for the reason the eight rows above are: the humans-decide row
+    // states design intent and where each control lives, asserts no merge or deploy outcome, and
+    // points to docs/GUARANTEES.md. This gate refused until the number moved; the number was taken
+    // from that refusal's own text ("architecture declares 41 but the registry carries 46").
+    { kind: "architecture", count: 46 },
     { kind: "install", count: 8 },
 ];
 /**

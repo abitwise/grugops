@@ -29,6 +29,12 @@ plan's commit. `C-28-033` moved to that page byte for byte from `agent-factory/R
 its id, so it adds no row. This file's opening sentence names the four documents Phase 28 audited;
 the rows now also name the shipped user docs that plan 43-02 joined to the public-docs corpus.
 
+**Annotation, plan 43-09 task 3 — the derived current count after the core-concept page, ADDED
+rather than substituted.** The sentence above records 55 rows at the mechanics page's commit. As
+committed with `docs/concepts.md` the registry carries **60 rows**: those 55 plus `C-28-056`..`C-28-060`,
+the absolutes on the core-concept page. The number was DERIVED from `readRegistry().claims.length`
+at that commit.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -902,6 +908,71 @@ The workflows and role files tell agents to stop at a pull request and to leave 
 - Role agents run in parallel on hosts with a spawn tool; the own-session capture is `UNKNOWN - verify` (GAP-D1).
 - Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi have no spawn tool this kit uses, so the Orchestrator loads the roles there one at a time, in one session.
 - Whether a session on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI or Pi follows the route from its entry file to the Orchestrator on a live run is `UNKNOWN - verify`. The [install guide](https://github.com/abitwise/grugops/blob/main/install/README.md) says what a person checked live on each host.
+```
+
+### C-28-056
+
+- file: docs/concepts.md
+- line: 8
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21) on the core-concept page. Three assertions. Each role file carries one job, what it reads, what it writes, its board moves and its hard limits: `scripts/validate-agent-factory.ts` `ROLE_SECTIONS` requires `## One job`, `## Reads`, `## Output`, `## Board moves` and `## Hard limits` (among others) in every role file `kit-model.listRoles()` returns. The Orchestrator draws on the roles the work needs: `agent-factory/roles/orchestrator.md` § Responsibilities items 3 to 6 and its routing matrix; the named areas are examples, `among others`, and no count is typed. Every role has a reference page with its one job and a link to its role file: `scripts/generate-catalog.ts` writes `docs/reference/agents/<stem>.md` for every `listRoles()` member with the one-job text and the role-file link, and `npm run freshness:catalog` holds the pages to a fresh regeneration. The wording holds both before and after plan 43-14 widens those pages.
+
+```
+Each role is one markdown file with one job, the files it reads, what it writes, where it moves work on the board, and the hard limits it must not cross. The Orchestrator splits each request into subtasks and draws on the roles the work needs: business analysis and product, system analysis, architecture and design, engineering, QE and end-to-end tests, security, compliance, UAT and release, among others. The [reference](reference/README.md) has a page for every role, with its one job and a link to its role file.
+```
+
+### C-28-057
+
+- file: docs/concepts.md
+- line: 15
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). Measured against `agent-factory/roles/orchestrator.md` § Hard limits (`Never relay data between agents; the shared verified context is the only channel`), `agent-factory/workflows/17-task-claim.md` step 6 (`Coordination is ONLY through the on-disk substrate`), `agent-factory/workflows/16-context-read-write.md` steps 1, 3 and 4, and `agent-factory/contracts/context-note.md` § The six note kinds, which lists exactly `claim`, `finding`, `decision`, `failed-attempt`, `observation` and `artifact-ref`. The sanctioned writer and the `unsealed` refusal: WF16 step 3. A stampless `finding` is hard-rejected and never silently rewritten, and a soft result goes in as a `claim` or `observation`: WF16 steps 3 and 4. The sentence defines `verified` as checked at admission and does not say every note is a proven result, which the `claim` kind would contradict.
+
+```
+The shared verified context is the only memory between roles. Roles do not hand data to each other: a role reads the notes for its task before it starts, and publishes typed notes when it is done. Each note is one of six kinds: a `finding`, a `claim`, a `decision`, a `failed-attempt`, an `observation` or an `artifact-ref`. A note enters the context only through the sanctioned writer, and a note written any other way is refused on read. "Verified" means the writer checks each note on the way in: a `finding` without a real stamp from a green gate run or a named person is refused, and a softer result is recorded as a `claim` or an `observation` instead of passing as a finding.
+```
+
+### C-28-058
+
+- file: docs/concepts.md
+- line: 22
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). The board's location and that the column is the status: the same measurement as C-28-033's board bullet, `install/state-layout.ts` `BOARD_REL` = `memory-bank/plans/board.md`. Per-column limits: `agent-factory/config/factory.config.md` § `wip_limits` sub-fields, ten columns from `Ready` to `Ready to Release`. The Orchestrator's rule: `agent-factory/roles/orchestrator.md` § Hard limits, `Never pull past a WIP limit or exceed the queue width without a written reason`; the sentence keeps the written-reason exception and says the role file TELLS it, an instruction, not a mechanical refusal.
+
+```
+The board, `memory-bank/plans/board.md`, is a markdown file in your repository. Each ticket sits in one column, from Ready to Done, and the column is its status. Each column has a work-in-progress limit, set by `wip_limits` in the config, and the Orchestrator's role file tells it never to pull work past one without a written reason.
+```
+
+### C-28-059
+
+- file: docs/concepts.md
+- line: 29
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). Measured against `agent-factory/workflows/05-pr-quality-gate.md`. The checks and their source: step 3, order `install -> lint -> typecheck -> unit -> build -> uat-spec-integrity -> e2e -> test-integrity`, with `The commands come from the root AGENTS.md command slots — they are never invented`. The unknown-command sentence quotes step 3: `If a command is unknown, the gate records UNKNOWN - verify rather than faking a pass.` The bounded self-fix budget, then a person: step 4 and `self_fix_attempts` in `agent-factory/config/factory.config.md`. A recommendation, not a merge: § Agents involved, `The Orchestrator recommends; it never auto-merges`, and step 6.
+
+```
+The gate is the PR quality gate. It runs your repository's own checks, install, lint, typecheck, unit tests, build and the end-to-end checks the config turns on, with the commands taken from `AGENTS.md`. If a command is unknown, the gate records `UNKNOWN - verify` rather than faking a pass. A failing check sends the work back: the agent gets a small, fixed number of self-fix attempts, then stops and hands the problem to a person. The gate's result is a recommendation for a person, not a merge.
+```
+
+### C-28-060
+
+- file: docs/concepts.md
+- line: 36
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). It names where each control lives and how strongly it holds, and asserts no merge or deploy outcome, so it is `architecture`, not `safety`; the opening is stated as design intent (`is designed so that`) and is measured against CLAUDE.md § Core Value, not against a floor. Stop at a pull request and leave review and merge to a person: `agent-factory/roles/orchestrator.md` § Hard limits and `agent-factory/workflows/05-pr-quality-gate.md` step 6. The release sentence is stated at the checkpoint's default, as C-28-053 is: `agent-factory/workflows/12-release.md` step 6, keyed to `production_requires_human_confirmation`, so lowering that floor does not falsify it. Written rules only: docs/GUARANTEES.md § Where each floor is enforced, `Prose ... is a written rule and nothing more`. The hard floor is the git host, and grugops never configures it: the same section (`grugops never configures the git host`) and `install/README.md` § 5 (a). The ask rules are a speed bump, not a security boundary: `install/README.md` § 5 (b) and CLAUDE.md § Constraints, Safety (hard). The page avoids the word `always`, the word C-28-023 measured `overstated`.
+
+```
+grugops is designed so that people make the merge and release decisions. The role files and workflows tell agents to stop at a pull request and leave the review and the merge to a person. A release waits for a named person's approval and a named person's confirmation of the production action, at the default setting of the `production_requires_human_confirmation` checkpoint. Those are written rules, and they hold only as well as an agent follows them. The hard floor is your git host: branch protection or rulesets on protected branches, and deployment environments with required reviewers for production. grugops never configures your git host; you set those protections yourself. On Claude Code, the standalone installer also writes ask rules, so the CLI asks before the usual merge and deploy commands; they are a speed bump, not a security boundary.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

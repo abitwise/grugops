@@ -1,6 +1,6 @@
 # How grugops works
 
-This page follows one request through grugops, from the moment you type it to the point where a person decides whether to merge and release the change. Each section names the role or workflow file that does the work, so you can read the rule itself.
+This page follows one request through grugops, from the moment you type it to the point where a person decides whether to merge and release the change. Each section names the role or workflow file that does the work, so you can read the rule itself. For the ideas behind these steps, see [The core concept](concepts.md).
 
 ## The flow at a glance
 

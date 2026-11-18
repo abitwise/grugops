@@ -1667,8 +1667,20 @@ export function bannedClaimScanOverlap(
  *         guarantees 1, skills 1, overlap 3)
  *
  * The same run reported 0 findings over 158/158 elements.
+ *
+ * MOVED AGAIN 158 → 159 ON 2026-11-18 IN PLAN 43-09, AND THE ENTRANT IS NAMED: `docs/concepts.md`,
+ * the hand-written core-concept page (D-08). It moves through the `publicDocs` corpus ONLY (42 → 43),
+ * by the plan 43-02 rule (D-21); it is a member of no other part here, so the overlap stays at 3 and
+ * the deduped total moves by one. Read off this gate's own refusal with the page written and the pin
+ * not yet moved, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 159 document(s), expected exactly 158 (kit 79,
+ *         publicDocs 43, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, skills 1, overlap 3)
+ *
+ * The same run reported 0 findings over 159/159 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 158;
+export const BANNED_CLAIM_SCAN_COUNT = 159;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.

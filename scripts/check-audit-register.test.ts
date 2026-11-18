@@ -67,7 +67,9 @@ import {
 // 33 -> 41 (plan 43-09, 2026-11-18): `C-28-048` .. `C-28-055` entered the live registry as
 // `architecture` rows registering the absolutes on docs/how-it-works.md. Moved BY HAND, for the same
 // reason as above, in the commit that moved CLAIM_KIND_CARDINALITY.
-const MIRROR_ARCHITECTURE_CLAIMS = 41;
+// 41 -> 46 (plan 43-09, 2026-11-18): `C-28-056` .. `C-28-060` entered as `architecture` rows
+// registering the absolutes on docs/concepts.md. Moved BY HAND, in the same commit as the map.
+const MIRROR_ARCHITECTURE_CLAIMS = 46;
 const MIRROR_INSTALL_CLAIMS = 8;
 
 /**
