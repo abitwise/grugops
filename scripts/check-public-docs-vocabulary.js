@@ -624,6 +624,17 @@ export function publicDocsScan() {
 //
 // That run reported zero retired-vocabulary hits, so the entrants cost zero reds on correct text.
 //
+// MOVED 14 -> 33 ON 2026-11-18 IN PLAN 43-04, AND THE ENTRANTS AND THE EXIT ARE NAMED. Twenty pages
+// enter: docs/reference/README.md (the generated reference index) and the nineteen generated role
+// pages docs/reference/agents/<role-stem>.md, one per kit-model listRoles() member (D-13, D-16).
+// One page exits: docs/catalog/README.md, retired and deleted in the same plan (D-16a). All of them
+// move through the `docs` part only, by the plan 43-02 rule (D-21), so the part goes 2 -> 21 and the
+// scan 14 -> 33. Read off this gate's own refusal with the pages written and the pin not yet moved,
+// verbatim:
+//
+//   FAIL  the public-docs scan set derived 33 document(s), expected exactly 14
+//         (root 4, examples 5, kitReadme 1, guarantees 1, skills 1, docs 21)
+//
 // THE CORPUS CARRIES NO SECOND PIN, AND THAT IS ARITHMETIC RATHER THAN AN OVERSIGHT. The corpus and
 // the scan differ by exactly PUBLIC_DOCS_EXEMPT, which is a frozen one-member array: a corpus that
 // grew by a NON-exempt document grows the scan and trips this pin, and a corpus that grew by an
@@ -631,7 +642,7 @@ export function publicDocsScan() {
 // The corpus is additionally pinned from the other side by BANNED_CLAIM_SCAN_COUNT, which is
 // two-sided over a union this corpus is half of. A third pin would be a number to maintain, not a
 // question nobody is asking.
-export const PUBLIC_DOCS_SCAN_COUNT = 14;
+export const PUBLIC_DOCS_SCAN_COUNT = 33;
 // ---------------------------------------------------------------------------
 // The check.
 // ---------------------------------------------------------------------------

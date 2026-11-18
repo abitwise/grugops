@@ -1,15 +1,31 @@
-// generate-catalog.ts — grugops browsable docs catalog generator (DOCS-01).
+// generate-catalog.ts — grugops reference generator (DOCS-01; plan 43-04, D-13, D-16, D-17).
 //
-// Reads the finished kit (agent-factory/roles + agent-factory/workflows) and emits
-// docs/catalog/README.md — a single index with one roles table and one workflows table, each row
-// linking to its kit source file. The catalog is generated, never hand-maintained: re-running this
-// script reproduces a byte-identical file (the freshness gate depends on that). Mirrors the proven
-// shape of generate-asvs-checklist.ts: fixed literal paths, fail-closed load, deterministic
-// lines.join("\n") + writeFileSync emit, provenance header, single trailing newline, clear voice.
+// Reads the finished kit (agent-factory/roles + agent-factory/workflows) and emits the reference
+// tree under docs/reference/:
 //
-// Self-discovery: readdirSync the two source dirs. roles/ drops `_`-prefixed files (D-03, so
-// _role-switch-protocol.md is excluded); workflows/ keeps every numbered file the regex below
-// matches, in the numeric order each declares.
+//   - docs/reference/README.md — the index: one roles table and one workflows table, each row
+//     linking to its kit source file, and each role row linking to its reference page;
+//   - docs/reference/agents/<role-stem>.md — one page per role (D-13), where the stem is the role
+//     file name without `.md`.
+//
+// (Until plan 43-04 this generator wrote one file, docs/catalog/README.md. That folder is retired:
+// the index above replaces it, D-16, D-16a.)
+//
+// Every page is generated, never hand-maintained: re-running this script reproduces a byte-identical
+// tree (the freshness gate scripts/catalog-freshness.ts depends on that). Mirrors the proven shape
+// of generate-asvs-checklist.ts: fixed literal paths, fail-closed load, deterministic
+// lines.join("\n") emit, provenance header, single trailing newline, clear voice.
+//
+// Membership: the role set is kit-model listRoles() (`.md`, not `_`-prefixed, so
+// _role-switch-protocol.md is excluded, D-03), so a role added later gets a page by existing (D-17);
+// workflows/ keeps every numbered file isNumberedWorkflowFile admits, in the numeric order each
+// declares. Workflows stay index rows with no page of their own (D-16).
+//
+// ALL PAGES ARE BUILT BEFORE ANY IS WRITTEN. The pages are collected into one map from relative
+// path to text. Nothing touches the disk until every page is built and every page path has been
+// checked; only then are stray `.md` pages under docs/reference/ deleted (regular files only,
+// found with lstat, never through a link) and the pages written. A refusal therefore leaves every
+// page under docs/reference/ byte-unchanged.
 //
 // HOW MANY OF EACH THERE ARE IS DELIBERATELY NOT WRITTEN IN THIS FILE (round 6, plan 29-46 — WR-03).
 // The two cardinalities are held by ROLE_COUNT and WORKFLOW_COUNT in scripts/kit-model.ts, pinned
@@ -44,9 +60,10 @@
 // in session, against the committed `scripts/frontmatter.js`): 0 keys the deleted `[A-Za-z_]+` charset
 // would have skipped, 0 documents declaring any key twice, 0 empty values for a key read here, 0
 // documents with no frontmatter fence, 0 CRLF documents, 0 key-set differences and 0 documents the
-// authority refuses. So the divergence was LATENT, not live, and `docs/catalog/README.md` is
-// byte-identical across the change. That is what makes the shape difference — not a rename — the
-// thing worth holding, and it is held by three planted cases in scripts/generate-catalog.test.ts.
+// authority refuses. So the divergence was LATENT, not live, and `docs/catalog/README.md` (then
+// this generator's output) was byte-identical across the change. That is what makes the shape
+// difference — not a rename — the thing worth holding, and it is held by three planted cases in
+// scripts/generate-catalog.test.ts.
 //
 // WHAT THE SHAPE CHANGE BUYS. `Parsed<FrontmatterKeys>` is a discriminated result over a
 // `Map<string, string[]>`, so this generator can now tell THREE facts apart that the deleted copy
@@ -76,16 +93,24 @@
 //   node scripts/generate-catalog.js    # exit 0 on success, 1 on any structural miss
 //
 // Read/write-only by construction (path-traversal mitigation, ASVS V12, mirrors both analogs):
-// ROLES_DIR/WORKFLOWS_DIR/OUT are FIXED literal paths joined to the repo root (the script dir's
+// ROLES_DIR/WORKFLOWS_DIR/OUT_DIR are FIXED literal paths joined to the repo root (the script dir's
 // parent). None is ever derived from argv, env, or file content.
 //
 // Fail closed: a kit file with no `# Role:`/`# Workflow:` H1, an UNREADABLE frontmatter block, a
-// required field absent or declared twice, or a directory read failure prints a finding to stderr and
-// process.exit(1) WITHOUT writing — the full lines[] is built first, so a partial or garbled catalog
-// never ships. Each of those is its OWN sentence; two facts printing one message is the conflation
+// required field absent or declared twice, a directory read failure, or a page path that is a link
+// or another non-regular file prints a finding to stderr and process.exit(1) WITHOUT writing — every
+// page is built first, so a partial or garbled reference tree never ships. Each of those is its OWN sentence; two facts printing one message is the conflation
 // plan 29-40 deleted.
 
-import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+import {
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+  type Stats,
+} from "node:fs";
 import { join } from "node:path";
 import {
   parseFrontmatter,
@@ -95,13 +120,18 @@ import {
 // The rule that decides which files in the workflow directory are corpus members. It is DECLARED in
 // scripts/kit-model.ts beside WORKFLOW_COUNT and asked here; this module states no shape rule of its
 // own. See that declaration for why it is range-free and why it cannot live in either consumer.
-import { isNumberedWorkflowFile } from "./kit-model.js";
+import { isNumberedWorkflowFile, listRoles } from "./kit-model.js";
 
 // ── Fixed literal paths (read/write-only by construction — never argv/env/content-derived) ───
 const ROOT = join(import.meta.dirname, "..");
 const ROLES_DIR = join(ROOT, "agent-factory/roles");
 const WORKFLOWS_DIR = join(ROOT, "agent-factory/workflows");
-const OUT = join(ROOT, "docs/catalog/README.md");
+const OUT_DIR = join(ROOT, "docs/reference");
+// Page paths are relative to OUT_DIR, POSIX-spelled, and built only from these two literals and a
+// role file name listRoles() returned (never from file content).
+const INDEX_PAGE = "README.md";
+const AGENTS_SUBDIR = "agents";
+const PROVENANCE = "<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-catalog.js -->";
 
 // ── Fail-closed helper (a structural miss is a finding, never an unhandled throw) ─────────────
 // The VARIABLE carries the `=> never` annotation, not just the arrow — copied verbatim from
@@ -192,6 +222,8 @@ function sectionBody(text: string, heading: string): string | null {
 
 // ── A catalogued kit entry ────────────────────────────────────────────────────────────────────
 interface RoleEntry {
+  file: string;
+  stem: string;
   name: string;
   tier: string;
   summary: string;
@@ -205,14 +237,13 @@ interface WorkflowEntry {
   link: string;
 }
 
-// ── Read + parse roles (skip `_`-prefixed → D-03 drops _role-switch-protocol.md) ──────────────
+// ── Read + parse roles: the set is kit-model listRoles() (D-17; it drops `_`-prefixed files, D-03) ──
+// listRoles() throws on an unreadable directory and on an empty set; either is a finding here.
 let roleFiles!: string[];
 try {
-  roleFiles = readdirSync(ROLES_DIR)
-    .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
-    .sort();
-} catch {
-  fail(`cannot read roles directory: ${ROLES_DIR}`);
+  roleFiles = listRoles(ROOT);
+} catch (e) {
+  fail(`cannot list the role files in ${ROLES_DIR}: ${(e as Error).message}`);
 }
 
 const roles: RoleEntry[] = [];
@@ -266,6 +297,8 @@ for (const file of roleFiles) {
     fail(`${file}: no \`## One job\` section — refusing to write a partial catalog`);
   }
   roles.push({
+    file,
+    stem: file.slice(0, -".md".length),
     name: h1![1].trim(),
     tier,
     summary: firstSentence(body!),
@@ -408,32 +441,39 @@ roles.sort((a, b) => {
 // measurement can do nothing else. The name above is the evidence now.
 workflows.sort((a, b) => a.order - b.order);
 
-// ── Emit the document: provenance header + intro + roles table + workflows table ──────────────
+// ── Build every page into one map before anything is written ─────────────────────────────────
+const pages = new Map<string, string>();
+
+// The index: provenance header + intro + roles table + workflows table. Counts are interpolated,
+// never typed.
 const lines: string[] = [];
-lines.push("<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-catalog.js -->");
-lines.push("# grugops Catalog");
+lines.push(PROVENANCE);
+lines.push("# grugops reference");
 lines.push("");
 lines.push(
-  `This is the generated, browsable index of the grugops kit: ${roles.length} role personas and`,
+  `This is the generated reference for the grugops kit: ${roles.length} roles, each with its own page,`,
 );
 lines.push(
-  `${workflows.length} workflows. Each row links to its source file. The catalog is produced by`,
+  `and ${workflows.length} workflows. The pages are generated from the role and workflow files by`,
 );
 lines.push(
-  "`scripts/generate-catalog.js` and is never hand-edited — re-run the generator and commit the",
+  "`scripts/generate-catalog.js` and are never hand-edited; re-run the generator and commit the",
 );
-lines.push("result. Any unverified field is marked `UNKNOWN - verify` rather than invented.");
+lines.push("result. Any unverified field reads `UNKNOWN - verify` rather than an invented value.");
 lines.push("");
 lines.push("## Roles");
 lines.push("");
-lines.push("| Role | Tier | One job | Source |");
-lines.push("| --- | --- | --- | --- |");
+lines.push("| Role | Tier | One job | Page | Source |");
+lines.push("| --- | --- | --- | --- | --- |");
 for (const r of roles) {
-  // Content cells (name, summary) are escaped (WR-03); the Source link column is not (controlled
-  // path). `tier` is constrained to core|enterprise so it needs no escaping. The link is RELATIVE
-  // from docs/catalog/ (two levels up to the repo root) — portable across local viewers, VS Code
-  // preview, plain CommonMark, and npm's README view, not just github.com's blob renderer (WR-02).
-  lines.push(`| ${cell(r.name)} | ${r.tier} | ${cell(r.summary)} | [${r.link}](../../${r.link}) |`);
+  // Content cells (name, summary) are escaped (WR-03); the Page and Source link columns are not
+  // (built from a role file name listRoles() returned). `tier` is constrained to core|enterprise so
+  // it needs no escaping. The source link is RELATIVE from docs/reference/ (two levels up to the
+  // repo root) — portable across local viewers, VS Code preview, plain CommonMark, and npm's README
+  // view, not just github.com's blob renderer (WR-02).
+  lines.push(
+    `| ${cell(r.name)} | ${r.tier} | ${cell(r.summary)} | [${r.stem}](${AGENTS_SUBDIR}/${r.file}) | [${r.link}](../../${r.link}) |`,
+  );
 }
 lines.push("");
 lines.push("## Workflows");
@@ -442,15 +482,92 @@ lines.push("| # | Workflow | Cadence | When to use | Source |");
 lines.push("| --- | --- | --- | --- | --- |");
 for (const w of workflows) {
   // Content cells (name, cadence, summary) escaped (WR-03); `order` is an integer; link column raw.
-  // Relative link from docs/catalog/ — see the roles loop above (WR-02).
+  // Relative link from docs/reference/ — see the roles loop above (WR-02).
   lines.push(
     `| ${w.order} | ${cell(w.name)} | ${cell(w.cadence)} | ${cell(w.summary)} | [${w.link}](../../${w.link}) |`,
   );
 }
 lines.push(""); // trailing element → exactly one final "\n"
+pages.set(INDEX_PAGE, lines.join("\n"));
 
-writeFileSync(OUT, lines.join("\n"), "utf8");
+// One page per role (D-13). This plan writes the opening of each page: the provenance line, the
+// display name from the `# Role:` heading, the first sentence of `## One job` and a link to the role
+// source, three levels up from docs/reference/agents/. Plan 43-14 adds the header block and the
+// extracted sections (D-14).
+for (const r of roles) {
+  pages.set(
+    `${AGENTS_SUBDIR}/${r.file}`,
+    [
+      PROVENANCE,
+      `# ${r.name}`,
+      "",
+      r.summary,
+      "",
+      `Full role: [${r.link}](../../../${r.link})`,
+      "",
+    ].join("\n"),
+  );
+}
+
+// ── Check every page path before touching the disk (T-43-13) ─────────────────────────────────
+// lstat never follows a link. The output directory and the agents directory must each be absent or
+// a real directory, and each page path must be absent or a regular file: writing through a link
+// would write outside docs/reference/, so a link at any of these paths is refused by name, before
+// anything is deleted or written.
+const outRel = (rel: string): string => (rel === "" ? "docs/reference" : `docs/reference/${rel}`);
+const outAbs = (rel: string): string => (rel === "" ? OUT_DIR : join(OUT_DIR, ...rel.split("/")));
+function lstatOrNull(rel: string): Stats | null {
+  try {
+    return lstatSync(outAbs(rel));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    fail(`cannot inspect ${outRel(rel)} (${(e as NodeJS.ErrnoException).code ?? "error"}) — refusing to write`);
+  }
+}
+for (const dir of ["", AGENTS_SUBDIR]) {
+  const st = lstatOrNull(dir);
+  if (st !== null && !st.isDirectory()) {
+    fail(`${outRel(dir)} is not a directory (a link or another file type) — refusing to write through it`);
+  }
+}
+for (const rel of [...pages.keys()].sort()) {
+  const st = lstatOrNull(rel);
+  if (st !== null && !st.isFile()) {
+    fail(`${outRel(rel)} is not a regular file (a link, directory or special file) — refusing to write through it`);
+  }
+}
+
+// ── Find the stray pages: every regular `.md` file under docs/reference/ the map does not hold ──
+// Walked with lstat; a link or special file is neither followed nor deleted (the freshness gate
+// names it), and only regular `.md` files under the fixed literal OUT_DIR are ever removed.
+function strayPages(rel: string): string[] {
+  const st = lstatOrNull(rel);
+  if (st === null || !st.isDirectory()) return [];
+  let names: string[];
+  try {
+    names = readdirSync(outAbs(rel));
+  } catch (e) {
+    fail(`cannot list ${outRel(rel)} (${(e as NodeJS.ErrnoException).code ?? "error"}) — refusing to write`);
+  }
+  const out: string[] = [];
+  for (const n of names.sort()) {
+    const child = rel === "" ? n : `${rel}/${n}`;
+    const cst = lstatOrNull(child);
+    if (cst === null) continue;
+    if (cst.isDirectory()) out.push(...strayPages(child));
+    else if (cst.isFile() && n.endsWith(".md") && !pages.has(child)) out.push(child);
+  }
+  return out;
+}
+const strays = strayPages("");
+
+// ── Write: delete the strays, then write every page ──────────────────────────────────────────────
+for (const rel of strays) unlinkSync(outAbs(rel));
+mkdirSync(join(OUT_DIR, AGENTS_SUBDIR), { recursive: true });
+for (const rel of [...pages.keys()].sort()) {
+  writeFileSync(outAbs(rel), pages.get(rel)!, "utf8");
+}
 console.log(
-  `generate-catalog: wrote ${roles.length} roles and ${workflows.length} workflows to ${OUT}`,
+  `generate-catalog: wrote ${pages.size} page(s) to docs/reference (the index, listing ${roles.length} roles and ${workflows.length} workflows, and ${roles.length} role pages); removed ${strays.length} stray page(s)`,
 );
 process.exit(0);

@@ -1,24 +1,22 @@
-// generate-catalog.test.ts — DOCS-01 oracle for the browsable docs catalog generator
+// generate-catalog.test.ts — oracle for the reference generator (DOCS-01; plan 43-04, D-13, D-16, D-17)
 // (Vitest harness for scripts/generate-catalog.js).
 //
-// Drives the COMMITTED compiled artifact scripts/generate-catalog.js (never the .ts) and asserts
-// the DOCS-01 contract over the real kit (17 roles + 19 workflows):
-//   (1) WRITES + EXITS 0 over the real kit, leaving the tree clean (regen == committed bytes);
-//   (2) BYTE-REPRODUCIBLE: two successive regenerations are byte-identical (and equal committed);
-//   (3) COMPLETE SET: all 17 role names + all 19 workflow names present, exactly 17 + 19 rows;
-//   (4) FAIL-CLOSED: a tampered kit file with no `# Role:` H1 → exit 1, NO partial write — proven
-//       hermetically (mirror-and-tamper into a temp dir) so the real tree is never touched;
+// Drives the COMMITTED compiled artifact scripts/generate-catalog.js (never the .ts) and asserts its
+// contract over the real kit. The generator writes docs/reference/README.md (the index: one roles table
+// and one workflows table) and one page per role at docs/reference/agents/<role-stem>.md:
+//   (1) WRITES + EXITS 0 over the real kit, leaving the tree clean (regen == committed pages);
+//   (2) BYTE-REPRODUCIBLE: two successive regenerations give the same page set and the same bytes;
+//   (3) COMPLETE SET: every role and workflow name present, with exact row counts;
+//   (4) FAIL-CLOSED: a tampered kit file with no `# Role:` H1 → exit 1, NO partial write and no page
+//       deleted — proven hermetically (mirror-and-tamper into a temp dir) so the real tree is never touched;
 //   (5) NO FABRICATION: workflows 12/13 cadence cell reads `UNKNOWN - verify`, never `cadence: both`,
 //       and no `..` (double-period) appears anywhere (the incident-responder single-sentence edge).
 //
-// The generator's ROLES_DIR/WORKFLOWS_DIR/OUT are FIXED literal paths joined to its own repo root
-// (path-traversal mitigation — never argv/env/content-derived). So the fail-closed case copies the
-// generator .js plus a TAMPERED agent-factory/{roles,workflows} + a sentinel output into a temp
-// mirror laid out as <tmp>/scripts/... and <tmp>/agent-factory/..., then runs the mirrored .js there.
-// The real tree is read-only in (1)/(2)/(3)/(5) and untouched in (4).
-//
-// This file ships RED until Task 2 builds the committed generate-catalog.js — that is correct
-// Wave-0 sequencing (the oracle is authored before the implementation).
+// The generator's ROLES_DIR/WORKFLOWS_DIR/OUT_DIR are FIXED literal paths joined to its own repo root
+// (path-traversal mitigation — never argv/env/content-derived). So the hermetic cases copy the generator
+// .js and its import closure plus agent-factory/{roles,workflows} into a temp mirror laid out as
+// <tmp>/scripts/... and <tmp>/agent-factory/..., then run the mirrored .js there. The real-tree cases
+// snapshot the whole docs/reference/ tree and restore it.
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -31,19 +29,23 @@ import {
   readFileSync,
   writeFileSync,
   existsSync,
+  lstatSync,
+  symlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   ROLE_COUNT,
   WORKFLOW_COUNT,
   WORKFLOWS_SUBPATH,
   isNumberedWorkflowFile,
+  listRoleDisplayNames,
+  listRoles,
 } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-catalog.js");
-const OUT = join(ROOT, "docs", "catalog", "README.md");
+const OUT = join(ROOT, "docs", "reference", "README.md");
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -75,6 +77,57 @@ function importClosure(entry: string, seen = new Set<string>()): Set<string> {
   return seen;
 }
 const GEN_MODULES = [...importClosure("generate-catalog.js")].sort();
+
+// ── The committed reference tree, snapshotted and restored as a whole (plan 43-04) ──────────────
+// The generator writes the index and one page per role and deletes any stray page under
+// docs/reference/, so the real-tree cases below snapshot every regular file under that directory
+// (lstat, links never followed) and restore the whole set, not one file. An absent directory is an
+// empty snapshot, so a case reds on its own assertion rather than on a missing-file throw.
+const REF_DIR = join(ROOT, "docs", "reference");
+function snapshotReference(): Map<string, Buffer> {
+  const snap = new Map<string, Buffer>();
+  const walk = (rel: string): void => {
+    const abs = rel === "" ? REF_DIR : join(REF_DIR, ...rel.split("/"));
+    let st;
+    try {
+      st = lstatSync(abs);
+    } catch {
+      return;
+    }
+    if (st.isDirectory()) {
+      for (const n of readdirSync(abs).sort()) walk(rel === "" ? n : `${rel}/${n}`);
+    } else if (st.isFile()) {
+      snap.set(rel, readFileSync(abs));
+    }
+  };
+  walk("");
+  return snap;
+}
+function sameSnapshot(a: Map<string, Buffer>, b: Map<string, Buffer>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [rel, bytes] of a) {
+    const other = b.get(rel);
+    if (other === undefined || !other.equals(bytes)) return false;
+  }
+  return true;
+}
+function restoreReference(snap: Map<string, Buffer>): void {
+  for (const rel of snapshotReference().keys()) {
+    if (!snap.has(rel)) rmSync(join(REF_DIR, ...rel.split("/")), { force: true });
+  }
+  for (const [rel, bytes] of snap) {
+    const abs = join(REF_DIR, ...rel.split("/"));
+    let now: Buffer | null = null;
+    try {
+      now = readFileSync(abs);
+    } catch {
+      now = null;
+    }
+    if (now !== null && now.equals(bytes)) continue;
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, bytes);
+  }
+}
 
 // (27-60 / WR-04) A local `out(r)` helper lived here, read by nothing — the first thing the
 // test-inclusive typecheck target ever saw. Every call site in this file inlines
@@ -136,44 +189,48 @@ function countRowsLinkingInto(text: string, dir: string): number {
 }
 
 describe("generate-catalog.js (DOCS-01)", () => {
-  // (1) writes the catalog + exits 0 over the real kit. The regenerated bytes equal the committed
-  // bytes (parity → no-op), so the real tree is left clean. Restore defensively in finally.
-  it("writes the catalog and exits 0, leaving the tree clean", () => {
-    const before = readFileSync(OUT);
+  // (1) writes the reference tree + exits 0 over the real kit. The regenerated pages equal the
+  // committed pages (parity → no-op), so the real tree is left clean. Restore defensively in finally.
+  it("writes the reference tree and exits 0, leaving the tree clean", () => {
+    const before = snapshotReference();
     const r = spawnSync("node", [GEN_JS], { encoding: "utf8" });
     try {
-      expect(r.status).toBe(0);
-      const after = readFileSync(OUT);
-      expect(after.length).toBeGreaterThan(0);
-      // The committed catalog IS the generator's deterministic output, so a regen is a no-op.
-      expect(after.equals(before)).toBe(true);
+      expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+      const after = snapshotReference();
+      // The index and one page per role, and nothing else.
+      expect(after.size).toBe(ROLE_COUNT + 1);
+      expect(after.get("README.md")?.length ?? 0).toBeGreaterThan(0);
+      // The committed tree IS the generator's deterministic output, so a regen is a no-op.
+      expect(sameSnapshot(after, before)).toBe(true);
     } finally {
-      writeFileSync(OUT, before);
+      restoreReference(before);
     }
   });
 
   // (2) byte-reproducibility: two successive regenerations produce byte-identical output, equal to
   // the committed bytes.
   it("byte-reproducible: regenerating twice yields identical bytes", () => {
-    const before = readFileSync(OUT);
+    const before = snapshotReference();
     try {
       const r1 = spawnSync("node", [GEN_JS], { encoding: "utf8" });
       expect(r1.status).toBe(0);
-      const first = readFileSync(OUT);
+      const first = snapshotReference();
       const r2 = spawnSync("node", [GEN_JS], { encoding: "utf8" });
       expect(r2.status).toBe(0);
-      const second = readFileSync(OUT);
-      expect(second.equals(first)).toBe(true);
-      expect(second.equals(before)).toBe(true);
+      const second = snapshotReference();
+      // Every page, not only the index: two runs give the same page set and the same bytes.
+      expect(first.size).toBe(ROLE_COUNT + 1);
+      expect(sameSnapshot(second, first)).toBe(true);
+      expect(sameSnapshot(second, before)).toBe(true);
     } finally {
-      writeFileSync(OUT, before);
+      restoreReference(before);
     }
   });
 
   // (3) complete set: all 17 role names + all 19 workflow names present (incl. frontend-ui via its
   // source link, and workflows 14 + 15 + 16 + 17 + 18); exactly 17 role data rows + 19 workflow data rows.
   it("contains all 17 roles and all 19 workflows with exact row counts", () => {
-    const before = readFileSync(OUT);
+    const before = snapshotReference();
     try {
       const r = spawnSync("node", [GEN_JS], { encoding: "utf8" });
       expect(r.status).toBe(0);
@@ -192,7 +249,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
       expect(countRowsLinkingInto(text, "roles")).toBe(ROLE_COUNT);
       expect(countRowsLinkingInto(text, "workflows")).toBe(19);
     } finally {
-      writeFileSync(OUT, before);
+      restoreReference(before);
     }
   });
 
@@ -249,13 +306,13 @@ describe("generate-catalog.js (DOCS-01)", () => {
 
   // (4) fail-closed: a kit file with no `# Role:` H1 → exit 1, NO partial write. Built hermetically:
   // mirror the generator .js + a TAMPERED agent-factory/{roles,workflows} into <tmp>, plant a
-  // sentinel at <tmp>/docs/catalog/README.md, run the mirrored .js, assert exit 1 AND the sentinel
+  // sentinel at <tmp>/docs/reference/README.md, run the mirrored .js, assert exit 1 AND the sentinel
   // survives unchanged (refused to write a partial). The real tree is never touched.
   it("fail-closed: a kit file with no H1 → exit 1, no partial write", () => {
     const m = mkdtempSync(join(tmpdir(), "grugops-catalog-"));
     tmpDirs.push(m);
     mkdirSync(join(m, "scripts"), { recursive: true });
-    mkdirSync(join(m, "docs", "catalog"), { recursive: true });
+    mkdirSync(join(m, "docs", "reference"), { recursive: true });
     cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
     // NOT VACUOUS: the generator imports the section-locator authority, so an empty closure means
     // the derivation read the wrong file and this case would exit 1 on a module-resolution error
@@ -283,8 +340,15 @@ describe("generate-catalog.js (DOCS-01)", () => {
 
     // Plant a sentinel the generator must NOT overwrite on the fail-closed path.
     const sentinel = "SENTINEL — must not be overwritten on a fail-closed run.\n";
-    const outPath = join(m, "docs", "catalog", "README.md");
+    const outPath = join(m, "docs", "reference", "README.md");
     writeFileSync(outPath, sentinel);
+    // …and a role page and a stray page: a run that fails before writing neither rewrites a page nor
+    // deletes a stray one, so every page under docs/reference/ is byte-unchanged (plan 43-04).
+    mkdirSync(join(m, "docs", "reference", "agents"), { recursive: true });
+    const rolePage = join(m, "docs", "reference", "agents", "qe-e2e.md");
+    const strayPage = join(m, "docs", "reference", "agents", "zzz-stray.md");
+    writeFileSync(rolePage, sentinel);
+    writeFileSync(strayPage, sentinel);
 
     const r = spawnSync("node", [join(m, "scripts", "generate-catalog.js")], {
       encoding: "utf8",
@@ -296,9 +360,105 @@ describe("generate-catalog.js (DOCS-01)", () => {
     // module resolution.
     expect(`${r.stdout}${r.stderr}`).toContain("orchestrator.md: no `# Role:` H1");
     expect(`${r.stdout}${r.stderr}`).not.toContain("ERR_MODULE_NOT_FOUND");
-    // No partial write: the sentinel survives unchanged.
+    // No partial write: the sentinels survive unchanged and the stray page is not deleted.
     expect(existsSync(outPath)).toBe(true);
     expect(readFileSync(outPath, "utf8")).toBe(sentinel);
+    expect(readFileSync(rolePage, "utf8")).toBe(sentinel);
+    expect(readFileSync(strayPage, "utf8")).toBe(sentinel);
+  });
+
+  // ── The reference pages (plan 43-04, D-13, D-16, D-17) ──────────────────────────────────────
+  //
+  // One page per role at docs/reference/agents/<role-stem>.md, for every member of kit-model
+  // listRoles(); the page set is compared with the role set both ways, so neither a hand-listed page
+  // nor a role without a page can pass. Each page opens with the provenance line, the display name
+  // from the `# Role:` heading, the first sentence of `## One job` and a link to the role source.
+  // Plan 43-14 adds the header block and the extracted sections to the same pages.
+  const PROVENANCE = "<!-- GENERATED — do not hand-edit. Re-run: node scripts/generate-catalog.js -->";
+
+  it("writes one page per listRoles() member under docs/reference/agents/, each opening with the provenance line, the display name, the One job sentence and the source link", () => {
+    const m = catalogMirror();
+    const run = runMirror(m);
+    expect(run.status, run.text).toBe(0);
+    const roleFiles = listRoles(ROOT);
+    const names = listRoleDisplayNames(ROOT);
+    expect(roleFiles.length, "PREMISE: the role set is not empty").toBeGreaterThan(0);
+    const pages = readdirSync(join(m, "docs", "reference", "agents")).sort();
+    // Two-sided: the page set is exactly the role set, named by the role file stem.
+    expect(pages).toEqual([...roleFiles].sort());
+    expect(pages.length).toBe(ROLE_COUNT);
+    const index = readFileSync(join(m, "docs", "reference", "README.md"), "utf8");
+    roleFiles.forEach((file, i) => {
+      const page = readFileSync(join(m, "docs", "reference", "agents", file), "utf8");
+      const lines = page.split("\n");
+      expect(lines[0], file).toBe(PROVENANCE);
+      expect(lines[1], file).toBe(`# ${names[i]}`);
+      // The One job sentence is the one the index row publishes for this role, and the role source
+      // carries it word for word.
+      const row = index.split("\n").find((l) => l.includes(`(agents/${file})`));
+      expect(row, `the index has no row linking agents/${file}`).toBeDefined();
+      const summary = row!.split(" | ")[2];
+      expect(lines[3], file).toBe(summary.replace(/\\\|/g, "|").replace(/\\\\/g, "\\"));
+      expect(readFileSync(join(m, "agent-factory", "roles", file), "utf8")).toContain(lines[3]);
+      expect(page, file).toContain(
+        `Full role: [agent-factory/roles/${file}](../../../agent-factory/roles/${file})`,
+      );
+      expect(page.endsWith("\n") && !page.endsWith("\n\n"), `${file}: one trailing newline`).toBe(true);
+    });
+  });
+
+  it("the index lists roles core first then by display name, and workflows in numeric order", () => {
+    const m = catalogMirror();
+    const run = runMirror(m);
+    expect(run.status, run.text).toBe(0);
+    const index = readFileSync(join(m, "docs", "reference", "README.md"), "utf8").split("\n");
+    const roleRows = index.filter((l) => l.includes("(agents/"));
+    expect(roleRows.length).toBe(ROLE_COUNT);
+    const parsed = roleRows.map((l) => {
+      const c = l.split(" | ");
+      return { name: c[0].replace(/^\| /, ""), tier: c[1] };
+    });
+    const firstEnterprise = parsed.findIndex((r) => r.tier === "enterprise");
+    expect(firstEnterprise, "PREMISE: the kit has both tiers").toBeGreaterThan(0);
+    expect(parsed.slice(firstEnterprise).every((r) => r.tier === "enterprise")).toBe(true);
+    for (const group of [parsed.slice(0, firstEnterprise), parsed.slice(firstEnterprise)]) {
+      const names = group.map((r) => r.name);
+      expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    }
+    const orders = index
+      .filter((l) => l.includes("agent-factory/workflows/"))
+      .map((l) => Number(l.split(" | ")[0].replace(/^\| /, "")));
+    expect(orders.length).toBe(WORKFLOW_COUNT);
+    expect(orders).toEqual([...orders].sort((a, b) => a - b));
+  });
+
+  it("deletes a stray .md page under docs/reference/ and leaves a non-page file alone", () => {
+    const m = catalogMirror();
+    expect(runMirror(m).status).toBe(0);
+    const stray = join(m, "docs", "reference", "agents", "zzz-stray.md");
+    const note = join(m, "docs", "reference", "agents", "keep.txt");
+    writeFileSync(stray, "stray\n");
+    writeFileSync(note, "not a page\n");
+    const run = runMirror(m);
+    expect(run.status, run.text).toBe(0);
+    expect(existsSync(stray)).toBe(false);
+    expect(readFileSync(note, "utf8")).toBe("not a page\n");
+  });
+
+  it("refuses, writing nothing, when a page path is a link: it never writes through it", () => {
+    const m = catalogMirror();
+    expect(runMirror(m).status).toBe(0);
+    const outside = join(m, "outside.md");
+    writeFileSync(outside, "OUTSIDE\n");
+    const page = join(m, "docs", "reference", "agents", "orchestrator.md");
+    rmSync(page);
+    symlinkSync(outside, page);
+    const indexBefore = readFileSync(join(m, "docs", "reference", "README.md"));
+    const run = runMirror(m);
+    expect(run.status).toBe(1);
+    expect(run.text).toContain("docs/reference/agents/orchestrator.md");
+    expect(readFileSync(outside, "utf8")).toBe("OUTSIDE\n");
+    expect(readFileSync(join(m, "docs", "reference", "README.md")).equals(indexBefore)).toBe(true);
   });
 
   // (round 6, IN-02 / residual 29-46 R2 — plan 29-54) A DUPLICATE WORKFLOW ORDER STOPS THE GENERATOR.
@@ -319,7 +479,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
     const m = mkdtempSync(join(tmpdir(), "grugops-catalog-dup-order-"));
     tmpDirs.push(m);
     mkdirSync(join(m, "scripts"), { recursive: true });
-    mkdirSync(join(m, "docs", "catalog"), { recursive: true });
+    mkdirSync(join(m, "docs", "reference"), { recursive: true });
     cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
     // NOT VACUOUS — same attribution the H1 case above makes: an empty closure would leave the mirror
     // a module short and this case would exit 1 on ERR_MODULE_NOT_FOUND while claiming a refusal.
@@ -365,7 +525,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
 
     // Plant a sentinel the generator must NOT overwrite on the fail-closed path.
     const sentinel = "SENTINEL — must not be overwritten on a duplicate-order run.\n";
-    const outPath = join(m, "docs", "catalog", "README.md");
+    const outPath = join(m, "docs", "reference", "README.md");
     writeFileSync(outPath, sentinel);
 
     const r = spawnSync("node", [join(m, "scripts", "generate-catalog.js")], {
@@ -489,7 +649,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
   // `both`. Also assert no `..` (double-period) anywhere (the incident-responder single-sentence
   // summary edge — appending a period would produce `..`).
   it("no fabrication: workflows 12/13 cadence reads UNKNOWN - verify, no fabricated cadence, no double-period", () => {
-    const before = readFileSync(OUT);
+    const before = snapshotReference();
     try {
       const r = spawnSync("node", [GEN_JS], { encoding: "utf8" });
       expect(r.status).toBe(0);
@@ -506,7 +666,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
       // mandatory collateral of WR-02's relative-link form.)
       expect(text).not.toMatch(/\w\.\.(\s|\||$)/m);
     } finally {
-      writeFileSync(OUT, before);
+      restoreReference(before);
     }
   });
 
@@ -548,7 +708,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
     const m = mkdtempSync(join(tmpdir(), "grugops-catalog-extent-"));
     tmpDirs.push(m);
     mkdirSync(join(m, "scripts"), { recursive: true });
-    mkdirSync(join(m, "docs", "catalog"), { recursive: true });
+    mkdirSync(join(m, "docs", "reference"), { recursive: true });
     cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
     for (const mod of GEN_MODULES) {
       cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
@@ -571,7 +731,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
   };
   /** The `One job` cell of the QE/E2E row, read out of the generated table. */
   const qeJobCell = (m: string): string => {
-    const row = readFileSync(join(m, "docs", "catalog", "README.md"), "utf8")
+    const row = readFileSync(join(m, "docs", "reference", "README.md"), "utf8")
       .split("\n")
       .find((l) => l.includes("agent-factory/roles/qe-e2e.md"));
     if (row === undefined) throw new Error("the QE/E2E row is absent from the generated catalog");
@@ -692,7 +852,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
 
   /** The `Tier` cell of the QE/E2E row (roles table: name | tier | one job | source). */
   const qeTierCell = (m: string): string => {
-    const row = readFileSync(join(m, "docs", "catalog", "README.md"), "utf8")
+    const row = readFileSync(join(m, "docs", "reference", "README.md"), "utf8")
       .split("\n")
       .find((l) => l.includes("agent-factory/roles/qe-e2e.md"));
     if (row === undefined) throw new Error("the QE/E2E row is absent from the generated catalog");
@@ -700,7 +860,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
   };
   /** The `Cadence` cell of a workflow row (workflows table: # | name | cadence | when | source). */
   const workflowCadenceCell = (m: string, file: string): string => {
-    const row = readFileSync(join(m, "docs", "catalog", "README.md"), "utf8")
+    const row = readFileSync(join(m, "docs", "reference", "README.md"), "utf8")
       .split("\n")
       .find((l) => l.includes(`agent-factory/workflows/${file}`));
     if (row === undefined) throw new Error(`the ${file} row is absent from the generated catalog`);

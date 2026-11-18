@@ -1627,8 +1627,22 @@ export function bannedClaimScanOverlap(
  *         guarantees 1, skills 1, overlap 3)
  *
  * The same run reported 0 findings over 131/131 elements.
+ *
+ * MOVED AGAIN 131 → 150 ON 2026-11-18 IN PLAN 43-04, AND THE ENTRANTS AND THE EXIT ARE NAMED. Twenty
+ * pages enter: `docs/reference/README.md` (the generated reference index) and the nineteen generated
+ * role pages `docs/reference/agents/<role-stem>.md`, one per kit-model listRoles() member (D-13,
+ * D-16). One page exits: `docs/catalog/README.md`, retired and deleted in the same plan (D-16a). They
+ * move through the `publicDocs` corpus ONLY (15 → 34), by the plan 43-02 rule (D-21); none is a
+ * member of any other part here, so the overlap stays at 3 and the deduped total moves by nineteen.
+ * Read off this gate's own refusal with the pages written and the pin not yet moved, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 150 document(s), expected exactly 131 (kit 79,
+ *         publicDocs 34, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, skills 1, overlap 3)
+ *
+ * The same run reported 0 findings over 150/150 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 131;
+export const BANNED_CLAIM_SCAN_COUNT = 150;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.
