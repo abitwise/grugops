@@ -76,7 +76,9 @@ import { isatty } from "node:tty";
 // design — D-18's decoupling of the installer from the scripts/ layout is unchanged, and the module
 // still does NOT import scripts/kit-model.ts. Node stdlib only, so both binaries still run on a host
 // with nothing installed. Every call passes the source root explicitly (D-22).
-import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers, kitNameCollisions, } from "./kit-source.js";
+import { srcSkillNames, srcAdapterFiles, srcNestedAdapterFiles, hasSourceMarkers, kitNameCollisions, 
+// Plan 43-06 (D-11, D-27): the shipped user docs, declared once; copyKit stages them beside the kit.
+shippedDocs, SHIPPED_DOCS_ROOTS, MAX_WALK_ENTRIES, } from "./kit-source.js";
 // D-18 / D-29: the ONE declaration of the Claude Code ask rules the installer derives from the
 // checkpoints configuration. A pure sibling module inside install/ (the kit-source.ts precedent), so
 // install/ still imports nothing from scripts/. The rules are a speed bump, not a security boundary;
@@ -86,7 +88,7 @@ import { ASK_RULE_CHECKPOINTS, askRulesFor, checkpointsToWrite, createdSettingsT
 // (readLedger), and the one serializer of that ledger (ledgerJson), shared with uninstall.ts so the two
 // binaries cannot read one malformed record two ways again (WR-05). Node stdlib only, read-only, sibling
 // module inside install/.
-import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, markerDefectText, noMarkerRemedy, installRefusal, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, LEDGER_UNUSABLE_CAUSE, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
+import { readInstallMarker, readLedger, ledgerJson, entryAt, entriesOfKind, geminiEntry, askRulesEntry, opencodePermissionEntry, createdOpenCodeText, GEMINI_SETTINGS_REL, ASK_RULES_REL, markerUnusableText, markerRemedy, markerFixText, markerDefectText, noMarkerRemedy, installRefusal, contentRecord, fileRecord, modeText, linkRecord, recordHolds, checkRecord, readOwnedContent, jsonValueRecord, owns, LEDGER_UNUSABLE_CAUSE, carriedKitRecord, readKitHomeRecord, KIT_ENTRY_PATH, KIT_ENTRY_PATHS, KIT_HOME_RECORD_REL, MARKER_REL, isLedgerPath, blockLineSpans, backupContentRecord, outermostBackups, carriedBackups, installedAgents, agentsToRecord, entryHolds, wholeFileEntryRels, } from "./install-marker.js";
 // Red-team B3 of plan 33.1-29 (D-18): the ONE way a JSON file the user owns is edited, as text. Only
 // the value that changes is spliced into the original bytes; see the module header. No I/O.
 import { readJsonText, keyCount, memberNamed, documentValue, appendElements, addMember, sameJsonValue, firstDuplicateKey, valueOf, } from "./json-text.js";
@@ -3269,7 +3271,11 @@ if (!ALLOW_SELF) {
 // the target or lies inside it. A path whose real location cannot be read is refused too, because the
 // overlap cannot be ruled out. A target inside the kit home but outside the kit root
 // (GRUGOPS_HOME=$HOME, target $HOME/code/repo) is not an overlap: install writes in the kit home only
-// the kit root, its record (.grugops-kit.json), its backups and its own mkdtemp directories.
+// the kit entries, its record (.grugops-kit.json), its backups and its own mkdtemp directories.
+// Since plan 43-06 the kit entries are the kit root and the shipped docs roots beside it (KIT_ENTRY_PATHS):
+// copyKit renames whatever is at a docs entry aside exactly as it does at the kit root, so a target at
+// `<GRUGOPS_HOME>/docs`, inside it, or holding it is refused the same way (GRUGOPS_HOME=$HOME with the target
+// at $HOME/docs would otherwise have the repository itself renamed to a backup while install wrote into it).
 //
 // It does not run on --check, --update or --prune-old-kit, which branch off above. --check writes
 // nothing. --update has no target, and the kit-home record (copyKit) keeps it from deleting anything
@@ -3280,11 +3286,19 @@ if (!ALLOW_SELF) {
     const realKit = realPathThroughExisting(KIT_ROOT);
     const realHome = realPathThroughExisting(GRUGOPS_HOME);
     const realTarget = realPathThroughExisting(TARGET);
+    // The kit entries beside the kit root (plan 43-06): each one's path and real path.
+    const docsEntries = KIT_ENTRY_PATHS.filter((e) => e !== KIT_ENTRY_PATH).map((e) => {
+        const at = join(GRUGOPS_HOME, e);
+        return { at, real: realPathThroughExisting(at) };
+    });
     const within = (child, parent) => child.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
     let overlap = null;
-    if (realKit === null || realHome === null || realTarget === null) {
+    const overlapsTarget = (real, target) => real === target || within(real, target) || within(target, real);
+    const docsOverlap = realTarget === null ? undefined : docsEntries.find((d) => d.real !== null && overlapsTarget(d.real, realTarget));
+    if (realKit === null || realHome === null || realTarget === null || docsEntries.some((d) => d.real === null)) {
         const unread = [
             ...(realKit === null ? [`the kit root ${KIT_ROOT}`] : []),
+            ...docsEntries.filter((d) => d.real === null).map((d) => `the kit entry ${d.at}`),
             ...(realHome === null ? [`the kit home ${GRUGOPS_HOME}`] : []),
             ...(realTarget === null ? [`the target ${TARGET}`] : []),
         ];
@@ -3302,6 +3316,12 @@ if (!ALLOW_SELF) {
             `install.js: the kit home ${KIT_ROOT} overlaps the target ${TARGET} (real paths ${realKit} and ${realTarget}); ` +
                 `the kit would be written into, or replace, your repository. Set GRUGOPS_HOME to a directory outside the ` +
                 `repository. Nothing was written.`;
+    }
+    else if (docsOverlap !== undefined) {
+        overlap =
+            `install.js: the kit home entry ${docsOverlap.at} overlaps the target ${TARGET} (real paths ${docsOverlap.real} and ` +
+                `${realTarget}); the shipped docs would be written into, or replace, your repository. Set GRUGOPS_HOME to a ` +
+                `directory outside the repository. Nothing was written.`;
     }
     if (overlap !== null) {
         process.stderr.write(`${overlap}\n`);
@@ -3394,40 +3414,11 @@ if (!MIGRATE) {
 // identical") is declared ONLY when the two trees are provably identical. Symlinks are treated as
 // differing (lstat is a file, not a regular file) — a conservative bias toward keeping a backup.
 function dirsSameContent(a, b) {
-    const rel = (root, base) => {
-        const out = [];
-        let ents;
-        try {
-            ents = readdirSync(join(root, base), { withFileTypes: true });
-        }
-        catch {
-            return out;
-        }
-        for (const ent of ents) {
-            const r = base ? `${base}/${ent.name}` : ent.name;
-            if (ent.isDirectory())
-                out.push(...rel(root, r));
-            else if (ent.isFile())
-                out.push(r);
-            // PRINTABLE impossible-path sentinel (27-13; closes deferred-items D1 / review IN-01). This
-            // value used to be a literal NUL byte. It forced the mismatch correctly, but it also made
-            // every byte-oriented tool classify install.ts as BINARY and suppress its output, silently
-            // disabling grep-based verification over the installer. The replacement preserves the
-            // guarantee without the byte: `<` and `>` are illegal in a Windows path element, and the
-            // trailing `/` makes join(root, sentinel) unreadable as a file on POSIX (ENOENT if absent,
-            // EISDIR if a directory, ENOTDIR if a file), so even when BOTH trees yield the sentinel the
-            // sameContent() compare below still fails and `identical` is never declared. VALUE ONLY —
-            // the comparison itself is a load-bearing fail-safe and is deliberately NOT redesigned.
-            else
-                return ["<<grugops:dirs-differ>>/"]; // symlink/special → force a mismatch (fail-safe-to-differs)
-        }
-        return out;
-    };
     try {
         if (!existsSync(a) || !existsSync(b))
             return false;
-        const la = rel(a, "").sort();
-        const lb = rel(b, "").sort();
+        const la = treeFiles(a, "").sort();
+        const lb = treeFiles(b, "").sort();
         if (la.length !== lb.length)
             return false;
         for (let i = 0; i < la.length; i++) {
@@ -3441,6 +3432,39 @@ function dirsSameContent(a, b) {
     catch {
         return false; // fail-safe-to-differs: never declare identical on an error
     }
+}
+// treeFiles: the relative POSIX paths of the regular files under `root`/`base` (Dirent flags, a link not followed),
+// for dirsSameContent and shippedSameContent (plan 43-06 moved it out of dirsSameContent so the two compare one
+// list). An unreadable directory adds nothing; a link or special file adds the impossible-path sentinel below,
+// which forces a mismatch.
+function treeFiles(root, base) {
+    const out = [];
+    let ents;
+    try {
+        ents = readdirSync(join(root, base), { withFileTypes: true });
+    }
+    catch {
+        return out;
+    }
+    for (const ent of ents) {
+        const r = base ? `${base}/${ent.name}` : ent.name;
+        if (ent.isDirectory())
+            out.push(...treeFiles(root, r));
+        else if (ent.isFile())
+            out.push(r);
+        // PRINTABLE impossible-path sentinel (27-13; closes deferred-items D1 / review IN-01). This
+        // value used to be a literal NUL byte. It forced the mismatch correctly, but it also made
+        // every byte-oriented tool classify install.ts as BINARY and suppress its output, silently
+        // disabling grep-based verification over the installer. The replacement preserves the
+        // guarantee without the byte: `<` and `>` are illegal in a Windows path element, and the
+        // trailing `/` makes join(root, sentinel) unreadable as a file on POSIX (ENOENT if absent,
+        // EISDIR if a directory, ENOTDIR if a file), so even when BOTH trees yield the sentinel the
+        // sameContent() compare in dirsSameContent still fails and `identical` is never declared. VALUE ONLY —
+        // the comparison itself is a load-bearing fail-safe and is deliberately NOT redesigned.
+        else
+            return ["<<grugops:dirs-differ>>/"]; // symlink/special → force a mismatch (fail-safe-to-differs)
+    }
+    return out;
 }
 // backupIfDiffers: the single rename-to-backup primitive (never-delete-first). If `target` does
 // not exist there is nothing to back up → return false. If `target` is byte-identical to
@@ -4313,160 +4337,206 @@ function detectTools() {
     const found = detectedHosts().map((t) => t.id);
     return found.length ? found.join(" ") : "none-detected";
 }
-// copyKit: install the read-only kit at $GRUGOPS_HOME/agent-factory (INSTALL-04, D-05), always re-copied
-// from the running checkout (no version negotiation).
-//
-// THE KIT HOME KEEPS A RECORD, AND NOTHING AT THE KIT ROOT IS DELETED BY PRESENCE (plan 33.1-37, review
-// CR-01's sibling, D-33 (b)). copyKit used to move whatever sat at the kit root aside and delete it. With
-// GRUGOPS_HOME pointing at a directory that held someone's agent-factory/ (the target itself was CR-01; the
-// overlap refusal above the run now stops that one), the user's directory was gone, with no backup and no
-// warning. So the kit home keeps `.grugops-kit.json` (install-marker.ts THE KIT-HOME RECORD), and what is
-// at the kit root is decided by that record, read once, before anything is written:
-//   absent         nothing at the kit root: the kit is copied there;
-//   recorded kit   owns(kitHome, GRUGOPS_HOME, "agent-factory", "kit") answers owned (a real directory the
-//                  record names): it is REPLACED, and the displaced copy is removed. That is D-31 item 14's
-//                  acceptance, the named human's decision of 2026-09-30: a re-install overwrites edits
-//                  inside the shared kit install wrote, and a backup of kit-home edits is deferred. With
-//                  retainBackup (--update, D-06) and a recorded kit that differs from the source
-//                  (dirsSameContent), it is kept as a recorded backup instead; an identical one is replaced
-//                  with no backup (D-09);
-//   anything else  no record, a record that does not hold, a link, a file, a FIFO: it is RENAMED aside to
-//                  `${KIT_ROOT}.bak.<ISO>` and recorded as a `backup` entry (origin kit-home, `of`
-//                  agent-factory) with its content record (treeRecord, taken before the rename), never
-//                  deleted. A link is renamed as a name; what it points at is untouched. When the backup
-//                  name already exists, nothing is renamed or copied (never-clobber) and a verify says so.
-// Every kit home written before this release has no record, so its first re-install leaves one backup.
-//
-// THE TEMPORARY DIRECTORIES ARE EXCLUSIVE mkdtemp DIRECTORIES (red-team rows D8 and D10 of plan 33.1-36). The
-// new kit is staged in `<GRUGOPS_HOME>/.agent-factory.tmp-XXXXXX/kit` and renamed into place, and the empty
-// staging directory is removed with rmdir. The displaced recorded kit is renamed into a second mkdtemp
-// holder, `.agent-factory.old-XXXXXX`, and that holder, which this run created, is removed only after owns
-// answered owned for the kit it holds. Nothing is removed by a fixed name: the old code removed
-// `.agent-factory.tmp.<pid>` by name before copying, and renamed onto `.old.<pid>`, which rename(2) is
-// allowed to do over an empty directory someone else made.
-//
-// Every decision is taken before the DRY_RUN branch, so the preview (`would-copy`, plus `would-back-up` or
-// `would-replace`) names what the real run does. Every filesystem failure is a counted verify, never a
-// throw. Afterwards the record is written (writeKitHomeRecord).
 function copyKit(retainBackup = false) {
     const source = join(GRUGOPS_SRC, "agent-factory");
     const kitHome = readKitHomeRecord(GRUGOPS_HOME);
     if (kitHome.state === "unreadable" || kitHome.state === "unbound") {
         report("note", `${join(GRUGOPS_HOME, KIT_HOME_RECORD_REL)}: ${kitHome.why}, so it is read as no record; whatever is at ` +
-            `${KIT_ROOT} is kept as a backup, not replaced`);
+            `${KIT_ENTRY_PATHS.map((e) => join(GRUGOPS_HOME, e)).join(", ")} is kept as a backup, not replaced`);
     }
-    let atRoot;
-    try {
-        atRoot = kindAtKitRoot();
+    // The shipped docs, derived once (kit-source.ts, D-11: listed once). Null leaves every docs entry as it is.
+    const shipped = shippedDocs(GRUGOPS_SRC);
+    if (shipped === null) {
+        verify(`${GRUGOPS_SRC}: the shipped docs under ${SHIPPED_DOCS_ROOTS.join(" and ")} could not be read in full (a folder ` +
+            `could not be read, or the walk passed ${MAX_WALK_ENTRIES} entries), so ` +
+            `${SHIPPED_DOCS_ROOTS.map((e) => join(GRUGOPS_HOME, e)).join(" and ")} were left as they are and not copied.`);
     }
-    catch (e) {
-        // Neither "nothing there" nor a kind: nothing is decided about what is there, so nothing is moved.
-        verify(`${KIT_ROOT} could not be read (${errCode(e)}), so it was left as it is and the kit was not copied.`);
-        return;
+    // The arms, decided for every entry before anything is written (see the header).
+    const plans = [];
+    const untouched = [];
+    for (const entry of KIT_ENTRY_PATHS) {
+        const isKit = entry === KIT_ENTRY_PATH;
+        const at = isKit ? KIT_ROOT : canonicalPathSpelling(resolve(GRUGOPS_HOME, entry));
+        const noun = isKit ? "the kit" : `the shipped ${entry}`;
+        const pages = isKit ? null : shipped === null ? undefined : shipped.filter((p) => p.startsWith(`${entry}/`));
+        if (pages === undefined) {
+            untouched.push(entry);
+            continue;
+        }
+        let atEntry;
+        try {
+            atEntry = kindAtKitEntry(at);
+        }
+        catch (e) {
+            // Neither "nothing there" nor a kind: nothing is decided about what is there, so nothing is moved.
+            verify(`${at} could not be read (${errCode(e)}), so it was left as it is and ${noun} was not copied.`);
+            untouched.push(entry);
+            continue;
+        }
+        const own = atEntry === null ? null : owns(kitHome.ledger, GRUGOPS_HOME, entry, "kit");
+        const owned = own !== null && own.owned;
+        const same = () => (pages === null ? dirsSameContent(KIT_ROOT, source) : shippedSameContent(at, entry, pages));
+        const arm = atEntry === null ? "fresh" : owned ? (retainBackup && !same() ? "backup" : "replace") : "backup";
+        const recorded = arm === "replace" || (arm === "backup" && owned);
+        const why = arm === "backup"
+            ? recorded
+                ? `${noun} install recorded writing there differs from the new one (--update keeps it)`
+                : atEntry === "directory"
+                    ? `no kit-home record names it as ${noun} install wrote, so it is kept`
+                    : `it is a ${atEntry}, not ${isKit ? "a kit" : noun} install wrote, so it is kept as it is (a link is moved, never followed)`
+            : "";
+        const content = arm === "backup" ? treeRecord(GRUGOPS_HOME, entry) : null;
+        plans.push({ entry, at, label: isKit ? "kit" : entry, noun, pages, arm, owned, backup: `${at}.bak.${isoStamp()}`, why, content });
     }
-    const owned = atRoot === null ? null : owns(kitHome.ledger, GRUGOPS_HOME, KIT_ENTRY_PATH, "kit");
-    // The arm, decided once (see the header).
-    const arm = atRoot === null ? "fresh" : owned !== null && owned.owned ? (retainBackup && !dirsSameContent(KIT_ROOT, source) ? "backup" : "replace") : "backup";
-    const backup = `${KIT_ROOT}.bak.${isoStamp()}`;
-    const recordedKit = arm === "replace" || (arm === "backup" && owned !== null && owned.owned);
-    const why = arm === "backup"
-        ? recordedKit
-            ? "the kit install recorded writing there differs from the new one (--update keeps it)"
-            : atRoot === "directory"
-                ? "no kit-home record names it as the kit install wrote, so it is kept"
-                : `it is a ${atRoot}, not a kit install wrote, so it is kept as it is (a link is moved, never followed)`
-        : "";
-    const content = arm === "backup" ? treeRecord(GRUGOPS_HOME, KIT_ENTRY_PATH) : null;
     if (DRY_RUN) {
-        if (arm === "backup")
-            report("would-back-up", `${KIT_ROOT} → ${backup} (${why}; recorded in ${KIT_HOME_RECORD_REL})`);
-        if (arm === "replace")
-            report("would-replace", `${KIT_ROOT} (the kit install recorded writing there)`);
-        report("would-copy", `kit → ${KIT_ROOT}`);
-        KIT_HOME_WOULD_COPY = true;
+        for (const p of plans) {
+            if (p.arm === "backup")
+                report("would-back-up", `${p.at} → ${p.backup} (${p.why}; recorded in ${KIT_HOME_RECORD_REL})`);
+            if (p.arm === "replace")
+                report("would-replace", `${p.at} (${p.noun} install recorded writing there)`);
+            report("would-copy", `${p.label} → ${p.at}`);
+            if (p.entry === KIT_ENTRY_PATH)
+                KIT_HOME_WOULD_COPY = true;
+        }
         return;
     }
-    if (arm === "backup" && !gone(backup)) {
-        verify(`${KIT_ROOT}: a backup named ${backup} already exists, so ${KIT_ROOT} was left untouched and the kit was not ` +
-            `copied (never overwrite a backup). Move that backup and re-run.`);
-        return;
-    }
-    // Stage the new kit in an exclusive mkdtemp directory beside the kit root.
-    let tmp;
-    try {
-        mkdirp(GRUGOPS_HOME);
-        tmp = mkdtempSync(join(GRUGOPS_HOME, ".agent-factory.tmp-"));
-    }
-    catch (e) {
-        verify(`${GRUGOPS_HOME}: a staging directory could not be made there (${errCode(e)}). The kit was not copied.`);
-        return;
-    }
-    const staged = join(tmp, "kit");
-    try {
-        // The source is spelled out (not KIT_COPY_SOURCE) because the fs census pins this read's source
-        // expression as a kit path; the two are the same path.
-        cpSync(join(GRUGOPS_SRC, "agent-factory"), staged, { recursive: true });
-    }
-    catch (e) {
-        verify(`the kit could not be staged in ${tmp} (${errCode(e)}). The kit was not copied; ${tmp} was left for you to remove.`);
-        return;
-    }
-    let holder = null;
-    let made = null;
-    if (arm === "replace") {
+    const made = [];
+    const inPlace = [];
+    let moved = false;
+    for (const p of plans) {
+        const Noun = p.noun.charAt(0).toUpperCase() + p.noun.slice(1);
+        if (p.arm === "backup" && !gone(p.backup)) {
+            verify(`${p.at}: a backup named ${p.backup} already exists, so ${p.at} was left untouched and ${p.noun} was not ` +
+                `copied (never overwrite a backup). Move that backup and re-run.`);
+            untouched.push(p.entry);
+            continue;
+        }
+        // Stage the new entry in an exclusive mkdtemp directory beside it.
+        let tmp;
         try {
-            holder = mkdtempSync(join(GRUGOPS_HOME, ".agent-factory.old-"));
-            renameSync(KIT_ROOT, join(holder, KIT_ENTRY_PATH));
+            mkdirp(GRUGOPS_HOME);
+            tmp = mkdtempSync(join(GRUGOPS_HOME, `.${p.entry}.tmp-`));
         }
         catch (e) {
-            verify(`${KIT_ROOT} could not be moved aside (${errCode(e)}), so the kit was not replaced; the new kit was left staged ` +
-                `in ${tmp}${holder === null ? "" : ` and the holder ${holder} was left`} for you to remove.`);
-            return;
+            verify(`${GRUGOPS_HOME}: a staging directory could not be made there (${errCode(e)}). ${Noun} was not copied.`);
+            untouched.push(p.entry);
+            continue;
         }
-    }
-    else if (arm === "backup") {
+        const staged = join(tmp, p.pages === null ? "kit" : p.entry);
         try {
-            renameSync(KIT_ROOT, backup);
+            if (p.pages === null) {
+                // The source is spelled out (not KIT_COPY_SOURCE) because the fs census pins this read's source
+                // expression as a kit path; the two are the same path.
+                cpSync(join(GRUGOPS_SRC, "agent-factory"), staged, { recursive: true });
+            }
+            else {
+                copyKitDocs(tmp, staged, p.pages);
+            }
         }
         catch (e) {
-            verify(`${KIT_ROOT} could not be moved aside to ${backup} (${errCode(e)}), so the kit was not copied; the new kit was left staged in ${tmp} for you to remove.`);
-            return;
+            verify(`${p.noun} could not be staged in ${tmp} (${errCode(e)}). ${Noun} was not copied; ${tmp} was left for you to remove.`);
+            untouched.push(p.entry);
+            continue;
         }
-        made = { path: canonicalPathSpelling(relative(GRUGOPS_HOME, backup)), kind: "backup", origin: "kit-home", of: KIT_ENTRY_PATH, content };
-        report("backed-up", `${KIT_ROOT} → ${backup} (${why}; recorded in ${KIT_HOME_RECORD_REL})`);
-    }
-    try {
-        renameSync(staged, KIT_ROOT);
-    }
-    catch (e) {
-        verify(`the staged kit ${staged} could not be moved to ${KIT_ROOT} (${errCode(e)}). The kit was not copied` +
-            (holder === null ? "." : `; the kit it was to replace is in ${holder}, kept for you to move back.`));
-        writeKitHomeRecord(kitHome, made, false);
-        return;
-    }
-    try {
-        rmdirSync(tmp);
-    }
-    catch (e) {
-        verify(`the empty staging directory ${tmp} could not be removed (${errCode(e)}); remove it by hand.`);
-    }
-    // The displaced recorded kit goes only on owns' answer for it (asked above, before it was moved): the
-    // holder is an mkdtemp directory this run made, and it holds only that kit.
-    if (holder !== null && owned !== null && owned.owned) {
+        let holder = null;
+        if (p.arm === "replace") {
+            try {
+                holder = mkdtempSync(join(GRUGOPS_HOME, `.${p.entry}.old-`));
+                renameSync(p.at, join(holder, p.entry));
+            }
+            catch (e) {
+                verify(`${p.at} could not be moved aside (${errCode(e)}), so ${p.noun} was not replaced; the new copy was left staged ` +
+                    `in ${tmp}${holder === null ? "" : ` and the holder ${holder} was left`} for you to remove.`);
+                untouched.push(p.entry);
+                continue;
+            }
+        }
+        else if (p.arm === "backup") {
+            try {
+                renameSync(p.at, p.backup);
+            }
+            catch (e) {
+                verify(`${p.at} could not be moved aside to ${p.backup} (${errCode(e)}), so ${p.noun} was not copied; the new copy was left staged in ${tmp} for you to remove.`);
+                untouched.push(p.entry);
+                continue;
+            }
+            made.push({ path: canonicalPathSpelling(relative(GRUGOPS_HOME, p.backup)), kind: "backup", origin: "kit-home", of: p.entry, content: p.content });
+            report("backed-up", `${p.at} → ${p.backup} (${p.why}; recorded in ${KIT_HOME_RECORD_REL})`);
+        }
+        moved = true;
         try {
-            rmSync(holder, { recursive: true, force: true });
+            renameSync(staged, p.at);
         }
         catch (e) {
-            verify(`the replaced kit in ${holder} could not be removed (${errCode(e)}); remove it by hand.`);
+            verify(`the staged copy ${staged} could not be moved to ${p.at} (${errCode(e)}). ${Noun} was not copied` +
+                (holder === null ? "." : `; what it was to replace is in ${holder}, kept for you to move back.`));
+            continue;
         }
+        inPlace.push(p.entry);
+        try {
+            rmdirSync(tmp);
+        }
+        catch (e) {
+            verify(`the empty staging directory ${tmp} could not be removed (${errCode(e)}); remove it by hand.`);
+        }
+        // The displaced recorded entry goes only on owns' answer for it (asked above, before it was moved): the
+        // holder is an mkdtemp directory this run made, and it holds only that entry.
+        if (holder !== null && p.owned) {
+            try {
+                rmSync(holder, { recursive: true, force: true });
+            }
+            catch (e) {
+                verify(`the replaced copy in ${holder} could not be removed (${errCode(e)}); remove it by hand.`);
+            }
+        }
+        report("copied", `${p.label} → ${p.at}${p.arm === "replace" ? ` (replaced ${p.noun} install recorded writing there)` : ""}`);
     }
-    report("copied", `kit → ${KIT_ROOT}${arm === "replace" ? " (replaced the kit install recorded writing there)" : ""}`);
-    writeKitHomeRecord(kitHome, made, true);
+    if (moved)
+        writeKitHomeRecord(kitHome, made, inPlace, untouched);
 }
-// kindAtKitRoot: what is at the kit root itself (lstat, a link not followed), or null when nothing is.
-function kindAtKitRoot() {
+// copyKitDocs: stage a docs entry's shipped pages (plan 43-06, D-11). Each page, a POSIX path under the entry
+// (`docs/faq.md`), is copied from the kit source to `<tmp>/<page>`, its folders made first, so `staged` (`<tmp>/<entry>`)
+// holds exactly those pages; the folder exists even when the entry ships no page. The source is never copied whole,
+// so a checkout-only path (kit-source.ts CHECKOUT_ONLY_DOCS) can never be staged. A page that is a link in the source
+// is copied as the file it points at (dereference), because shippedDocs counts it as a page. Its one caller is
+// copyKit, after copyKit's `if (DRY_RUN)` return. A failure throws to copyKit, which reports it as a verify.
+function copyKitDocs(tmp, staged, pages) {
+    mkdirp(staged);
+    for (const rel of pages) {
+        const dest = join(tmp, ...rel.split("/"));
+        mkdirp(dirname(dest));
+        cpSync(join(GRUGOPS_SRC, ...rel.split("/")), dest, { dereference: true, errorOnExist: true, force: false });
+    }
+}
+// shippedSameContent: whether the docs entry at `dir` holds exactly the shipped pages under `entry`, byte for byte
+// (plan 43-06): the --update test of "identical, so no backup" (D-09) for a docs entry, which dirsSameContent cannot
+// answer against the source folder because that folder also holds checkout-only paths. The same file list as
+// dirsSameContent (treeFiles) and the same fail-safe-to-differs rule: any read error, a link or a special file, or a
+// set mismatch answers false.
+function shippedSameContent(dir, entry, pages) {
     try {
-        const st = lstatSync(KIT_ROOT);
+        if (!existsSync(dir))
+            return false;
+        const have = treeFiles(dir, "").sort();
+        const want = pages.map((p) => p.slice(entry.length + 1)).sort();
+        if (have.length !== want.length)
+            return false;
+        for (let i = 0; i < have.length; i++) {
+            if (have[i] !== want[i])
+                return false;
+            if (!sameContent(join(dir, have[i]), join(GRUGOPS_SRC, entry, ...want[i].split("/"))))
+                return false;
+        }
+        return true;
+    }
+    catch {
+        return false; // fail-safe-to-differs: never declare identical on an error
+    }
+}
+// kindAtKitEntry: what is at a kit entry itself (lstat, a link not followed), or null when nothing is.
+function kindAtKitEntry(at) {
+    try {
+        const st = lstatSync(at);
         if (st.isSymbolicLink())
             return "symbolic link";
         if (st.isDirectory())
@@ -4481,18 +4551,19 @@ function kindAtKitRoot() {
         throw e;
     }
 }
-// writeKitHomeRecord: write `<GRUGOPS_HOME>/.grugops-kit.json` after copyKit (plan 33.1-37). It holds the
-// kit entry when the kit is in place (`kitInPlace`), every backup entry of the previous `ok` record that
-// still holds (owns), and the backup this run made. The binding is the kit home's real path, read now
-// that the kit home exists. An absent record is created with an exclusive create; an `ok` or `unbound`
-// one is rewritten only after readForWrite shows a regular file there. A record that is not install's
-// (`unreadable`) is never written over: it is left as it is and a verify says why, and this run's backup
-// then stays unrecorded (prune never removes it; remove it by hand).
-function writeKitHomeRecord(previous, made, kitInPlace) {
+// writeKitHomeRecord: write `<GRUGOPS_HOME>/.grugops-kit.json` after copyKit (plans 33.1-37, 43-06). It holds a kit
+// entry for each entry now in place (`inPlace`), the previous `ok` record's kit entry for each entry this run left
+// as it was (`untouched`) while owns still answers owned for it, every backup entry of that record that still holds
+// (owns), and the backups this run made (`made`). The binding is the kit home's real path, read now that the kit
+// home exists. An absent record is created with an exclusive create; an `ok` or `unbound` one is rewritten only
+// after readForWrite shows a regular file there. A record that is not install's (`unreadable`) is never written
+// over: it is left as it is and a verify says why, and this run's backups then stay unrecorded (prune never removes
+// them; remove them by hand).
+function writeKitHomeRecord(previous, made, inPlace, untouched) {
     const path = join(GRUGOPS_HOME, KIT_HOME_RECORD_REL);
     if (previous.state === "unreadable") {
         verify(`${path}: ${previous.why}. It is not install's kit-home record, so it was left as it is and this run was not ` +
-            `recorded there${made === null ? "" : ` (the backup ${join(GRUGOPS_HOME, made.path)} is unrecorded; remove it by hand when you no longer need it)`}.`);
+            `recorded there${made.length === 0 ? "" : ` (the backup(s) ${made.map((m) => join(GRUGOPS_HOME, m.path)).join(", ")} are unrecorded; remove them by hand when you no longer need them)`}.`);
         return;
     }
     const here = realTargetPath(GRUGOPS_HOME);
@@ -4501,20 +4572,24 @@ function writeKitHomeRecord(previous, made, kitInPlace) {
         return;
     }
     const entries = [];
-    if (kitInPlace)
-        entries.push({ path: KIT_ENTRY_PATH, kind: "kit" });
+    for (const entry of KIT_ENTRY_PATHS) {
+        if (inPlace.includes(entry))
+            entries.push({ path: entry, kind: "kit" });
+        else if (previous.state === "ok" && untouched.includes(entry) && owns(previous.ledger, GRUGOPS_HOME, entry, "kit").owned) {
+            entries.push({ path: entry, kind: "kit" });
+        }
+    }
     if (previous.state === "ok") {
         for (const e of previous.ledger.entries) {
             if (e.kind !== "backup")
                 continue;
-            if (made !== null && e.path === made.path)
+            if (made.some((m) => m.path === e.path))
                 continue;
             if (owns(previous.ledger, GRUGOPS_HOME, e.path, "backup").owned)
                 entries.push(e);
         }
     }
-    if (made !== null)
-        entries.push(made);
+    entries.push(...made);
     const text = JSON.stringify({ grugopsHome: here, ledger: ledgerJson(entries) }, null, 2) + "\n";
     const gate = readForWrite(GRUGOPS_HOME, path);
     if (gate.state === "blocked" || (gate.state === "ok") !== (previous.state !== "absent")) {

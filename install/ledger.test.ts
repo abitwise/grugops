@@ -72,6 +72,7 @@ import { TREE_MAX_ENTRIES, realTargetPath } from "./user-file.js";
 import { HOST_TOOLS } from "./host-tools.js";
 // Phase 36 (D-13 step 2, plan 36-03): the legacy handoffs directory is named only through the state path authority.
 import { LEGACY_HANDOFFS_REL } from "./state-layout.js";
+import { SHIPPED_DOCS_ROOTS } from "./kit-source.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
 import { MARKER_REL, REPO_ROOT, type Run, makeFixture, runInstall, runUninstall, snapshotTree, storedMode, userModeEdit } from "./installer-paths.test-support.js";
 import { RETIRED_RECORD_NAMES, fileRecords, ledgerOf, plantLegacyGemini, readMarkerObject, sixRecordShape } from "./ledger.test-support.js";
@@ -1037,5 +1038,53 @@ describe("installedAgents: the one derivation of the installed set (D-03, D-23)"
     expect(read.state).toBe("unreadable");
     if (read.state === "unreadable") expect(read.why).toContain("agents is not a list of agent ids");
     expect(ask(read)).toEqual({ source: "none", ids: [] });
+  });
+});
+
+// ── PLAN 43-06 (D-11, D-27): THE KIT-HOME RECORD ADMITS A CLOSED SET OF KIT ENTRIES ─────────────────────
+// The kit home holds the kit and the shipped docs roots beside it. A `kit` entry may name any member of the
+// closed set (the kit root plus each SHIPPED_DOCS_ROOTS root); a kit-home `backup` may be `of` any member and
+// must be named `<of>.bak.<ISO>`, the name copyKit gives it. The members are composed from the two
+// declarations here, never typed. A record written before plan 43-06, naming only the kit, still parses.
+describe("plan 43-06: the kit-home record's closed set of kit entries", () => {
+  const ISO = "2026-01-02T03-04-05.678Z";
+  const MEMBERS = [KIT_ENTRY_PATH, ...SHIPPED_DOCS_ROOTS];
+  const kitHomeBackup = (of: string, path = `${of}.bak.${ISO}`): Record<string, unknown> => ({ path, kind: "backup", origin: "kit-home", of, content: null });
+
+  it("premise: the members are the kit root and the shipped docs roots, three in all", () => {
+    expect(MEMBERS).toEqual(["agent-factory", "docs", "examples"]);
+  });
+
+  it("a record holding only the kit entry, as every record before plan 43-06 does, still parses", () => {
+    const r = readLedger(holder([{ path: KIT_ENTRY_PATH, kind: "kit" }]), "kit-home");
+    expect(r.state, String(r.why)).toBe("ok");
+    expect(r.entries).toEqual([{ path: KIT_ENTRY_PATH, kind: "kit" }]);
+  });
+
+  it("accepts a kit entry and a `<of>.bak.<ISO>` backup for every member", () => {
+    const entries = MEMBERS.flatMap((m) => [{ path: m, kind: "kit" }, kitHomeBackup(m)]);
+    const r = readLedger(holder(entries), "kit-home");
+    expect(r.state, String(r.why)).toBe("ok");
+    expect(r.entries.length).toBe(MEMBERS.length * 2);
+    expect(r.entries.filter((e) => e.kind === "kit").map((e) => e.path)).toEqual(MEMBERS);
+  });
+
+  it("refuses a kit entry or a backup `of` outside the set, and names the set", () => {
+    const kit = readLedger(holder([{ path: "notes", kind: "kit" }]), "kit-home");
+    expect(kit.state).toBe("malformed");
+    expect(kit.why).toMatch(/kit entry may name only agent-factory, docs, examples/);
+    const of = readLedger(holder([kitHomeBackup("notes")]), "kit-home");
+    expect(of.state).toBe("malformed");
+    expect(of.why).toMatch(/kit-home backup must be of agent-factory, docs, examples/);
+  });
+
+  it("refuses a docs backup whose name is not docs.bak.<ISO>, and one whose name and `of` disagree", () => {
+    for (const path of ["docs.bak.not-iso", "docs.bak", `docs.bak.${ISO}x`, `x/docs.bak.${ISO}`, `examples.bak.${ISO}`, `agent-factory.bak.${ISO}`]) {
+      const r = readLedger(holder([kitHomeBackup("docs", path)]), "kit-home");
+      expect(r.state, path).toBe("malformed");
+      expect(r.why, path).toMatch(/must be named docs\.bak\.<ISO>/);
+    }
+    const crossed = readLedger(holder([kitHomeBackup(KIT_ENTRY_PATH, `docs.bak.${ISO}`)]), "kit-home");
+    expect(crossed.why).toMatch(/must be named agent-factory\.bak\.<ISO>/);
   });
 });

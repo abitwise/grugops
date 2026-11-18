@@ -44,8 +44,9 @@
 //                                        and `content` its file, link or tree record as install left it
 //                                        (user-file.ts treeRecord), or null when it could not be read in
 //                                        full (never proven unchanged);
-//   kit        (none)                    install wrote the kit at the kit root (KIT_ENTRY_PATH). Only in
-//                                        the kit-home record; see THE KIT-HOME RECORD below.
+//   kit        (none)                    install wrote a kit entry there: the kit root (KIT_ENTRY_PATH) or,
+//                                        since plan 43-06, a shipped docs root beside it (KIT_ENTRY_PATHS).
+//                                        Only in the kit-home record; see THE KIT-HOME RECORD below.
 // Which kinds a ledger may hold depends on the record it is read from (KINDS_BY_SCOPE): a target's
 // marker holds dir, file, block, gemini, ask-rules, opencode-permission and backup; the kit-home record holds backup
 // and kit.
@@ -166,6 +167,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { HOST_TOOLS, OPENCODE_CONFIG_REL, entryOwners, hostPointers, type HostAdapterKind, type HostTool } from "./host-tools.js";
 import { duplicateKeys, firstDuplicateKey, readJsonText } from "./json-text.js";
+import { SHIPPED_DOCS_ROOTS } from "./kit-source.js";
 import { isOwnLink, isRecordedAbsolute, kindAt, modeText, readForWrite, realTargetPath, sameRecordedPath, treeRecord, wayTo, type PathFlavor } from "./user-file.js";
 
 /** The marker's path relative to the target, in POSIX form: the one spelling both binaries use. */
@@ -910,14 +912,27 @@ export const KINDS_BY_SCOPE: Readonly<Record<LedgerScope, readonly LedgerKind[]>
 
 /** The kit-home record's path relative to the kit home (plan 33.1-37). */
 export const KIT_HOME_RECORD_REL = ".grugops-kit.json";
-/** The one path a `kit` entry may name: the kit root, relative to the kit home. */
+/** The kit root, relative to the kit home: the first kit entry. */
 export const KIT_ENTRY_PATH = "agent-factory";
-/** The name copyKit gives a kit-home backup: `agent-factory.bak.<isoStamp()>`. */
-const KIT_HOME_BACKUP_NAME = /^agent-factory\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/;
+/**
+ * THE CLOSED SET OF KIT ENTRIES (plan 43-06, D-11, D-27): the paths, relative to the kit home, a `kit` entry may
+ * name and a kit-home `backup` may be `of`. The kit root, then each shipped docs root (kit-source.ts
+ * SHIPPED_DOCS_ROOTS), which install copies beside the kit so `../docs/` from the kit resolves in the kit home as it
+ * does in the checkout. Composed from the two declarations, never retyped: a docs root added there joins the set.
+ */
+export const KIT_ENTRY_PATHS: readonly string[] = Object.freeze([KIT_ENTRY_PATH, ...SHIPPED_DOCS_ROOTS]);
+/** The stamp copyKit puts after `<entry>.bak.` when it names a kit-home backup (install.ts isoStamp()). */
+const KIT_HOME_BACKUP_STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/;
+/** Whether `path` is the name copyKit gives a kit-home backup of `of`: `<of>.bak.<isoStamp()>`, built from the member. */
+function isKitHomeBackupName(path: string, of: string): boolean {
+  const prefix = `${of}.bak.`;
+  return path.startsWith(prefix) && KIT_HOME_BACKUP_STAMP.test(path.slice(prefix.length));
+}
 
 /**
- * What a `backup` entry's backup was made from (plan 33.1-37). `kit-home` is the kit root copyKit moved
- * aside, and is allowed only in the kit-home record; the others are target backups (plan 33.1-40):
+ * What a `backup` entry's backup was made from (plan 33.1-37). `kit-home` is a kit entry copyKit moved
+ * aside (the kit root, or since plan 43-06 a shipped docs root: KIT_ENTRY_PATHS), and is allowed only in the
+ * kit-home record; the others are target backups (plan 33.1-40):
  * the in-repo agent-factory/ and the legacy config --migrate moves aside, the handoffs directory, and an
  * edited kit file D-32 backs up. Each is allowed only in a target ledger.
  */
@@ -1018,7 +1033,7 @@ export interface BackupEntry {
   /** The file, link or tree record of the backup as install left it, or null (never proven unchanged). */
   readonly content: string | null;
 }
-/** The kit install wrote at the kit root (kit-home record only, path KIT_ENTRY_PATH; plan 33.1-37). */
+/** A kit entry install wrote in the kit home (kit-home record only, a path of KIT_ENTRY_PATHS; plans 33.1-37, 43-06). */
 export interface KitRootEntry {
   readonly path: string;
   readonly kind: "kit";
@@ -1154,7 +1169,7 @@ function entryProblem(e: unknown, scope: LedgerScope): string | null {
       if (e.path !== OPENCODE_CONFIG_REL) return `an opencode-permission entry may name only ${OPENCODE_CONFIG_REL}`;
       return openCodeProblem(e);
     case "kit":
-      if (e.path !== KIT_ENTRY_PATH) return `a kit entry may name only ${KIT_ENTRY_PATH}`;
+      if (!KIT_ENTRY_PATHS.includes(e.path as string)) return `a kit entry may name only ${KIT_ENTRY_PATHS.join(", ")}`;
       return keyProblem(e, ["path", "kind"]);
     case "backup": {
       const keys = keyProblem(e, ["path", "kind", "origin", "of", "content"]);
@@ -1168,11 +1183,13 @@ function entryProblem(e: unknown, scope: LedgerScope): string | null {
           : "a backup with origin kit-home belongs in the kit-home record, not the target's install ledger";
       }
       if (!isLedgerPath(e.of)) return "its `of` is not a relative POSIX path";
-      if (e.origin === "kit-home" && e.of !== KIT_ENTRY_PATH) return `a kit-home backup must be of ${KIT_ENTRY_PATH}`;
-      // The one name copyKit gives a kit-home backup, so a record that names any other path in the kit home
-      // (a forged or hand-edited entry) is malformed rather than a claim a later prune could act on.
-      if (e.origin === "kit-home" && !KIT_HOME_BACKUP_NAME.test(e.path as string)) {
-        return `a kit-home backup must be named ${KIT_ENTRY_PATH}.bak.<ISO>, the name install gives it`;
+      if (e.origin === "kit-home" && !KIT_ENTRY_PATHS.includes(e.of as string)) {
+        return `a kit-home backup must be of ${KIT_ENTRY_PATHS.join(", ")} (it is of ${e.of as string})`;
+      }
+      // The one name copyKit gives a kit-home backup of that entry, so a record that names any other path in the
+      // kit home (a forged or hand-edited entry) is malformed rather than a claim a later prune could act on.
+      if (e.origin === "kit-home" && !isKitHomeBackupName(e.path as string, e.of as string)) {
+        return `a kit-home backup of ${e.of as string} must be named ${e.of as string}.bak.<ISO>, the name install gives it`;
       }
       if (e.of === e.path) return "its `of` is its own path";
       if (e.content !== null && !isBackupContent(e.content)) return "its content is neither null nor a file, link or tree record";
@@ -1529,10 +1546,12 @@ function ownsKitHomePath(root: string, rel: string, entry: BackupEntry | KitRoot
 // keeps its own record, `<GRUGOPS_HOME>/.grugops-kit.json`, a JSON object with exactly two keys:
 //   grugopsHome  the kit home's real path (user-file.ts realTargetPath), the record's binding;
 //   ledger       the same ledger grammar as the target's, read by the same readLedger with scope
-//                "kit-home", which holds only `kit` and `backup` entries: the `kit` entry (path
-//                agent-factory) says install wrote the kit there, and each `backup` entry (origin
-//                kit-home, `of` agent-factory) names a kit-root backup install made, with its content
-//                record (user-file.ts treeRecord).
+//                "kit-home", which holds only `kit` and `backup` entries: a `kit` entry (a path of
+//                KIT_ENTRY_PATHS: agent-factory, and since plan 43-06 each shipped docs root) says
+//                install wrote that entry there, and each `backup` entry (origin kit-home, `of` a member of
+//                KIT_ENTRY_PATHS, named `<of>.bak.<ISO>`) names a backup of that entry install made, with
+//                its content record (user-file.ts treeRecord). A record written before plan 43-06 names
+//                only agent-factory and still parses.
 // readKitHomeRecord reads it through readForWrite (no link followed at the record or on the way, and a
 // FIFO, a directory or a device there is never opened, brief DC-3), refuses a duplicate key, and binds
 // it: a record whose grugopsHome is not this kit home's real path is `unbound` (a copied kit home), and

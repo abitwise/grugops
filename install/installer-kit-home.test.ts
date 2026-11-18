@@ -62,6 +62,7 @@ import {
 } from "./installer-paths.test-support.js";
 import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
 import { realTargetPath } from "./user-file.js";
+import { STATE_ROOTS } from "./state-layout.js";
 // (Plan 43-02, D-11, D-27) The shipped user docs, declared once. Unit cases at the foot of this file.
 import { CHECKOUT_ONLY_DOCS, SHIPPED_DOCS_ROOTS, shippedDocs } from "./kit-source.js";
 import { stageShapeOrSkip, skipLine } from "../scripts/check-platform-shapes.js";
@@ -176,6 +177,14 @@ interface RecordJson {
 const recordOf = (c: KitHomeCase): RecordJson => JSON.parse(readFileSync(join(c.grugopsHome, KIT_HOME_RECORD_REL), "utf8")) as RecordJson;
 const backupsIn = (c: KitHomeCase): string[] => (existsSync(c.grugopsHome) ? readdirSync(c.grugopsHome).filter((n) => n.startsWith(`${KIT_ENTRY_PATH}.bak.`)).sort() : []);
 const kitRoot = (c: KitHomeCase): string => join(c.grugopsHome, KIT_ENTRY_PATH);
+/**
+ * The kit entries a full install records (plan 43-06, D-11, D-27): the kit root and each shipped docs root, in the
+ * ledger's path order. Composed from the two declarations, never typed here.
+ */
+const KIT_ENTRY_RECORD = [KIT_ENTRY_PATH, ...SHIPPED_DOCS_ROOTS].sort().map((path) => ({ path, kind: "kit" }));
+/** The staging and holder directories copyKit makes in the kit home (`.<entry>.tmp-*`, `.<entry>.old-*`), left after a run. */
+const stagingLeftIn = (c: KitHomeCase): string[] =>
+  readdirSync(c.grugopsHome).filter((n) => [KIT_ENTRY_PATH, ...SHIPPED_DOCS_ROOTS].some((e) => n.startsWith(`.${e}.`)));
 
 /** A user's own agent-factory/ at the kit root, holding notes install never wrote. */
 function plantUserKitRoot(c: KitHomeCase): string {
@@ -186,17 +195,18 @@ function plantUserKitRoot(c: KitHomeCase): string {
 }
 
 describe("the kit-home record: copyKit replaces only a kit it recorded, and keeps anything else as a recorded backup (plan 33.1-37)", () => {
-  it("a first install writes the kit and `.grugops-kit.json` bound to the kit home's real path, holding one kit entry", () => {
+  // Plan 43-06 (D-11, D-27): the record holds one kit entry per kit entry path, the kit and the shipped docs roots.
+  it("a first install writes the kit and `.grugops-kit.json` bound to the kit home's real path, holding one kit entry per kit entry path", () => {
     const c = kitHomeCase("first");
     const r = install(c);
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     const rec = recordOf(c);
     expect(Object.keys(rec).sort()).toEqual(["grugopsHome", "ledger"]);
     expect(rec.grugopsHome).toBe(recordedHome(c.grugopsHome));
-    expect(rec.ledger).toEqual([{ path: KIT_ENTRY_PATH, kind: "kit" }]);
+    expect(rec.ledger).toEqual(KIT_ENTRY_RECORD);
     expect(backupsIn(c)).toEqual([]);
     // No temporary directory is left behind.
-    expect(readdirSync(c.grugopsHome).filter((n) => n.startsWith(".agent-factory."))).toEqual([]);
+    expect(stagingLeftIn(c)).toEqual([]);
   });
 
   it("a re-install over a recorded kit replaces it with no backup (D-31 item 14): an edit inside it is overwritten, and the record still names the kit", () => {
@@ -207,9 +217,9 @@ describe("the kit-home record: copyKit replaces only a kit it recorded, and keep
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(readFileSync(join(kitRoot(c), "VERSION"), "utf8")).not.toContain("9.9.9-edited-in-kit-home");
     expect(backupsIn(c)).toEqual([]);
-    expect(recordOf(c).ledger).toEqual([{ path: KIT_ENTRY_PATH, kind: "kit" }]);
+    expect(recordOf(c).ledger).toEqual(KIT_ENTRY_RECORD);
     expect(r.stdout).toMatch(/replaced the kit install recorded writing there/);
-    expect(readdirSync(c.grugopsHome).filter((n) => n.startsWith(".agent-factory."))).toEqual([]);
+    expect(stagingLeftIn(c)).toEqual([]);
   });
 
   for (const how of ["install", "--update"] as const) {
@@ -547,5 +557,119 @@ describe("shippedDocs: the shipped user docs, declared once (plan 43-02, D-11, D
     for (const p of live ?? []) {
       expect(p.startsWith("docs/audit/") || p.startsWith("docs/design/") || p.startsWith("docs/initial/"), p).toBe(false);
     }
+  });
+});
+
+// ── PLAN 43-06 (D-11, D-27): THE SHIPPED DOCS AND EXAMPLES LAND IN THE KIT HOME BESIDE THE KIT ──────────
+//
+// An install copies every shippedDocs() page into the kit home as a sibling of the kit:
+// `$GRUGOPS_HOME/docs/<rel>` and `$GRUGOPS_HOME/examples/<rel>`, so `../docs/` from agent-factory/README.md
+// resolves the same in the checkout and in the kit home. Each docs root is a kit entry the kit-home record
+// names, decided by the same arms as the kit: an entry install did not record is renamed to a recorded
+// `<entry>.bak.<ISO>`, never overwritten or deleted. Checkout-only paths never reach a kit home. These
+// cases prove the fresh arm and the backup arm; plan 43-15 proves replace, --update, DRY_RUN and prune.
+// The target's state roots are compared byte for byte around every run, since no install path may touch them.
+
+const SHIPPED_SAMPLES = ["docs/faq.md", "docs/GUARANTEES.md", "examples/01-greenfield-bootstrap.md"] as const;
+const USER_STATE_NOTE = "USER-NOTE-43-06.md";
+
+/**
+ * One user file under every STATE_ROOTS root of the target (read from the import, never typed). Returns
+ * the check to run after install: each planted file byte-identical, and the target's docs/ tree (a root
+ * that shares its name with a kit entry) unchanged as a whole.
+ */
+function plantStateRoots(target: string): () => string[] {
+  const planted = STATE_ROOTS.map((root) => {
+    const rel = `${root}/${USER_STATE_NOTE}`;
+    const body = `the user's own file under ${root}/, which no install path may touch\n`;
+    writeAt(target, rel, body);
+    return [rel, body] as const;
+  });
+  const docsBefore = snapshotTree(join(target, "docs"));
+  return () => {
+    const problems: string[] = [];
+    for (const [rel, body] of planted) {
+      const at = join(target, ...rel.split("/"));
+      if (!existsSync(at)) problems.push(`${rel} is gone`);
+      else if (readFileSync(at, "utf8") !== body) problems.push(`${rel} changed`);
+    }
+    if (snapshotTree(join(target, "docs")) !== docsBefore) problems.push("the target's docs/ changed");
+    return problems;
+  };
+}
+
+const docsBackupsIn = (c: KitHomeCase): string[] =>
+  existsSync(c.grugopsHome) ? readdirSync(c.grugopsHome).filter((n) => n.startsWith("docs.bak.")).sort() : [];
+
+describe("plan 43-06: an install ships the user docs and examples into the kit home beside the kit (D-11, D-27)", () => {
+  it("a fresh install copies every shipped page byte for byte, records the kit entries, leaves no checkout-only path, and the README link resolves", () => {
+    const c = kitHomeCase("docs-fresh");
+    const stateCheck = plantStateRoots(c.target);
+    const r = install(c);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    const shipped = shippedDocs(REPO);
+    expect(shipped, "premise: shippedDocs could not read this checkout").not.toBeNull();
+    for (const rel of SHIPPED_SAMPLES) expect(shipped, `premise: ${rel} is a shipped page`).toContain(rel);
+    for (const rel of shipped ?? []) {
+      const at = join(c.grugopsHome, ...rel.split("/"));
+      expect(existsSync(at), `${rel} is not in the kit home`).toBe(true);
+      expect(readFileSync(at).equals(readFileSync(join(REPO, ...rel.split("/")))), `${rel} differs from the source`).toBe(true);
+    }
+    for (const e of CHECKOUT_ONLY_DOCS) {
+      const at = join(c.grugopsHome, ...e.path.split("/").filter((s) => s !== ""));
+      expect(existsSync(at), `checkout-only ${e.path} reached the kit home`).toBe(false);
+    }
+    expect(recordOf(c).ledger).toEqual(KIT_ENTRY_RECORD);
+    // agent-factory/README.md links ../docs/GUARANTEES.md; in the kit home it must resolve to a file.
+    const readme = readFileSync(join(kitRoot(c), "README.md"), "utf8");
+    expect(readme, "premise: the kit README links ../docs/GUARANTEES.md").toContain("](../docs/GUARANTEES.md)");
+    expect(statSync(join(kitRoot(c), "..", "docs", "GUARANTEES.md")).isFile()).toBe(true);
+    expect(r.stdout).toMatch(/^ {2}copied\s+docs → /m);
+    expect(r.stdout).toMatch(/^ {2}copied\s+examples → /m);
+    expect(stagingLeftIn(c)).toEqual([]);
+    expect(stateCheck()).toEqual([]);
+  });
+
+  it("a user's own unrecorded $GRUGOPS_HOME/docs is renamed to a recorded docs.bak.<ISO>, byte-identical, and the shipped docs are copied", () => {
+    const c = kitHomeCase("docs-unrecorded");
+    const stateCheck = plantStateRoots(c.target);
+    const notes = "the user's own notes in a folder that happens to be named docs\n";
+    writeAt(c.grugopsHome, "docs/MYNOTES.md", notes);
+    writeAt(c.grugopsHome, "docs/faq.md", "the user's own faq, not the shipped one\n");
+    const r = install(c);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    const baks = docsBackupsIn(c);
+    expect(baks.length, `docs backups: ${baks.join(", ")}`).toBe(1);
+    expect(baks[0]).toMatch(/^docs\.bak\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z$/);
+    expect(readFileSync(join(c.grugopsHome, baks[0], "MYNOTES.md"), "utf8")).toBe(notes);
+    expect(readFileSync(join(c.grugopsHome, baks[0], "faq.md"), "utf8")).toBe("the user's own faq, not the shipped one\n");
+    expect(existsSync(join(c.grugopsHome, "docs", "MYNOTES.md")), "the user's file is still in the new docs").toBe(false);
+    expect(readFileSync(join(c.grugopsHome, "docs", "faq.md")).equals(readFileSync(join(REPO, "docs", "faq.md")))).toBe(true);
+    const rec = recordOf(c);
+    const backup = rec.ledger.find((e) => e.kind === "backup" && e.of === "docs");
+    expect(backup, JSON.stringify(rec)).toBeDefined();
+    expect(backup).toMatchObject({ path: baks[0], origin: "kit-home", of: "docs" });
+    expect(String(backup!.content)).toMatch(/^tree:sha256:[0-9a-f]{64}$/);
+    expect(rec.ledger.filter((e) => e.kind === "kit")).toEqual(KIT_ENTRY_RECORD);
+    expect(r.stdout).toMatch(/^ {2}backed-up\s/m);
+    // A later re-install keeps the backup and its entry while the backup still holds what was recorded.
+    const again = install(c);
+    expect(again.status, again.stdout).toBe(0);
+    expect(docsBackupsIn(c)).toEqual(baks);
+    expect(recordOf(c).ledger.filter((e) => e.kind === "backup")).toEqual([backup]);
+    expect(stateCheck()).toEqual([]);
+  });
+
+  it("a target that is $GRUGOPS_HOME/docs is refused before any write, like a target at the kit root", () => {
+    const c = kitHomeCase("docs-is-target");
+    const target = join(c.grugopsHome, "docs");
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, "MYNOTES.md"), "the user's repository happens to sit at the docs entry\n");
+    const before = snapshotTree(c.grugopsHome);
+    const r = spawnBin(INSTALL_JS, ["--yes", ...ALL_AGENT_FLAGS], target, c.grugopsHome, { home: c.home, timeoutMs: 120_000 });
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(1);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toMatch(/overlaps the target/);
+    expect(snapshotTree(c.grugopsHome)).toBe(before);
   });
 });
