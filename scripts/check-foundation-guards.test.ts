@@ -810,6 +810,13 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // symbol, no private fence state and no heading grammar of its own. Re-derived rather than
     // incremented: the same `git ls-files … | xargs grep -l 'from "./frontmatter.js"'` minus test files
     // reports fourteen with this module tracked.
+    //
+    // (Plan 43-03, D-11) AND FROM FOURTEEN TO FIFTEEN, SAME DIRECTION. `check-story-docs.ts`, the
+    // story-docs gate, imports exactly ONE symbol — `fencedLineFlags` — so its shipped-links check
+    // reads no link inside a fenced block. No verdict-bearing symbol, no private fence state and no
+    // heading grammar of its own. Re-derived rather than incremented: the same `git ls-files … |
+    // xargs grep -l 'from "./frontmatter.js"'` minus test files reports fifteen with this module
+    // tracked (2026-11-18).
     expect(consumers).toEqual([
       "audit-model.ts",
       "canonical-frontmatter.ts",
@@ -819,6 +826,7 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "check-foundation-guards.ts",
       "check-imperative-lexicon.ts",
       "check-role-rules.ts",
+      "check-story-docs.ts",
       "checkpoints.ts",
       "generate-catalog.ts",
       "generate-role-adapters.ts",
@@ -830,6 +838,10 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       importedSymbols("kit-model.ts", "frontmatter"),
       "kit-model.ts takes the transformation only — never a grant predicate (plan 39-01)",
     ).toEqual(["parseFrontmatter"]);
+    expect(
+      importedSymbols("check-story-docs.ts", "frontmatter"),
+      "check-story-docs.ts takes the fence toggle only — no section locator and no grant predicate (plan 43-03)",
+    ).toEqual(["fencedLineFlags"]);
     // (Plan 29-35) …and `generate-catalog.ts`'s OWN set, pinned like every other locator consumer's.
     //
     // (Plan 29-40, G-29-1 / V-29-35-01) THE SET MOVED FROM TWO SYMBOLS TO THE SIBLING'S THREE, AND

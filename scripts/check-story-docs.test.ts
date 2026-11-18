@@ -15,6 +15,8 @@ import {
   gapD1Findings,
   gapD1ScanSet,
   grugCommandFindings,
+  linkFindings,
+  type LinkContext,
 } from "./check-story-docs.js";
 import { publicDocsCorpus } from "./check-public-docs-vocabulary.js";
 
@@ -151,13 +153,90 @@ describe("check 2 — the GAP-D1 sentence on pages that mention parallel work (D
   });
 
   it("the live tree: 0 findings over the corpus plus one, every page visited", () => {
-    const { status, out } = runGate(ROOT);
+    // Each live case reads its own check's line; the gate's exit code is the CI step's to judge.
+    const { out } = runGate(ROOT);
     const line = checkLine(out, "STORY-05 GAP-D1");
     const n = publicDocsCorpus().length + 1;
     const flat = out.replaceAll("\n", " | ");
     expect(line, flat).toContain(`PASS  STORY-05 GAP-D1`);
     expect(line).toContain(`0 findings over ${n}/${n} elements`);
-    expect(status, flat).toBe(0);
+  });
+});
+
+describe("check 3 — shipped docs links resolve in a kit home (D-11)", () => {
+  const REPO = "https://github.com/example/kit";
+  // A small tree: agent-factory/, two shipped docs pages, and checkout-only files.
+  const TREE = new Set([
+    "agent-factory",
+    "agent-factory/roles",
+    "agent-factory/roles/orchestrator.md",
+    "agent-factory/README.md",
+    "docs/page.md",
+    "docs/other.md",
+    "install/README.md",
+    "README.md",
+    ".planning/x.md",
+  ]);
+  const ctx: LinkContext = {
+    exists: (rel) => TREE.has(rel),
+    shipped: new Set(["docs/page.md", "docs/other.md"]),
+    repository: REPO,
+  };
+  const targets = (text: string, file = "docs/page.md", rule: "ship" | "checkout" = "ship"): string[] =>
+    linkFindings(file, text, rule, ctx).map((f) => `${f.file}:${f.line}:${f.target}`);
+
+  it.each(["../.planning/x.md", "../install/README.md", "../README.md"])(
+    "a shipped page linking %s is a finding naming file and target",
+    (t) => {
+      expect(targets(`See [it](${t}).\n`)).toEqual([`docs/page.md:1:${t}`]);
+    },
+  );
+
+  it("a shipped page linking into agent-factory/ or a shipped sibling page is not a finding", () => {
+    expect(targets("[a](../agent-factory/roles/orchestrator.md) and [b](other.md) and [c](./other.md#part)\n")).toEqual(
+      [],
+    );
+  });
+
+  it("a link to a missing file is a finding, even under agent-factory/", () => {
+    expect(targets("[a](../agent-factory/roles/nope.md)\n")).toEqual(["docs/page.md:1:../agent-factory/roles/nope.md"]);
+  });
+
+  it("a link inside a fenced block is ignored", () => {
+    expect(targets("```md\n[x](../install/README.md)\n```\n")).toEqual([]);
+  });
+
+  it("a #fragment is dropped before resolving, and a bare #fragment is skipped", () => {
+    expect(targets("[a](other.md#top) [b](#here)\n")).toEqual([]);
+    expect(targets("[a](../install/README.md#flags)\n")).toEqual(["docs/page.md:1:../install/README.md#flags"]);
+  });
+
+  it("a reference definition is read like an inline link", () => {
+    expect(targets("Text.\n\n[x]: ../install/README.md\n")).toEqual(["docs/page.md:3:../install/README.md"]);
+  });
+
+  it("a link written inside an inline code span is text, not a link", () => {
+    expect(targets("Write `[x](../install/README.md)` to link it.\n")).toEqual([]);
+  });
+
+  it("a repository URL naming a missing path is a finding; an existing path is not; another host is skipped", () => {
+    expect(targets(`[a](${REPO}/blob/main/no-such-file.md)\n`)).toEqual([
+      `docs/page.md:1:${REPO}/blob/main/no-such-file.md`,
+    ]);
+    expect(targets(`[a](${REPO}/blob/main/install/README.md) [b](${REPO}/tree/main/agent-factory/)\n`)).toEqual([]);
+    expect(targets("[a](https://example.org/x.md) [m](mailto:a@example.org)\n")).toEqual([]);
+  });
+
+  it("README.md (checkout rule) may link a checkout-only file, but not a missing one", () => {
+    expect(targets("[i](install/README.md)\n", "README.md", "checkout")).toEqual([]);
+    expect(targets("[m](missing.md)\n", "README.md", "checkout")).toEqual(["README.md:1:missing.md"]);
+  });
+
+  it("the live tree: every shipped docs link resolves in a kit home", () => {
+    const { out } = runGate(ROOT);
+    const line = checkLine(out, "STORY-05 shipped links");
+    expect(line, out.replaceAll("\n", " | ")).toContain("PASS  STORY-05 shipped links");
+    expect(line).toMatch(/0 findings over (\d+)\/\1 elements/);
   });
 });
 

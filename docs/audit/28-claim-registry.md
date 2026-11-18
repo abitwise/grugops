@@ -608,10 +608,10 @@ reversible installer. **Node 22+ is a prerequisite** for the scripted path:
 - kind: install
 - depends_on: —
 - status: true
-- mechanism: All seven named flags were grepped in `install/install.ts` and all seven are present: `--target` (8 sites), `--yes` (5), `DRY_RUN` (37), `--symlink` (3), `--migrate` (17), `--update` (20), `--prune-old-kit` (13). `install/README.md` exists at the linked path.
+- mechanism: All seven named flags were grepped in `install/install.ts` and all seven are present: `--target` (8 sites), `--yes` (5), `DRY_RUN` (37), `--symlink` (3), `--migrate` (17), `--update` (20), `--prune-old-kit` (13). `install/README.md` exists at the linked path. Plan 43-03 changed only the link target, from `../install/README.md` to the repository URL, because `install/` does not ship in the kit home.
 
 ```
-See **[`install/README.md`](../install/README.md)** for the full flag set (`--target`,
+See **[`install/README.md`](https://github.com/abitwise/grugops/blob/main/install/README.md)** for the full flag set (`--target`,
 `--yes`, `DRY_RUN`, `--symlink`, `--migrate`, `--update`, `--prune-old-kit`) and the two-root
 kit/state layout.
 ```

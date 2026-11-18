@@ -160,7 +160,7 @@ node install/install.js --target /path/to/repo
 ```
 
 <!-- claim: C-28-036 -->
-See **[`install/README.md`](../install/README.md)** for the full flag set (`--target`,
+See **[`install/README.md`](https://github.com/abitwise/grugops/blob/main/install/README.md)** for the full flag set (`--target`,
 `--yes`, `DRY_RUN`, `--symlink`, `--migrate`, `--update`, `--prune-old-kit`) and the two-root
 kit/state layout.
 
