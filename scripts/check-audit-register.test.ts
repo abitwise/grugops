@@ -64,7 +64,10 @@ import {
 // rather than as a fourth literal group in check-banned-claims. Moved BY HAND for the same reason
 // the line above records, and the "mirror's distribution equals the declared map" case is what made
 // this drift loud: it fired on the live regression lane the moment CLAIM_KIND_CARDINALITY moved.
-const MIRROR_ARCHITECTURE_CLAIMS = 33;
+// 33 -> 41 (plan 43-09, 2026-11-18): `C-28-048` .. `C-28-055` entered the live registry as
+// `architecture` rows registering the absolutes on docs/how-it-works.md. Moved BY HAND, for the same
+// reason as above, in the commit that moved CLAIM_KIND_CARDINALITY.
+const MIRROR_ARCHITECTURE_CLAIMS = 41;
 const MIRROR_INSTALL_CLAIMS = 8;
 
 /**

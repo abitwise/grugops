@@ -21,6 +21,14 @@ writing-profile rows beneath that heading now name an earlier tree. That is what
 advisory and not asserted means in practice — the gate compares text AT ANCHORS and never a line
 number.
 
+**Annotation, plan 43-09 — the derived current count, ADDED rather than substituted.** The two dated
+sentences above stand as written. As committed by this plan the registry carries **55 rows**: the 47
+the plan 29.1-06 annotation records, plus `C-28-048`..`C-28-055`, the absolutes on the new mechanics
+page `docs/how-it-works.md`. The number was DERIVED from `readRegistry().claims.length` at this
+plan's commit. `C-28-033` moved to that page byte for byte from `agent-factory/README.md` and kept
+its id, so it adds no row. This file's opening sentence names the four documents Phase 28 audited;
+the rows now also name the shipped user docs that plan 43-02 joined to the public-docs corpus.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -550,7 +558,7 @@ up to enterprise governance (scrum cadence, compliance regimes, release gates) o
 ### C-28-033
 
 - file: docs/how-it-works.md
-- line: 8-19
+- line: 78-89
 - kind: architecture
 - depends_on: —
 - status: true
@@ -788,6 +796,112 @@ thinner model would degrade past for that role. The kit makes no claim that any 
 reduces cost, lowers spend, or extends a usage limit. No such saving has been measured here, and no
 figure for one is published anywhere in this kit. Any future statement of one carries
 `UNKNOWN - verify` until `scripts/measure-cost.ts` produces a real capture.
+```
+
+### C-28-048
+
+- file: docs/how-it-works.md
+- line: 31
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21) on the new mechanics page. One assertion: every request reaches the Orchestrator first. Measured against `agent-factory/roles/orchestrator.md` § Activates when, which reads `Any incoming request — every /grugops starts here.`, and against `AGENTS.md` line 11, `All work starts with the Orchestrator`. The second sentence quotes the role file's own wording, so the claim is about what the kit text says; whether a host session follows that route on a live run is the open gap the page's § Open gaps names (C-28-055).
+
+```
+Every request goes to the Orchestrator first. Its role file says so in one line: any incoming request activates it.
+```
+
+### C-28-049
+
+- file: docs/how-it-works.md
+- line: 38
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). Three assertions, each measured against kit text. The role file tells the Orchestrator never to do a task's work: `agent-factory/roles/orchestrator.md` § Hard limits, `It never claims with itself as owner and never does a task's work. Where the Agent tool does not exist, it does the work only after a role switch.` It hands each subtask to a role agent where it can spawn: `agent-factory/workflows/17-task-claim.md` step 4. It switches role where it cannot: the same step 4 and `agent-factory/roles/_role-switch-protocol.md`. The sentence says the role file TELLS it, so it claims an instruction, not a mechanical refusal; no code stops an Orchestrator doing the work.
+
+```
+The Orchestrator's role file tells it never to do a task's work itself. On a host where it can start other agents, it hands each subtask to a role agent. On a host where it cannot, it switches into the role first, by the [role-switch protocol](../agent-factory/roles/_role-switch-protocol.md), and does the work as that role.
+```
+
+### C-28-050
+
+- file: docs/how-it-works.md
+- line: 45
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). Two assertions. The claim is atomic and a lost race prints `lost`: `scripts/claim.ts` `claimTask` makes `claimed/<task>` with a non-recursive `mkdirSync`, a second claimant gets `EEXIST` and the claim is lost, not an error; `agent-factory/workflows/17-task-claim.md` step 3 tells the Orchestrator to take the next pending task on a `lost <task>` line. `claim.js done` refuses while no sealed note was written since the claim: `scripts/runnable-ref/claim.ts` prints `not-done <task>: no sealed note in ... since <at>` and exits 1, and Workflow 17 step 7 states the same refusal.
+
+```
+A claim is atomic: when two claims race for one subtask, one wins, the other prints a `lost` line, and the Orchestrator takes the next task. When the role finishes, `claim.js done` moves the subtask to `done/`, and it refuses while the task's context folder holds no sealed note written since the claim.
+```
+
+### C-28-051
+
+- file: docs/how-it-works.md
+- line: 52
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). Measured against `agent-factory/workflows/16-context-read-write.md` and `agent-factory/workflows/17-task-claim.md`. `note.js read` prints each sealed note in full: WF16 step 1. `note.js add` is the host copy of `context-io.ts` `appendNote`, the one sanctioned writer: WF17 step 6 and WF16 step 3. A note written by any other route is refused on read as `unsealed`: WF16 step 3. A `finding` is admitted only with a `§14-gate#<id>` or `human:<name>` stamp: WF16 step 3, and `context-io.ts` hard-rejects a stampless finding per WF16 step 4; `only` is a necessary condition, and the page does not claim every stamped finding is admitted (scripted hosts refuse gate stamps, WF16 step 3, residual R-41-10). The honest degrade to a `claim` with `confidence: UNKNOWN - verify`: WF16 step 4. Roles do not pass data to each other: WF17 step 6, `Coordination is ONLY through the on-disk substrate — never relay data agent-to-agent`, and `orchestrator.md` § Hard limits, `Never relay data between agents`.
+
+```
+A role agent starts by reading the shared verified context for its task with `node tools/grugops/note.js read <folder>`, which prints each sealed note in full ([Workflow 16](../agent-factory/workflows/16-context-read-write.md)). It does its one job, then records what it found with `note.js add`, the host copy of `context-io`, the one sanctioned writer of the shared context. A note written any other way, by an editor, a file-writing tool or a heredoc, is refused on read as `unsealed`. A `finding`, a verified result, is admitted only with a real stamp: a green gate verdict or a named human. A softer result goes in as a `claim` or an `observation`, and an unverified one carries `confidence: UNKNOWN - verify`. Roles do not pass data to each other: the next role reads what the last one published.
+```
+
+### C-28-052
+
+- file: docs/how-it-works.md
+- line: 57
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). Measured against `agent-factory/workflows/05-pr-quality-gate.md` and `agent-factory/roles/orchestrator.md`. The Orchestrator runs the gate before a ticket advances: orchestrator.md § Responsibilities item 7. The read-only git-host check runs first, then the order `install -> lint -> typecheck -> unit -> build -> uat-spec-integrity -> e2e -> test-integrity`: WF05 step 3; the end-to-end lane and the spec-integrity step both ride `quality.ui_e2e`. The bounded self-fix budget, `self_fix_attempts`, default `2`, then a human: WF05 step 4 and `agent-factory/config/factory.config.md`. Exactly one terminal result of three: WF05 step 5. The gate never merges and hands the change to a person: WF05 § Agents involved, `The Orchestrator recommends; it never auto-merges`, and WF05 step 6, `This step is human-only`. The sentence is about the gate's own steps; it asserts no merge outcome on a repository, which C-28-054 and docs/GUARANTEES.md cover.
+
+```
+Before a ticket advances, the Orchestrator runs the [PR quality gate](../agent-factory/workflows/05-pr-quality-gate.md). It first runs a read-only check of the git host's branch protection, then install, lint, typecheck, unit tests, build and the end-to-end checks the config turns on, then a test-integrity check on skipped tests. When a check fails, the agent gets a small, fixed number of self-fix attempts (`self_fix_attempts`, two by default), then stops and hands the problem to a person. The gate ends in exactly one result: `READY_FOR_HUMAN_REVIEW`, `BLOCKED_NEEDS_FIX` or `SPLIT_REQUIRED`. That result is a recommendation. The gate itself never merges: its last step hands the change to a person.
+```
+
+### C-28-053
+
+- file: docs/how-it-works.md
+- line: 68
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). Measured against `agent-factory/workflows/12-release.md` step 6: `Record a named human approval, then a named human confirms the production action. The step is keyed to production_requires_human_confirmation: true. Run node tools/grugops/host-protection.js before the named human confirms the production action.` The sentence is stated at the checkpoint's DEFAULT (`block`, `agent-factory/config/factory.config.md`) and points to docs/GUARANTEES.md for where the checkpoint is held, so lowering the floor does not falsify it; that is why it is `architecture` with no `depends_on`, and not a `safety` row. It describes the workflow's text, not a deploy outcome.
+
+```
+Step 6 is the human step, and it is keyed to the `production_requires_human_confirmation` checkpoint. At that checkpoint's default, the workflow records a named person's approval, runs the read-only git-host check, and waits for a named person to confirm the production action. [GUARANTEES.md](GUARANTEES.md) shows where that checkpoint is held on this repository.
+```
+
+### C-28-054
+
+- file: docs/how-it-works.md
+- line: 73
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21). It names where each control lives and asserts no merge or deploy outcome, so it is `architecture`, not `safety`. The workflows and role files tell agents to stop at a pull request and leave merge and deploy to people: `agent-factory/roles/orchestrator.md` § Hard limits and `agent-factory/workflows/05-pr-quality-gate.md` step 6. That this is prose that holds only as well as an agent follows it: docs/GUARANTEES.md § Where each floor is enforced, `Prose is the role and workflow text an agent reads; it is a written rule and nothing more.` The git host is the hard floor, through branch protection or rulesets and deployment environments with required reviewers: the same section and `install/README.md` § 5 (a). The Claude Code ask rules are a speed bump written by the standalone installer, not a security boundary: `install/README.md` § 5 (b) and CLAUDE.md § Constraints, Safety (hard).
+
+```
+The workflows and role files tell agents to stop at a pull request and to leave merge and deploy to people. That is written text, and it holds only as well as an agent follows it. What stops a merge or a deploy mechanically is set on your git host: branch protection or rulesets on protected branches, and deployment environments with required reviewers for production. That is the hard floor. On Claude Code, the standalone installer also writes ask rules, so the CLI asks before the usual merge and deploy commands; they are a speed bump, not a security boundary. [GUARANTEES.md](GUARANTEES.md) shows which safety claims hold on this repository.
+```
+
+### C-28-055
+
+- file: docs/how-it-works.md
+- line: 94-96
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-09 (D-08, D-21, D-22). Three list items registered as one slice, because an anchor between two list items would split the rendered list. Item 1 is the GAP-D1 sentence, byte for byte the `GAP_D1_SENTENCE` that `scripts/check-story-docs.ts` requires on any public page that says parallel; parallel scheduling up to `queue.wip_limit` on a host with a spawn tool is measured against `agent-factory/workflows/17-task-claim.md` steps 2 to 4 and `install/README.md` § 6 Full, and the own-session capture stays `UNKNOWN - verify`. Item 2: `install/README.md` § 6 Degraded names the same five hosts as having no host spawn mechanism this kit uses, and the coordinator drains the queue at concurrency one through the role-switch protocol. Item 3: each of the five `Using grugops on` sections of `install/README.md` states that whether the session follows the route to the Orchestrator on a live run is `UNKNOWN - verify`, and records which launch forms a person checked live.
+
+```
+- Role agents run in parallel on hosts with a spawn tool; the own-session capture is `UNKNOWN - verify` (GAP-D1).
+- Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI and Pi have no spawn tool this kit uses, so the Orchestrator loads the roles there one at a time, in one session.
+- Whether a session on Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI or Pi follows the route from its entry file to the Orchestrator on a live run is `UNKNOWN - verify`. The [install guide](https://github.com/abitwise/grugops/blob/main/install/README.md) says what a person checked live on each host.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

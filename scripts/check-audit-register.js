@@ -226,7 +226,17 @@ export const CLAIM_KIND_CARDINALITY = [
     // it depends on no safety floor. This gate refused until the number moved, which is the companion
     // edit D-04 requires arriving as one act; the number was taken from that refusal's own text
     // ("architecture declares 32 but the registry carries 33").
-    { kind: "architecture", count: 33 },
+    // 33 -> 41 (plan 43-09, 2026-11-18; D-08, D-21). EIGHT ROWS ADDED, NONE RECLASSIFIED. `C-28-048` ..
+    // `C-28-055` register the absolutes on the new mechanics page docs/how-it-works.md: the request
+    // reaching the Orchestrator, the Orchestrator's do-no-task-work rule, the atomic claim and the
+    // `done` refusal, note admission, the gate's recommendation, the release step stated at its
+    // checkpoint's default, where merge and deploy are held, and the open gaps with the GAP-D1
+    // sentence. Each is `architecture`: none asserts a merge or deploy outcome, and the two that name
+    // merge, deploy or production describe the mechanism and point to docs/GUARANTEES.md instead. The
+    // moved `C-28-033` keeps its id and its kind, so it does not move this number. This gate refused
+    // until the number moved; the number was taken from that refusal's own text ("architecture
+    // declares 33 but the registry carries 41").
+    { kind: "architecture", count: 41 },
     { kind: "install", count: 8 },
 ];
 /**
