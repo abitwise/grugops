@@ -661,6 +661,25 @@ describe("generate-catalog.js (DOCS-01)", () => {
     expect(sameSnapshot(snapshotDir(join(m, "docs", "reference")), before)).toBe(true);
   });
 
+  it("fail-closed: two plugin skills matching one standalone twin's description → exit 1 naming both, and no page changes", () => {
+    const m = catalogMirror();
+    expect(runMirror(m).status).toBe(0);
+    const before = snapshotDir(join(m, "docs", "reference"));
+    // A second plugin skill with the gate skill's description (and its own name) claims the gate's twin.
+    const copyDir = join(m, "skills", "gate-copy");
+    mkdirSync(copyDir, { recursive: true });
+    writeFileSync(
+      join(copyDir, "SKILL.md"),
+      readFileSync(join(m, "skills", "gate", "SKILL.md"), "utf8").replace(/^name: gate$/m, "name: gate-copy"),
+    );
+    const run = runMirror(m);
+    expect(run.status, run.text).toBe(1);
+    expect(run.text).toContain("skills/gate/SKILL.md");
+    expect(run.text).toContain("skills/gate-copy/SKILL.md");
+    expect(run.text).not.toContain("ERR_MODULE_NOT_FOUND");
+    expect(sameSnapshot(snapshotDir(join(m, "docs", "reference")), before)).toBe(true);
+  });
+
   it("deletes a stray .md page under docs/reference/ and leaves a non-page file alone", () => {
     const m = catalogMirror();
     expect(runMirror(m).status).toBe(0);
