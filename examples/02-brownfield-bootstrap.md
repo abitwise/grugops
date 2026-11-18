@@ -89,7 +89,7 @@ rest stay honest:
 - Deploy: UNKNOWN - verify
 ```
 
-The kit never fabricates a command; an unverified slot stays `UNKNOWN - verify` until the Scribe
+The roles are told never to invent a command; an unverified slot stays `UNKNOWN - verify` until the Scribe
 confirms it in this repo.
 
 Architect/Design reviews the structure and names the risky areas: the `/charge` endpoint accepts
@@ -204,4 +204,4 @@ is seeded, the trace is rendered and `.grugops/factory.config.json` is present. 
 
 The Orchestrator commits these files on the branch `grugops/bootstrap-brownfield-<id>`, never on a
 protected branch, and stops. Sam, the repo's maintainer, reviews the branch and decides whether to
-merge it. No agent merges, and no agent deploys.
+merge it. In this run, no agent merged and no agent deployed.

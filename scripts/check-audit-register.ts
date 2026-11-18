@@ -300,7 +300,13 @@ export const CLAIM_KIND_CARDINALITY: readonly {
   // `architecture`: it says where each control lives and asserts no merge or deploy outcome. This gate
   // refused until the number moved; the number was taken from that refusal's own text
   // ("architecture declares 56 but the registry carries 58").
-  { kind: "architecture", count: 58 },
+  // 58 -> 60 (plan 43-12 task 3, 2026-11-18; D-22). TWO ROWS ADDED, NONE RECLASSIFIED. The reader review
+  // registered `C-28-073` and `C-28-074`, two paragraphs of docs/usage.md that moved from README.md
+  // unanchored in plan 43-10 and carry absolutes. Each is `architecture`: it states how Claude Code's
+  // `--agent` path and the installer behave and asserts no merge or deploy outcome. This gate refused
+  // until the number moved; the number was taken from that refusal's own text ("architecture declares
+  // 58 but the registry carries 60").
+  { kind: "architecture", count: 60 },
   { kind: "install", count: 8 },
 ];
 

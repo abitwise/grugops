@@ -279,5 +279,5 @@ The rendered trace, the board moves and `Cycle time`, `WIP` and `Gate pass rate`
 
 `checkpoints.open_pr=block`: the agents opened a branch and a pull request, and stopped there.
 Sam, the sample's maintainer, reviews pull request `#12` against
-`agent-factory/checklists/pr-review-checklist.md` and decides whether to merge it. No agent merges,
-and no agent deploys.
+`agent-factory/checklists/pr-review-checklist.md` and decides whether to merge it. In this run, no agent
+merged and no agent deployed.

@@ -216,5 +216,5 @@ board with `ABC-001` in `Ready for Dev`, the rendered trace and `.grugops/factor
 
 The Orchestrator commits these files on the branch `grugops/bootstrap-greenfield-abc-001`, never
 on a protected branch, and stops. Sam, the sample's maintainer, reviews the branch and decides
-whether to merge it. No agent merges, and no agent deploys. From here, `examples/03-ticket-to-pr.md`
+whether to merge it. In this run, no agent merged and no agent deployed. From here, `examples/03-ticket-to-pr.md`
 drives `ABC-001` to a pull request.

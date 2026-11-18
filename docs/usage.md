@@ -25,8 +25,10 @@ claude --agent grugops-orchestrator
 
 Then type your request, for example: bootstrap this repo and propose safe first tickets. Claude Code shows `@grugops-orchestrator` in the session's startup header, which confirms the Orchestrator is the main thread. In a session that is already open, use the command instead: `/grugops "bootstrap this repo and propose safe first tickets"`.
 
+<!-- claim: C-28-073 -->
 Why `--agent`: the Orchestrator is the main thread, and Claude Code enforces the list of role agents the Orchestrator may spawn. With plain `/grugops` the session is a default one, so that list is held by instruction only. `install/README.md` §6 calls these the Full and Reduced tiers.
 
+<!-- claim: C-28-074 -->
 `claude --agent grugops-orchestrator` needs an install that chose Claude Code (`--claude`, or Claude Code ticked in the checkbox list), because that install writes `.claude/agents/grugops-orchestrator.md`. The Claude Code plugin form ships no agents, so it gives the commands only. To start every session in a project this way, you can set `"agent": "grugops-orchestrator"` in your own `.claude/settings.json`. The installer never writes that key, and whether it enforces the same list is `UNKNOWN - verify` (`install/README.md` §6).
 
 ## Usage across the supported host tools

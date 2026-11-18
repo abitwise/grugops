@@ -62,6 +62,12 @@ the registry carries **72 rows**: the 70 above plus `C-28-071` (how grugops diff
 (the enterprise answer, which names the git host as the hard floor). The number was DERIVED from
 `readRegistry().claims.length` at that commit.
 
+**Annotation, plan 43-12 task 3 — the derived current count after the reader review, ADDED rather
+than substituted.** The sentence above records 72 rows at the FAQ's commit. As committed with the
+reader review the registry carries **74 rows**: those 72 plus `C-28-073` and `C-28-074`, two
+paragraphs of `docs/usage.md` that moved from README.md unanchored and carry absolutes. The number was
+DERIVED from `readRegistry().claims.length` at that commit.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -1169,6 +1175,32 @@ A: It has the parts a regulated team asks for. The config dial's `enterprise` mo
    branches, and deployment environments with required reviewers for production. grugops never
    configures your git host; you set those protections yourself. [GUARANTEES.md](GUARANTEES.md)
    shows which safety claims hold on this repository.
+```
+
+### C-28-073
+
+- file: docs/usage.md
+- line: 29
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43-12's reader review (D-22). The paragraph moved byte for byte from README.md in plan 43-10 and was unanchored there too. `claude --agent grugops-orchestrator` makes the Orchestrator the main thread: `install/README.md` § 6, "The main thread itself takes on the coordinator's system prompt and tool restrictions", and Claude Code prints `@grugops-orchestrator` in the startup header. Claude Code enforces the list of role agents it may spawn on that path: the adapter `.claude/agents/grugops-orchestrator.md` carries an enumerated `tools: Agent(grugops-…)` grant, and `install/README.md` § 6 says that grant "is enforced by the runtime — on this path only", and § 6 points to the platform's documentation (`code.claude.com/docs/en/sub-agents`) for the rule. With plain `/grugops` the session is a default one and the list is held by instruction only: the same section's Reduced tier. It states no merge or deploy outcome and no cost, token or speed benefit.
+
+```
+Why `--agent`: the Orchestrator is the main thread, and Claude Code enforces the list of role agents the Orchestrator may spawn. With plain `/grugops` the session is a default one, so that list is held by instruction only. `install/README.md` §6 calls these the Full and Reduced tiers.
+```
+
+### C-28-074
+
+- file: docs/usage.md
+- line: 32
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43-12's reader review (D-22). The paragraph moved byte for byte from README.md in plan 43-10 and was unanchored there too. The `--claude` install writes `.claude/agents/grugops-orchestrator.md`: `install/install.ts` `targetAdapterFiles` maps the derived adapter set into the target's `.claude/agents/`, and the file is committed at that path in this repository's own install. The plugin form ships no agents: `.claude-plugin/plugin.json` declares no `agents` path and the plugin root has no `agents/` folder. The installer never writes the `agent` settings key: `grep -n '"agent"' install/*.ts` (tests excluded) printed nothing on 2026-11-18, so no install code path writes it. Whether that key enforces the same list is `UNKNOWN - verify`, as `install/README.md` § 6 states ("grugops does not write that key, so nothing here depends on the answer").
+
+```
+`claude --agent grugops-orchestrator` needs an install that chose Claude Code (`--claude`, or Claude Code ticked in the checkbox list), because that install writes `.claude/agents/grugops-orchestrator.md`. The Claude Code plugin form ships no agents, so it gives the commands only. To start every session in a project this way, you can set `"agent": "grugops-orchestrator"` in your own `.claude/settings.json`. The installer never writes that key, and whether it enforces the same list is `UNKNOWN - verify` (`install/README.md` §6).
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

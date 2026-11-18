@@ -154,7 +154,7 @@ The engineer publishes its work as an `observation` with the pull request and fi
 QE/E2E records its result as a `claim` at `UNKNOWN - verify`, because this sample has a scripted
 install and no gate stamp exists here. The gate publishes `READY_FOR_HUMAN_REVIEW` and stops at
 the pull request. `checkpoints.open_pr=block`: Sam, the maintainer, reviews and merges each pull
-request. No agent merges.
+request. In this run, no agent merged.
 
 `ABC-015` bounced once: QE/E2E found that a holding name with a comma broke the CSV, so the ticket
 went back from `In Review` to `In Development` before it passed.
