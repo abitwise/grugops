@@ -91,6 +91,157 @@ The page for each command:
 - `/grugops-uat`: [uat](reference/skills/uat.md)
 - `/grugops-release`: [release](reference/skills/release.md)
 
+## Jobs
+
+Each job below gives the request to type, the roles that act, what lands on disk and where you step in. Type the request at your host's entry, as the [start table](#start-a-session) shows; on Codex CLI that is `$grugops <request>`. On Claude Code a job's skill also has its own command, named under the job. The Orchestrator reads the request, picks the workflow and wakes the roles; the requests below are examples, and plain words work too.
+
+### Bootstrap a repository
+
+**Request:** `bootstrap this repo as brownfield and propose safe first tickets` for an existing repository, or `plan this idea as greenfield: <idea>` for a new one. Skill: [map](reference/skills/map.md), `/grugops-map` on Claude Code.
+
+**Who acts:** the [Orchestrator](reference/agents/orchestrator.md) runs [workflow 01](../agent-factory/workflows/01-bootstrap-brownfield.md) for an existing repository: the [Brownfield Mapper](reference/agents/brownfield-mapper.md) maps it, the [AGENTS.md Scribe](reference/agents/agents-md-scribe.md) writes `AGENTS.md`, [Architect/Design](reference/agents/architect-design.md) notes risks and constraints, [Security/NFR](reference/agents/security-nfr.md) runs a high-risk scan, and [BA/PM](reference/agents/ba-pm.md) writes the first tickets. For a new idea it runs [workflow 00](../agent-factory/workflows/00-bootstrap-greenfield.md) with the [Greenfield Mapper](reference/agents/greenfield-mapper.md), the AGENTS.md Scribe, BA/PM, the [System Analyst](reference/agents/system-analyst.md) and Architect/Design.
+
+**What lands on disk:**
+
+- `AGENTS.md` at the repository root, with its command slots at `UNKNOWN - verify` until the real commands are confirmed
+- `memory-bank/brownfield-map.md` or `memory-bank/greenfield-plan.md`
+- the first tickets in `memory-bank/plans/tickets/`; for a new idea also epics in `memory-bank/plans/epics/`, features in `memory-bank/plans/features/`, ADRs in `memory-bank/50-decisions/` and NFR files in `memory-bank/plans/nfr/`
+- the board, `memory-bank/plans/board.md`, seeded with its columns and WIP limits
+- the roles' notes in the shared verified context, under `.grugops/context/<task>/notes/`
+
+<!-- claim: C-28-062 -->
+**Where you step in:** if the high-risk scan of an existing repository returns `BLOCKED`, the run stops, and no first ticket that builds on that risk is cut until it is resolved, at the default setting of the `proceed_past_blocked_risk` checkpoint. If the idea or the repository is too unclear to map, the run stops and asks you for what is missing.
+
+**Examples:** [Greenfield bootstrap](../examples/01-greenfield-bootstrap.md) and [Brownfield bootstrap](../examples/02-brownfield-bootstrap.md).
+
+### Turn an idea into tickets
+
+**Request:** `turn this idea into epics: <idea>`, then `turn the <name> epic into ready tickets`. Skill: [plan](reference/skills/plan.md), `/grugops-plan` on Claude Code.
+
+**Who acts:** [BA/PM](reference/agents/ba-pm.md) finds the user, the pain and the value, sets the scope and splits the idea into epics ([workflow 02](../agent-factory/workflows/02-idea-to-epics.md)), then splits each epic into tickets, sizes them and sets their priority ([workflow 03](../agent-factory/workflows/03-epic-to-tickets.md)). The [System Analyst](reference/agents/system-analyst.md) clarifies behavior where it is unclear.
+
+**What lands on disk:**
+
+- epics in `memory-bank/plans/epics/`
+- tickets in `memory-bank/plans/tickets/`, each with user value, scope, Given/When/Then acceptance criteria, a size from `XS` to `XL` and a priority from `P0` to `P3`
+- the epics and tickets on `memory-bank/plans/board.md`, in `Backlog`, or in `Ready` once a ticket meets the Definition of Ready
+- notes under `.grugops/context/<task>/notes/` with the product decisions and each ticket's epic, feature and NFR ids
+
+<!-- claim: C-28-063 -->
+**Where you step in:** if the idea is too vague to scope, the run stops and asks you for the user, the pain or the value instead of inventing them. A ticket sized `XL` is marked `SPLIT_REQUIRED` and goes back for splitting before development.
+
+**Example:** [Greenfield bootstrap](../examples/01-greenfield-bootstrap.md) cuts the first ticket from an idea.
+
+### Take a ticket to a pull request
+
+**Request:** `implement ticket <id> via ticket-to-pr`. Skill: [ticket](reference/skills/ticket.md), `/grugops-ticket` on Claude Code.
+
+**Who acts:** in [workflow 04](../agent-factory/workflows/04-ticket-to-pr.md) the [Orchestrator](reference/agents/orchestrator.md) checks the ticket against the Definition of Ready, the [Tech Lead](reference/agents/tech-lead.md) scores it and names the engineer level, the [Software Engineer](reference/agents/software-engineer.md) implements it on a branch, test first, [QE/E2E](reference/agents/qe-e2e.md) tries to break it, and [Security/NFR](reference/agents/security-nfr.md) reviews it when the change touches a risk.
+
+**What lands on disk:**
+
+- a branch with the change and its tests, and a pull request
+- a `## Tech Lead plan` section in the ticket file
+- the ticket's subtask records under `.grugops/queue/`, from pending through claimed to done
+- notes under `.grugops/context/<task>/notes/`, and the ticket's trace file under `memory-bank/plans/traceability/`
+
+<!-- claim: C-28-064 -->
+**Where you step in:** the workflow tells the agent to open a branch and a pull request and to stop there; you review and merge. If the gate still fails after its self-fix attempts, a named person confirms the Tech Lead's next move before the ticket leaves `Blocked`, at the default setting of the `exhaust_self_fix_budget` checkpoint.
+
+**Example:** [Ticket to PR](../examples/03-ticket-to-pr.md).
+
+### Run the PR gate
+
+**Request:** `run the PR quality gate for current changes`. Skill: [gate](reference/skills/gate.md), `/grugops-gate` on Claude Code.
+
+**Who acts:** in [workflow 05](../agent-factory/workflows/05-pr-quality-gate.md) the [Orchestrator](reference/agents/orchestrator.md) gathers the context and emits the result, [QE/E2E](reference/agents/qe-e2e.md) tries to break the feature, [Security/NFR](reference/agents/security-nfr.md) reviews risk when triggered, and [Architect/Design](reference/agents/architect-design.md) joins only if the change altered structure. The gate runs your repository's own checks, with the commands taken from `AGENTS.md`.
+
+**What lands on disk:**
+
+- the rendered trace files under `memory-bank/plans/traceability/`, committed on the pull request branch
+- notes under `.grugops/context/<task>/notes/` with the check results
+- one result: `READY_FOR_HUMAN_REVIEW`, `BLOCKED_NEEDS_FIX` or `SPLIT_REQUIRED`
+
+A short example, illustrative and not a captured run:
+
+```text
+run the PR quality gate for current changes
+```
+
+- the trace file for the ticket on the branch is rendered again and committed
+- the gate's notes record each check's outcome; a check whose command is unknown is recorded as `UNKNOWN - verify`, not as a pass
+- the run ends with `READY_FOR_HUMAN_REVIEW`
+
+<!-- claim: C-28-065 -->
+**Where you step in:** the result is a recommendation for a person, not a merge: you review the pull request against `agent-factory/checklists/pr-review-checklist.md` and decide whether to merge it.
+
+### Build a UAT pack
+
+**Request:** `build the UAT pack for feature <name>`. Skill: [uat](reference/skills/uat.md), `/grugops-uat` on Claude Code.
+
+**Who acts:** in [workflow 06](../agent-factory/workflows/06-uat-pack.md) the [UAT Planner](reference/agents/uat-planner.md) assembles the pack, [BA/PM](reference/agents/ba-pm.md) checks it against the original value and scope, and [QE/E2E](reference/agents/qe-e2e.md) checks that the tests back the scenarios.
+
+**What lands on disk:**
+
+- the pack as notes under `.grugops/context/<task>/notes/`: the business scenarios, test data, pass and fail criteria, a signoff checklist naming the person who signs, and known limitations
+- each validated scenario as a committed `<ticket-id>.uat.spec.ts`, under the `uat/` subfolder of the repository's end-to-end directory
+
+A short example, illustrative and not a captured run:
+
+```text
+build the UAT pack for feature password reset
+```
+
+- notes holding the scenarios for a reset request, an expired link and a reused link, with their test data and pass and fail criteria
+- the validated scenarios committed as `T-042.uat.spec.ts` under the `uat/` subfolder of the end-to-end directory
+- a signoff checklist that names the person who signs
+
+<!-- claim: C-28-066 -->
+**Where you step in:** a named person signs off on the scenarios, at the default setting of the `sign_off_acceptance` checkpoint. If the acceptance criteria are missing or unclear, the run stops and sends the ticket back; the workflow tells the agent never to sign off for you.
+
+### Cut a release
+
+**Request:** `prepare release <version> for these tickets`. Skill: [release](reference/skills/release.md), `/grugops-release` on Claude Code.
+
+**Who acts:** in [workflow 12](../agent-factory/workflows/12-release.md) the [Release Manager](reference/agents/release-manager.md) sets the version, compiles the changelog and release notes, confirms the migration, rollback and recovery plans, attaches the NFR, security and compliance evidence, and walks the release-readiness checklist.
+
+**What lands on disk:**
+
+- the release record `memory-bank/plans/releases/REL-xxxx.md`, with the status `READY_TO_RELEASE`, `BLOCKED` or `RELEASED`
+- notes under `.grugops/context/<task>/notes/` with the release outcome
+
+<!-- claim: C-28-067 -->
+**Where you step in:** a release waits for a named person's approval and a named person's confirmation of the production action, at the default setting of the `production_requires_human_confirmation` checkpoint; the Release Manager prepares the release and does not deploy production. See [the safety guarantees](GUARANTEES.md) for where each control is enforced.
+
+**Example:** [Release run](../examples/05-release-run.md).
+
+### Run a sprint and the daily sweep
+
+**Request:** `refine the backlog and promote ready items`, then `plan sprint <n> toward goal: <goal>`; each day, `run the daily sweep`. These go through the dispatcher, [grugops](reference/skills/grugops.md), `/grugops` on Claude Code.
+
+**Who acts:** in [workflow 07](../agent-factory/workflows/07-backlog-refinement.md) [BA/PM](reference/agents/ba-pm.md) shapes, sizes and prioritizes the top `Backlog` items, with the [System Analyst](reference/agents/system-analyst.md) and [Architect/Design](reference/agents/architect-design.md) when an item is unclear. In [workflow 08](../agent-factory/workflows/08-sprint-planning.md) BA/PM sets the sprint goal and the [Orchestrator](reference/agents/orchestrator.md) commits `Ready` items up to capacity. The [daily sweep](../agent-factory/workflows/09-daily-sweep.md) is the Orchestrator's alone. Workflows [10](../agent-factory/workflows/10-sprint-review.md) and [11](../agent-factory/workflows/11-retro.md) close the sprint with the review and the retro.
+
+**What lands on disk:**
+
+- the sprint file `memory-bank/plans/sprints/SPRINT-xx.md`, with its goal, dates, capacity and committed items
+- `memory-bank/plans/board.md` with its columns reconciled to the real ticket status, and `memory-bank/plans/metrics.md`
+- one dated entry at the end of `memory-bank/60-progress.md` for each sweep
+
+A short example of the daily sweep, illustrative and not a captured run:
+
+```text
+run the daily sweep
+```
+
+- the trace files under `memory-bank/plans/traceability/` are rendered again and the state files are checked
+- a ticket the context shows has left `In Review` moves to its real column on `memory-bank/plans/board.md`, and `memory-bank/plans/metrics.md` is updated
+- `memory-bank/60-progress.md` gains an entry such as `## 2026-11-18 — two in review, one blocked`, and the sweep report lists done, next and blocked
+
+<!-- claim: C-28-068 -->
+**Where you step in:** a ticket blocked longer than `blocked_escalation_days` moves to `Blocked` with its blocker named and is raised for a person to clear, and the sweep recommends no new pull into a column whose WIP limit is already breached.
+
+**Example:** [Sprint cycle](../examples/04-sprint-cycle.md) walks one sprint from refinement to retro.
+
 ## Copy-paste Orchestrator prompts
 
 Paste any of these to your coding agent. Replace the `<...>` placeholders with your own

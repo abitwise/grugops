@@ -280,7 +280,14 @@ export const CLAIM_KIND_CARDINALITY: readonly {
   // `C-28-027` .. `C-28-030` keep their ids and kinds, so they do not move this number. This gate
   // refused until the number moved; the number was taken from that refusal's own text
   // ("architecture declares 46 but the registry carries 47").
-  { kind: "architecture", count: 47 },
+  // 47 -> 54 (plan 43-10, 2026-11-18; D-09, D-21). SEVEN ROWS ADDED, NONE RECLASSIFIED. `C-28-062`
+  // .. `C-28-068` register the human step of each job on docs/usage.md § Jobs: bootstrap, idea to
+  // tickets, ticket to pull request, the PR gate, the UAT pack, the release and the daily sweep. Each
+  // is `architecture`: it is stated as what the workflow tells the agent or at its checkpoint's
+  // default, asserts no merge or deploy outcome, and the release row points to docs/GUARANTEES.md.
+  // This gate refused until the number moved; the number was taken from that refusal's own text
+  // ("architecture declares 47 but the registry carries 54").
+  { kind: "architecture", count: 54 },
   { kind: "install", count: 8 },
 ];
 

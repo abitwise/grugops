@@ -71,7 +71,9 @@ import {
 // registering the absolutes on docs/concepts.md. Moved BY HAND, in the same commit as the map.
 // 46 -> 47 (plan 43-10, 2026-11-18): `C-28-061` entered as an `architecture` row registering the
 // command sentence on docs/usage.md. Moved BY HAND, in the same commit as the map.
-const MIRROR_ARCHITECTURE_CLAIMS = 47;
+// 47 -> 54 (plan 43-10, 2026-11-18): `C-28-062` .. `C-28-068` entered as `architecture` rows
+// registering the human step of each job on docs/usage.md. Moved BY HAND, in the same commit as the map.
+const MIRROR_ARCHITECTURE_CLAIMS = 54;
 const MIRROR_INSTALL_CLAIMS = 8;
 
 /**

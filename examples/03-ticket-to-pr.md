@@ -23,7 +23,7 @@ On Claude Code, start the session from the sample repo with the Orchestrator as 
 claude --agent grugops-orchestrator
 ```
 
-Other hosts start differently; see the start table in `README.md`. Then type the request:
+Other hosts start differently; see the [start table](../docs/usage.md#start-a-session). Then type the request:
 
 ```text
 implement ABC-001, the GET /version endpoint, as a pull request a human can review

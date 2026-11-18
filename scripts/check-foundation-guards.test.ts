@@ -369,9 +369,10 @@ const GUARD_INPUTS = [
   "agent-factory/workflows/18-context-compaction.md",
   // Phase 23 (D-19): the invoked oracleWr05Wording now scans the per-host tables for asymmetric-flip
   // drift, so mirror them too — otherwise the oracle's CR-01 missing-file fail-red would fire on
-  // every foundation-guards plant case.
+  // every foundation-guards plant case. (Plan 43-10, D-10: the kit README's per-host table moved to
+  // docs/usage.md, so the mirror carries that page in the README's place.)
   "agent-factory/packaging/adapters.md",
-  "agent-factory/README.md",
+  "docs/usage.md",
   // (Plan 31-03, D-08) guard_playwright_mcp_pin reads its pin literal out of this file by fixed
   // subpath and FAILS CLOSED when it is absent. A mirror that did not carry it would red every
   // unrelated plant case on a missing authority instead of on the violation it planted — and the

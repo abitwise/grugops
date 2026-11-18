@@ -21,7 +21,7 @@ Claude Code the developer starts the session with the Orchestrator as the main t
 claude --agent grugops-orchestrator
 ```
 
-Other hosts start differently; see the start table in `README.md`. Then the request:
+Other hosts start differently; see the [start table](../docs/usage.md#start-a-session). Then the request:
 
 ```text
 bootstrap this repo as brownfield — map it, write AGENTS.md and the memory-bank,

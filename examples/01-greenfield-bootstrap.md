@@ -47,7 +47,7 @@ Start the session from the sample with the Orchestrator as the main thread:
 claude --agent grugops-orchestrator
 ```
 
-Other hosts start differently; see the start table in `README.md`. Then type the request:
+Other hosts start differently; see the [start table](../docs/usage.md#start-a-session). Then type the request:
 
 ```text
 bootstrap this version-reporting API as greenfield and propose a safe first ticket

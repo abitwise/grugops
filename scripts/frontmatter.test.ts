@@ -6000,7 +6000,11 @@ describe("frontmatter — the spawn-grant parser oracle (SPAWN-04 / KIT-03)", ()
       // `# Bootstrap an existing repository (brownfield)` among others). A locator that became
       // level-aware but stayed fence-blind would truncate every `## ` section above them AT them —
       // the WR-01 defect one level up, landing in four gates at once instead of one.
-      const WATCHED = ["README.md", "agent-factory/README.md"];
+      // Plan 43-10 (D-10), 2026-11-18: the kit README's fenced prompts (`# Bootstrap an existing
+      // repository (brownfield)` and the rest) moved to docs/usage.md § Copy-paste Orchestrator prompts,
+      // leaving agent-factory/README.md with no fenced heading line, so the page that now carries them
+      // is read in its place.
+      const WATCHED = ["README.md", "docs/usage.md"];
       let checked = 0;
       for (const rel of WATCHED) {
         const text = readFileSync(join(REPO_ROOT, rel), "utf8");

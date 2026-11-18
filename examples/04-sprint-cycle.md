@@ -20,7 +20,7 @@ On Claude Code, start the session from the sample repo with the Orchestrator as 
 claude --agent grugops-orchestrator
 ```
 
-Other hosts start differently; see the start table in `README.md`. Then type the request:
+Other hosts start differently; see the [start table](../docs/usage.md#start-a-session). Then type the request:
 
 ```text
 refine the backlog and plan the next sprint; the goal is to show where the portfolio's money sits

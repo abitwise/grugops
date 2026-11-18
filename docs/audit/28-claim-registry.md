@@ -42,6 +42,12 @@ and prompts moved into `docs/usage.md`, the registry carries **61 rows**: the 60
 `readRegistry().claims.length` at that commit. `C-28-007` and `C-28-027`..`C-28-030` moved to that
 page and kept their ids, so they add no row.
 
+**Annotation, plan 43-10 task 3 — the derived current count after the usage page's jobs, ADDED
+rather than substituted.** The sentence above records 61 rows at the moves' commit. As committed
+with the `## Jobs` section of `docs/usage.md` the registry carries **68 rows**: those 61 plus
+`C-28-062`..`C-28-068`, the human step of each job. The number was DERIVED from
+`readRegistry().claims.length` at that commit.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -993,6 +999,97 @@ grugops is designed so that people make the merge and release decisions. The rol
 
 ```
 On Claude Code each grugops skill has its own command. On another host, start grugops from the [start table](#start-a-session) and name the job in your request; the page linked after each command below shows how to start that skill on each host.
+```
+
+### C-28-062
+
+- file: docs/usage.md
+- line: 113
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). Stated at the checkpoint's default, as C-28-053 is, so lowering the floor does not falsify it. `agent-factory/workflows/01-bootstrap-brownfield.md` § Stop conditions: Security/NFR returns `BLOCKED` on a high-risk finding -> stop, `Do not cut first tickets that build on a blocked risk; resolve the finding first`, `checkpoint: proceed_past_blocked_risk`; `agent-factory/config/factory.config.md` gives that checkpoint the default `block`. The second sentence: workflow 01's `The repo cannot be mapped ... stop and request access or context` and `agent-factory/workflows/00-bootstrap-greenfield.md`'s `The idea is too vague to map — stop and request the missing clarity from the requester`.
+
+```
+**Where you step in:** if the high-risk scan of an existing repository returns `BLOCKED`, the run stops, and no first ticket that builds on that risk is cut until it is resolved, at the default setting of the `proceed_past_blocked_risk` checkpoint. If the idea or the repository is too unclear to map, the run stops and asks you for what is missing.
+```
+
+### C-28-063
+
+- file: docs/usage.md
+- line: 131
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). `agent-factory/workflows/02-idea-to-epics.md` § Stop conditions: `The idea is too vague to scope — stop and request the missing clarity from the requester. Do not invent the user, the pain, or the value.` `agent-factory/workflows/03-epic-to-tickets.md` step 6: `A ticket sized XL is not pulled into dev — emit SPLIT_REQUIRED and split it first`, and `agent-factory/workflows/07-backlog-refinement.md` step 4: `no XL ticket enters dev`.
+
+```
+**Where you step in:** if the idea is too vague to scope, the run stops and asks you for the user, the pain or the value instead of inventing them. A ticket sized `XL` is marked `SPLIT_REQUIRED` and goes back for splitting before development.
+```
+
+### C-28-064
+
+- file: docs/usage.md
+- line: 149
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). Stated as what the workflow tells the agent and at the checkpoint's default, as C-28-053 and C-28-060 are, so it asserts no merge outcome and lowering a floor does not falsify it. `agent-factory/workflows/04-ticket-to-pr.md` § Done condition: `the agent opens a branch and a PR; it never merges. Humans hold merge and deploy.` Its § Stop conditions: the gate ends `BLOCKED_NEEDS_FIX` after its bounded self-fix -> `A named human confirms the Tech Lead's move before the ticket leaves Blocked`, `checkpoint: exhaust_self_fix_budget`, whose default in `agent-factory/config/factory.config.md` is `block`.
+
+```
+**Where you step in:** the workflow tells the agent to open a branch and a pull request and to stop there; you review and merge. If the gate still fails after its self-fix attempts, a named person confirms the Tech Lead's next move before the ticket leaves `Blocked`, at the default setting of the `exhaust_self_fix_budget` checkpoint.
+```
+
+### C-28-065
+
+- file: docs/usage.md
+- line: 176
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). `agent-factory/workflows/05-pr-quality-gate.md` step 6: `A human reviews the PR against agent-factory/checklists/pr-review-checklist.md. A human merges.`, and its § Done condition: `This workflow emits a recommendation that a human reviews; it never auto-merges and never deploys.` The sentence asserts what the gate produces and who decides, not that a merge happens, as C-28-059 does.
+
+```
+**Where you step in:** the result is a recommendation for a person, not a merge: you review the pull request against `agent-factory/checklists/pr-review-checklist.md` and decide whether to merge it.
+```
+
+### C-28-066
+
+- file: docs/usage.md
+- line: 200
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). Stated at the checkpoint's default. `agent-factory/workflows/06-uat-pack.md` step 5 (`Obtain the named human's signoff on the scenarios`) and § Stop conditions: `The acceptance criteria are missing or ambiguous — stop and route the ticket back; never self-sign or fake a pass. A named human signoff is required.`, `checkpoint: sign_off_acceptance`, whose default in `agent-factory/config/factory.config.md` is `block`.
+
+```
+**Where you step in:** a named person signs off on the scenarios, at the default setting of the `sign_off_acceptance` checkpoint. If the acceptance criteria are missing or unclear, the run stops and sends the ticket back; the workflow tells the agent never to sign off for you.
+```
+
+### C-28-067
+
+- file: docs/usage.md
+- line: 214
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). Stated at the checkpoint's default, in the words of the release sentence of C-28-060, so lowering the floor does not falsify it and it names no deploy outcome. `agent-factory/workflows/12-release.md` step 6 (`Record a named human approval, then a named human confirms the production action. The step is keyed to production_requires_human_confirmation: true`) and its § Agents involved: `The Release Manager prepares the release and requires approval; it never deploys prod itself.` The link names docs/GUARANTEES.md, where the enforcement of each floor is joined to the live checkpoint matrix.
+
+```
+**Where you step in:** a release waits for a named person's approval and a named person's confirmation of the production action, at the default setting of the `production_requires_human_confirmation` checkpoint; the Release Manager prepares the release and does not deploy production. See [the safety guarantees](GUARANTEES.md) for where each control is enforced.
+```
+
+### C-28-068
+
+- file: docs/usage.md
+- line: 241
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-10 (D-09, D-21). `agent-factory/workflows/09-daily-sweep.md` step 7 (escalate anything blocked longer than `factory.config.json#blocked_escalation_days`, move its row into `Blocked`, name the blocker) and § Stop conditions: escalate it `and raise it for a human to clear`, `checkpoint: escalate_stale_blocker`; `A WIP limit is already breached — do not recommend a new pull into that column`, `checkpoint: exceed_wip_limit`. Both checkpoints default to `block` in `agent-factory/config/factory.config.md`.
+
+```
+**Where you step in:** a ticket blocked longer than `blocked_escalation_days` moves to `Blocked` with its blocker named and is raised for a person to clear, and the sweep recommends no new pull into a column whose WIP limit is already breached.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

@@ -22,7 +22,7 @@ release lead types the release command:
 
 The `grugops-release` skill ships with `disable-model-invocation: true`, so Claude Code does not
 start a release on its own; a human invokes it. In the Claude Code plugin form the same command is
-`/grugops:release`. Other hosts start differently; see the start table in `README.md`.
+`/grugops:release`. Other hosts start differently; see the [start table](../docs/usage.md#start-a-session).
 
 ## Orchestrator decision
 
