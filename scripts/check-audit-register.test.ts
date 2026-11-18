@@ -73,7 +73,9 @@ import {
 // command sentence on docs/usage.md. Moved BY HAND, in the same commit as the map.
 // 47 -> 54 (plan 43-10, 2026-11-18): `C-28-062` .. `C-28-068` entered as `architecture` rows
 // registering the human step of each job on docs/usage.md. Moved BY HAND, in the same commit as the map.
-const MIRROR_ARCHITECTURE_CLAIMS = 54;
+// 54 -> 56 (plan 43-11, 2026-11-18): `C-28-069` and `C-28-070` entered as `architecture` rows
+// registering the README's tagline and story. Moved BY HAND, in the same commit as the map.
+const MIRROR_ARCHITECTURE_CLAIMS = 56;
 const MIRROR_INSTALL_CLAIMS = 8;
 
 /**

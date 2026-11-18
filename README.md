@@ -1,28 +1,20 @@
-# grugops
+```text
+          ____ ______ __  ______ ____  ____  _____       (
+         / __ `/ ___/ / / / __ `/ __ \/ __ \/ ___/      )\
+    ____/ /_/ / /  / /_/ / /_/ / /_/ / /_/ (__  )    ( /  )
+   /____\__, /_/   \__,_/\__, /\____/ .___/____/      /   (
+       /____/           /____/     /_/              (  /\  )
+                                                     \/  \/
+```
+
+<!-- claim: C-28-069 -->
+# grugops — Specialist agents. Shared context. Coordinated work.
+
+<!-- claim: C-28-070 -->
+grugops gives the coding agent you already use a team of specialist roles for software delivery. One Orchestrator splits each request into subtasks on a shared queue and claims each one for a role agent, which does one job within hard limits and publishes what it found as notes to a shared verified context. A quality gate checks the work and makes a recommendation, and the workflows stop at a pull request and leave merge and deploy to a person. The roles, workflows, board and trace are plain markdown files you can read and diff.
 
 <!-- claim: C-28-001 -->
 grugops is a file-based agent factory for software delivery. It is a small kit of readable markdown — role prompts, workflows, a shared verified context, checklists, a config dial, a visible Kanban/Sprint board, and a traceability trail — plus per-tool installers, that drops on top of a coding-agent CLI you already use (Claude Code, Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, Pi). One Orchestrator decomposes each request into subtasks and enqueues them on a shared queue, drawing on whichever specialist roles the work needs — business analysis, product, system analysis, architecture, engineering, QE/E2E, security/NFR/compliance, UAT, release — while a few single-job "grug" agents claim that work and execute within hard limits. No agent hands data to another; the shared verified context is the only memory between them. It is lean by default and scales to enterprise governance on a single config flag. Humans always hold merge and deploy.
-
-> grug keep it simple.
-
----
-
-<!-- claim: C-28-002 -->
-**The simple software factory.** A full software-delivery lifecycle — analysis, design, build, test, security, UAT, release — as a few simple agents that run on top of the coding-agent CLI you already use.
-
-<!-- claim: C-28-003 -->
-Each agent is grug-brained on purpose: one job, short words, hard limits. Lean by default, enterprise governance on a flag. File-based. No platform. No lock-in.
-
-```bash
-# install for Claude Code (Node 22+), from a grugops checkout (Quickstart step 1)
-node install/install.js --target /path/to/your-project --claude
-# then start Claude Code in that project, with the Orchestrator as the main thread (recommended)
-cd /path/to/your-project && claude --agent grugops-orchestrator
-# or, in a Claude Code session that is already open
-/grugops "bootstrap this repo and propose safe first tickets"
-```
-
-On another coding agent, see [Start a session](docs/usage.md#start-a-session) in the usage guide.
 
 ## Quickstart
 

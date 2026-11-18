@@ -257,7 +257,13 @@ export const CLAIM_KIND_CARDINALITY = [
     // default, asserts no merge or deploy outcome, and the release row points to docs/GUARANTEES.md.
     // This gate refused until the number moved; the number was taken from that refusal's own text
     // ("architecture declares 47 but the registry carries 54").
-    { kind: "architecture", count: 54 },
+    // 54 -> 56 (plan 43-11, 2026-11-18; D-01, D-02, D-25). TWO ROWS ADDED, NONE RECLASSIFIED. `C-28-069`
+    // registers the README's new tagline H1 and `C-28-070` its plain story. Each is `architecture`: the
+    // story says what the workflows tell the agent about merge and deploy and asserts no outcome. The
+    // retired `C-28-002` and `C-28-003` keep their rows and their kind, so they still count here. This
+    // gate refused until the number moved; the number was taken from that refusal's own text
+    // ("architecture declares 54 but the registry carries 56").
+    { kind: "architecture", count: 56 },
     { kind: "install", count: 8 },
 ];
 /**

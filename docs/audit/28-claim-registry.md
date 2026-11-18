@@ -48,6 +48,12 @@ with the `## Jobs` section of `docs/usage.md` the registry carries **68 rows**: 
 `C-28-062`..`C-28-068`, the human step of each job. The number was DERIVED from
 `readRegistry().claims.length` at that commit.
 
+**Annotation, plan 43-11 — the derived current count after the README rewrite, ADDED rather than
+substituted.** The sentences above stand as written. As committed with the new README opening the
+registry carries **70 rows**: the 68 above plus `C-28-069` (the tagline) and `C-28-070` (the story).
+The number was DERIVED from `readRegistry().claims.length` at that commit. `C-28-002` and `C-28-003`
+are now `status: retired` (D-25): their rows and ids stay, so they add and remove no row.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -122,8 +128,8 @@ grugops is a file-based agent factory for software delivery. It is a small kit o
 - line: 11
 - kind: architecture
 - depends_on: —
-- status: true
-- mechanism: `kit-model.listRoles()` returns 17 role files spanning business analysis through release and `listWorkflows()` returns 19 workflow files (measured 2026-08-12); `install/install.ts` lays adapters for all five named host CLIs. The sentence lists lifecycle COVERAGE, not a routing order, so it is not the D-10 linear-pipeline claim.
+- status: retired
+- mechanism: Retired by plan 43-11 (D-25) because the README rewrite (D-01) removed it: the README now opens with the tagline `# grugops — Specialist agents. Shared context. Coordinated work.` (C-28-069) and a plain story (C-28-070), and the words `simple software factory` are gone. The text last stood at `863c81b1` in README.md. While it stood it was measured as follows. `kit-model.listRoles()` returns 17 role files spanning business analysis through release and `listWorkflows()` returns 19 workflow files (measured 2026-08-12); `install/install.ts` lays adapters for all five named host CLIs. The sentence lists lifecycle COVERAGE, not a routing order, so it is not the D-10 linear-pipeline claim.
 
 ```
 **The simple software factory.** A full software-delivery lifecycle — analysis, design, build, test, security, UAT, release — as a few simple agents that run on top of the coding-agent CLI you already use.
@@ -135,8 +141,8 @@ grugops is a file-based agent factory for software delivery. It is a small kit o
 - line: 14
 - kind: architecture
 - depends_on: —
-- status: true
-- mechanism: Restored to `true` by id in plan 40-10 (decision D-34), on the gate output below rather than on assertion. All three halves are measured. `one job` holds — every one of the 19 role files carries a `## One job` section. `hard limits` holds — every one of the 19 carries a `## Hard limits` section, `orchestrator.md` states the coordinator width and claim caps there, and `guard_role_clause_uniqueness` in `scripts/check-foundation-guards.ts` reports `role clause uniqueness: 0 findings over 19/19 elements`. `short words` holds again, now as plain English measured by the writing profile: role bodies are a governed surface of `agent-factory/writing-profile.md`, and `guard_sentence_form` in `scripts/check-imperative-lexicon.ts` governs the role corpus as its fifth part, 20 files (the 19 roles plus `_role-switch-protocol.md`). It bounds a procedural sentence at 20 words (WP-02) and a descriptive one at 25 (WP-03), refuses a modal in a numbered item (WP-05), and reports `corpus: 69 file(s) in 5 part(s) — workflows 19, checklists 15, seedTemplates 12, contracts 3, roles 20` and `sentence form — governed file(s): 0 findings over 69/69 elements`. Its one finding on the first run, the 34-word `## Activates when` sentence of `security-nfr.md`, was reworded rather than exempted (D-32). The caveman voice stays retired: `guard_caveman_voice` reports `caveman voice: 0 findings over 20/20 elements`. The README sentence's `grug-brained` wording is unchanged and left to Phase 43; this row measures the three named halves. WHAT THIS ROW STILL DOES NOT CLAIM, `UNKNOWN - verify`: that short sentences are *effective*. Nothing here asserts a token, comprehension or model-behaviour benefit — see C-28-042.
+- status: retired
+- mechanism: Retired by plan 43-11 (D-25) because the README rewrite (D-01, D-04) removed it: the README now opens with the tagline (C-28-069) and a plain story (C-28-070), and keeps the grug touch only in the art, the grugbrain.dev attribution and the non-affiliation section. This closes the `grug-brained` sentence Phase 40 left to Phase 43 (40-10). The text last stood at `863c81b1` in README.md. While it stood it was measured as follows. Restored to `true` by id in plan 40-10 (decision D-34), on the gate output below rather than on assertion. All three halves are measured. `one job` holds — every one of the 19 role files carries a `## One job` section. `hard limits` holds — every one of the 19 carries a `## Hard limits` section, `orchestrator.md` states the coordinator width and claim caps there, and `guard_role_clause_uniqueness` in `scripts/check-foundation-guards.ts` reports `role clause uniqueness: 0 findings over 19/19 elements`. `short words` holds again, now as plain English measured by the writing profile: role bodies are a governed surface of `agent-factory/writing-profile.md`, and `guard_sentence_form` in `scripts/check-imperative-lexicon.ts` governs the role corpus as its fifth part, 20 files (the 19 roles plus `_role-switch-protocol.md`). It bounds a procedural sentence at 20 words (WP-02) and a descriptive one at 25 (WP-03), refuses a modal in a numbered item (WP-05), and reports `corpus: 69 file(s) in 5 part(s) — workflows 19, checklists 15, seedTemplates 12, contracts 3, roles 20` and `sentence form — governed file(s): 0 findings over 69/69 elements`. Its one finding on the first run, the 34-word `## Activates when` sentence of `security-nfr.md`, was reworded rather than exempted (D-32). The caveman voice stays retired: `guard_caveman_voice` reports `caveman voice: 0 findings over 20/20 elements`. The README sentence's `grug-brained` wording is unchanged and left to Phase 43; this row measures the three named halves. WHAT THIS ROW STILL DOES NOT CLAIM, `UNKNOWN - verify`: that short sentences are *effective*. Nothing here asserts a token, comprehension or model-behaviour benefit — see C-28-042.
 
 ```
 Each agent is grug-brained on purpose: one job, short words, hard limits. Lean by default, enterprise governance on a flag. File-based. No platform. No lock-in.
@@ -1092,6 +1098,32 @@ On Claude Code each grugops skill has its own command. On another host, start gr
 **Where you step in:** a ticket blocked longer than `blocked_escalation_days` moves to `Blocked` with its blocker named and is raised for a person to clear, and the sweep recommends no new pull into a column whose WIP limit is already breached.
 ```
 
+### C-28-069
+
+- file: README.md
+- line: 10
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-11 (D-01, D-02). The tagline names three parts the kit ships. `Specialist agents`: `agent-factory/roles/` holds 19 role files, each with a `## One job` section, and `agent-factory/roles/orchestrator.md` § One job routes each subtask "to the right role agent over the shared queue". `Shared context`: Workflow 16 (`agent-factory/workflows/16-context-read-write.md`) is the shared verified context roles read before work and publish typed notes to, and the Orchestrator's § Hard limits says "the shared verified context is the only channel". `Coordinated work`: one Orchestrator splits each request into subtasks, and Workflow 17 (`agent-factory/workflows/17-task-claim.md`) is the queue it claims them on. It states no merge or deploy outcome, no count and no cost, token or speed benefit.
+
+```
+# grugops — Specialist agents. Shared context. Coordinated work.
+```
+
+### C-28-070
+
+- file: README.md
+- line: 13
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Added by plan 43-11 (D-01, D-02). Four sentences, each measured against the kit. (1) `a team of specialist roles for software delivery` on the coding agent you already use: the roles under `agent-factory/roles/` span business analysis through release, and the installer lays an adapter for each host in `install/host-tools.ts` `HOST_TOOLS`. (2) `agent-factory/roles/orchestrator.md` § One job ("Decompose each request into subtasks and route each to the right role agent over the shared queue"); its § Hard limits says it claims a queue task only at dispatch and only in the name of the adapter it starts, per Workflow 17 (`agent-factory/workflows/17-task-claim.md`); `one job within hard limits` is the `## One job` and `## Hard limits` section every one of the 19 role files carries; `publishes what it found as notes to a shared verified context` is Workflow 16 (`agent-factory/workflows/16-context-read-write.md`). (3) Workflow 5 (`agent-factory/workflows/05-pr-quality-gate.md`): "The Orchestrator recommends; it never auto-merges"; Workflow 4 (`agent-factory/workflows/04-ticket-to-pr.md`) § Done condition: "the agent opens a branch and a PR; it never merges. Humans hold merge and deploy." The sentence says what the workflows tell the agent; it asserts no merge or deploy outcome, and docs/how-it-works.md § A person merges and deploys (C-28-054) names the git host as the hard floor. (4) Role, workflow, board (`memory-bank/plans/board.md`) and trace (`memory-bank/plans/traceability/`) files are markdown. No sentence states a count, a cost, token or speed benefit.
+
+```
+grugops gives the coding agent you already use a team of specialist roles for software delivery. One Orchestrator splits each request into subtasks on a shared queue and claims each one for a role agent, which does one job within hard limits and publishes what it found as notes to a shared verified context. A quality gate checks the work and makes a recommendation, and the workflows stop at a pull request and leave merge and deploy to a person. The roles, workflows, board and trace are plain markdown files you can read and diff.
+```
+
 ## The unanchorable claim — `.claude-plugin/plugin.json`
 
 C-28-038 above is registered like every other row and is **excluded from the D-16 bijection by
@@ -1214,6 +1246,9 @@ every row of each kind, retired ones included, because retiring a row does not d
 
 **As committed by plan 43-01: zero rows are `retired`.** Plan 43-11 retires the first ones when it
 removes their text from `README.md`.
+
+**As committed by plan 43-11 task 1: two rows are `retired`,** `C-28-002` and `C-28-003`, the old
+tagline and the `grug-brained` sentence the README rewrite removed.
 
 ## Two-sided completeness (D-14)
 
