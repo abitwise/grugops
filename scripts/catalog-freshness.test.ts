@@ -30,15 +30,25 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { ROLE_COUNT } from "./kit-model.js";
+import { PLUGIN_SKILL_ADAPTER_COUNT, ROLE_COUNT } from "./kit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GATE_JS = join(ROOT, "scripts", "catalog-freshness.js");
 const at = (root: string, rel: string): string => join(root, ...rel.split("/"));
 
-// The judged inputs a mirror carries: the two kit source directories and the committed reference tree.
-const MIRRORED_DIRS = ["agent-factory/roles", "agent-factory/workflows", "docs/reference"] as const;
+// The judged inputs a mirror carries: the generator's data (the kit roles and workflows, the plugin skills,
+// the standalone skill twins and the plugin manifest's directory) and the committed reference tree.
+const MIRRORED_DIRS = [
+  "agent-factory/roles",
+  "agent-factory/workflows",
+  "skills",
+  ".claude/skills",
+  ".claude-plugin",
+  "docs/reference",
+] as const;
 const FRESH_MARKER = "Reference fresh:";
+// The page total: the index, one page per role and one page per plugin skill (plan 43-05, D-15, D-16).
+const PAGE_TOTAL = 1 + ROLE_COUNT + PLUGIN_SKILL_ADAPTER_COUNT;
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -97,17 +107,17 @@ const GATE_TMP_PREFIX = ((): string => {
 const gateTempEntries = (): string[] => readdirSync(tmpdir()).filter((n) => n.startsWith(GATE_TMP_PREFIX));
 
 describe("catalog-freshness.js (the reference-tree freshness gate)", () => {
-  it(`green on the committed tree: compared ${ROLE_COUNT + 1} page(s) (the index and one page per role), 0 difference(s)`, () => {
+  it(`green on the committed tree: compared ${PAGE_TOTAL} page(s) (the index, one page per role and one per plugin skill), 0 difference(s)`, () => {
     const r = runGate();
     expect(r.status, r.stdout + r.stderr).toBe(0);
     expect(r.stdout).toContain(FRESH_MARKER);
-    expect(r.stdout).toContain(`compared ${ROLE_COUNT + 1} page(s), 0 difference(s)`);
+    expect(r.stdout).toContain(`compared ${PAGE_TOTAL} page(s), 0 difference(s)`);
   });
 
   it("P0 (premise control): the unmutated mirror is fresh, so every red below is the plant's", () => {
     const r = runGate(mirror());
     expect(r.status, r.stdout + r.stderr).toBe(0);
-    expect(r.stdout).toContain(`compared ${ROLE_COUNT + 1} page(s), 0 difference(s)`);
+    expect(r.stdout).toContain(`compared ${PAGE_TOTAL} page(s), 0 difference(s)`);
   });
 
   it("STALE: one byte of drift planted in docs/reference/README.md is named, and no fresh line is printed", () => {
@@ -149,7 +159,30 @@ describe("catalog-freshness.js (the reference-tree freshness gate)", () => {
     rmSync(at(m, "docs/reference"), { recursive: true, force: true });
     const r = runRed(m);
     expect(r.stdout).toContain("MISSING: docs/reference/README.md");
-    expect(r.stdout).toContain(`compared 0 page(s), ${ROLE_COUNT + 1} difference(s)`);
+    expect(r.stdout).toContain(`compared 0 page(s), ${PAGE_TOTAL} difference(s)`);
+  });
+
+  it("MISSING: a deleted skill page is named (plan 43-05)", () => {
+    const m = mirror();
+    rmSync(at(m, "docs/reference/skills/gate.md"), { force: true });
+    const r = runRed(m);
+    expect(r.stdout).toContain("MISSING: docs/reference/skills/gate.md");
+  });
+
+  it("a data source that did not land is refused by name: no plugin skills directory (plan 43-05)", () => {
+    const m = mirror();
+    rmSync(at(m, "skills"), { recursive: true, force: true });
+    const r = runRed(m);
+    expect(r.stdout).toContain("did not land in the mirror");
+    expect(r.stdout).toMatch(/data source\(s\) [^\n]*\bskills\b/);
+  });
+
+  it("a data source that did not land is refused by name: no plugin manifest (plan 43-05)", () => {
+    const m = mirror();
+    rmSync(at(m, ".claude-plugin/plugin.json"), { force: true });
+    const r = runRed(m);
+    expect(r.stdout).toContain("did not land in the mirror");
+    expect(r.stdout).toContain(".claude-plugin/plugin.json");
   });
 
   it("a link at a page path is never read through: named as not a regular file", () => {
@@ -167,7 +200,7 @@ describe("catalog-freshness.js (the reference-tree freshness gate)", () => {
     const m = mirror();
     writeFileSync(at(m, "agent-factory/roles/zzz-badrole.md"), "---\nkind: role\ntier: core\n---\n\nNo H1 here.\n");
     const before = snapshot(at(m, "docs/reference"));
-    expect(before.size, "PREMISE: the mirror carries the committed pages").toBe(ROLE_COUNT + 1);
+    expect(before.size, "PREMISE: the mirror carries the committed pages").toBe(PAGE_TOTAL);
     const r = runRed(m);
     expect(r.stdout).toContain("Reference freshness check FAILED: the generator did not run cleanly");
     expect(r.stderr).toContain("zzz-badrole.md: no `# Role:` H1");
@@ -222,6 +255,35 @@ describe("catalog-freshness.js (the reference-tree freshness gate)", () => {
     ].join("\n");
     const r = runRed(mirror(), fakeRoot(stub));
     expect(r.stdout).toContain(`wrote ${ROLE_COUNT + 1} page(s) under docs/reference/agents/, expected exactly ROLE_COUNT = ${ROLE_COUNT}`);
+  });
+
+  // A stub that writes the index, exactly ROLE_COUNT role pages and `skills` skill pages, so the role check
+  // passes and only the skill count can refuse (plan 43-05, D-16, D-17).
+  const skillStub = (skills: number): string =>
+    [
+      'import { mkdirSync, writeFileSync } from "node:fs";',
+      'import { join } from "node:path";',
+      'const out = join(import.meta.dirname, "..", "docs", "reference");',
+      'mkdirSync(join(out, "agents"), { recursive: true });',
+      'mkdirSync(join(out, "skills"), { recursive: true });',
+      'writeFileSync(join(out, "README.md"), "x\\n");',
+      `for (let i = 0; i < ${ROLE_COUNT}; i += 1) writeFileSync(join(out, "agents", "r" + i + ".md"), "x\\n");`,
+      `for (let i = 0; i < ${skills}; i += 1) writeFileSync(join(out, "skills", "s" + i + ".md"), "x\\n");`,
+      "",
+    ].join("\n");
+
+  it("PLUGIN_SKILL_ADAPTER_COUNT, two-sided: a regeneration that writes one skill page too few is refused", () => {
+    const r = runRed(mirror(), fakeRoot(skillStub(PLUGIN_SKILL_ADAPTER_COUNT - 1)));
+    expect(r.stdout).toContain(
+      `wrote ${PLUGIN_SKILL_ADAPTER_COUNT - 1} page(s) under docs/reference/skills/, expected exactly PLUGIN_SKILL_ADAPTER_COUNT = ${PLUGIN_SKILL_ADAPTER_COUNT}`,
+    );
+  });
+
+  it("PLUGIN_SKILL_ADAPTER_COUNT, two-sided: a regeneration that writes one skill page too many is refused", () => {
+    const r = runRed(mirror(), fakeRoot(skillStub(PLUGIN_SKILL_ADAPTER_COUNT + 1)));
+    expect(r.stdout).toContain(
+      `wrote ${PLUGIN_SKILL_ADAPTER_COUNT + 1} page(s) under docs/reference/skills/, expected exactly PLUGIN_SKILL_ADAPTER_COUNT = ${PLUGIN_SKILL_ADAPTER_COUNT}`,
+    );
   });
 
   it("no leftovers: a run that refuses (no role directory in the judged tree) still removes its temp mirror", () => {

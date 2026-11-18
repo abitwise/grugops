@@ -33,16 +33,19 @@ import {
   symlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import {
+  PLUGIN_SKILL_ADAPTER_COUNT,
   ROLE_COUNT,
   WORKFLOW_COUNT,
   WORKFLOWS_SUBPATH,
   isNumberedWorkflowFile,
   listRoleDisplayNames,
+  listPluginSkillAdapters,
   listRoles,
   listWorkflowDisplayNames,
 } from "./kit-model.js";
+import { parseFrontmatter } from "./frontmatter.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-catalog.js");
@@ -68,16 +71,51 @@ afterAll(() => {
 //
 // THE WALK IS FLOORED: an empty closure would mirror nothing and every case below would silently be
 // running a generator that cannot start.
-function importClosure(entry: string, seen = new Set<string>()): Set<string> {
-  const src = readFileSync(join(ROOT, "scripts", entry), "utf8");
-  for (const m of src.matchAll(/from\s+"\.\/([A-Za-z0-9._-]+\.js)"/g)) {
-    if (seen.has(m[1])) continue;
-    seen.add(m[1]);
-    importClosure(m[1], seen);
+//
+// (Plan 43-05) THE CLOSURE IS REPO-RELATIVE. The generator reads the host registry through
+// `../install/host-tools.js`, a module outside scripts/, so each member is a POSIX path from the
+// repository root (`scripts/frontmatter.js`, `install/host-tools.js`), resolved against the importing
+// module's own directory.
+function importClosure(entryRel: string, seen = new Set<string>()): Set<string> {
+  const src = readFileSync(join(ROOT, ...entryRel.split("/")), "utf8");
+  for (const m of src.matchAll(/from\s+"(\.\.?\/[A-Za-z0-9._/-]+\.js)"/g)) {
+    const rel = posix.normalize(posix.join(posix.dirname(entryRel), m[1]));
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    importClosure(rel, seen);
   }
   return seen;
 }
-const GEN_MODULES = [...importClosure("generate-catalog.js")].sort();
+const GEN_MODULES = [...importClosure("scripts/generate-catalog.js")].sort();
+
+// The generator's DATA inputs (plan 43-05): the kit roles and workflows, the plugin skills it pages,
+// the standalone skill twins it reads Claude Code's command names from, and the plugin manifest it
+// reads the plugin name and repository URL from. Data, not imports, so no import walk finds them.
+const GEN_DATA = [
+  "agent-factory/roles",
+  "agent-factory/workflows",
+  "skills",
+  ".claude/skills",
+  ".claude-plugin",
+] as const;
+
+/** Copy the committed generator, its import closure and its data into the mirror `m`. */
+function mirrorGeneratorInto(m: string): void {
+  // NOT VACUOUS: the generator imports the section-locator authority, so an empty closure means
+  // the derivation read the wrong file and a case would exit 1 on a module-resolution error while
+  // its sentinel survived, passing for a reason that has nothing to do with the refusal it names.
+  expect(
+    GEN_MODULES,
+    "the generator's import closure came back empty — the mirror would be one module short and a case would go green on ERR_MODULE_NOT_FOUND",
+  ).toContain("scripts/frontmatter.js");
+  mkdirSync(join(m, "scripts"), { recursive: true });
+  mkdirSync(join(m, "docs", "reference"), { recursive: true });
+  cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
+  for (const rel of [...GEN_MODULES, ...GEN_DATA]) {
+    mkdirSync(dirname(join(m, ...rel.split("/"))), { recursive: true });
+    cpSync(join(ROOT, ...rel.split("/")), join(m, ...rel.split("/")), { recursive: true });
+  }
+}
 
 // ── The committed reference tree, snapshotted and restored as a whole (plan 43-04) ──────────────
 // The generator writes the index and one page per role and deletes any stray page under
@@ -141,6 +179,11 @@ function restoreReference(snap: Map<string, Buffer>): void {
 // fixture-agreement case below holds both sets against ROLE_COUNT and WORKFLOW_COUNT, which
 // guard_kit_counts pins two-sided.
 const ROLE_NAMES: readonly string[] = listRoleDisplayNames(ROOT);
+// The skill ops (plan 43-05, D-15, D-17): the directory name of each listPluginSkillAdapters() entry,
+// whose page is docs/reference/skills/<op>.md. The page total is the index, one page per role and one
+// per plugin skill, each count a kit-model constant pinned two-sided elsewhere, never typed here.
+const SKILL_OPS: readonly string[] = listPluginSkillAdapters(ROOT).map((rel) => rel.slice(0, -"/SKILL.md".length));
+const PAGE_TOTAL = 1 + ROLE_COUNT + PLUGIN_SKILL_ADAPTER_COUNT;
 const WORKFLOW_NAMES: readonly string[] = listWorkflowDisplayNames(ROOT);
 
 // Count data rows in a GitHub-flavored markdown table body for a given source-dir prefix.
@@ -160,8 +203,8 @@ describe("generate-catalog.js (DOCS-01)", () => {
     try {
       expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
       const after = snapshotReference();
-      // The index and one page per role, and nothing else.
-      expect(after.size).toBe(ROLE_COUNT + 1);
+      // The index, one page per role and one page per plugin skill, and nothing else.
+      expect(after.size).toBe(PAGE_TOTAL);
       expect(after.get("README.md")?.length ?? 0).toBeGreaterThan(0);
       // The committed tree IS the generator's deterministic output, so a regen is a no-op.
       expect(sameSnapshot(after, before)).toBe(true);
@@ -182,7 +225,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
       expect(r2.status).toBe(0);
       const second = snapshotReference();
       // Every page, not only the index: two runs give the same page set and the same bytes.
-      expect(first.size).toBe(ROLE_COUNT + 1);
+      expect(first.size).toBe(PAGE_TOTAL);
       expect(sameSnapshot(second, first)).toBe(true);
       expect(sameSnapshot(second, before)).toBe(true);
     } finally {
@@ -274,27 +317,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
   it("fail-closed: a kit file with no H1 → exit 1, no partial write", () => {
     const m = mkdtempSync(join(tmpdir(), "grugops-catalog-"));
     tmpDirs.push(m);
-    mkdirSync(join(m, "scripts"), { recursive: true });
-    mkdirSync(join(m, "docs", "reference"), { recursive: true });
-    cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
-    // NOT VACUOUS: the generator imports the section-locator authority, so an empty closure means
-    // the derivation read the wrong file and this case would exit 1 on a module-resolution error
-    // while the sentinel survived — passing for a reason that has nothing to do with the H1 check.
-    expect(
-      GEN_MODULES,
-      "the generator's import closure came back empty — the mirror would be one module short and this case would go green on ERR_MODULE_NOT_FOUND",
-    ).toContain("frontmatter.js");
-    for (const mod of GEN_MODULES) {
-      cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
-    }
-    cpSync(join(ROOT, "agent-factory", "roles"), join(m, "agent-factory", "roles"), {
-      recursive: true,
-    });
-    cpSync(
-      join(ROOT, "agent-factory", "workflows"),
-      join(m, "agent-factory", "workflows"),
-      { recursive: true },
-    );
+    mirrorGeneratorInto(m);
 
     // Tamper: strip the `# Role:` H1 line from one mirrored role file (a missing name = drift).
     const victim = join(m, "agent-factory", "roles", "orchestrator.md");
@@ -411,6 +434,74 @@ describe("generate-catalog.js (DOCS-01)", () => {
     expect(onDisk).toEqual(roles);
   });
 
+  // ── The skill pages (plan 43-05, D-15, D-16, D-17) ───────────────────────────────────────────
+  //
+  // One page per plugin skill at docs/reference/skills/<op>.md, for every member of kit-model
+  // listPluginSkillAdapters(); each opens with the provenance line and `# <op>`, gives the skill's
+  // frontmatter `description`, its `allowed-tools`, and its source as a repository URL (skills/ does
+  // not ship to the kit home, so a relative link would be dead there). The expected values are read
+  // here through the one frontmatter authority, never typed.
+  const PLUGIN_JSON = JSON.parse(readFileSync(join(ROOT, ".claude-plugin", "plugin.json"), "utf8")) as {
+    name: string;
+    repository: string;
+  };
+  const skillField = (op: string, key: string): string[] => {
+    const parsed = parseFrontmatter(readFileSync(join(ROOT, "skills", op, "SKILL.md"), "utf8"));
+    if (!parsed.ok) throw new Error(`skills/${op}/SKILL.md: unreadable frontmatter — ${parsed.reason}`);
+    return parsed.value.get(key) ?? [];
+  };
+  /** The pages a run wrote under <m>/docs/reference/skills/, or an empty list when none were. */
+  const skillPagesIn = (m: string): string[] => {
+    const dir = join(m, "docs", "reference", "skills");
+    return existsSync(dir) ? readdirSync(dir).sort() : [];
+  };
+
+  it("writes one page per listPluginSkillAdapters() member under docs/reference/skills/, each with the provenance line, `# <op>`, the description, the allowed tools and the repository-URL source", () => {
+    const m = catalogMirror();
+    const run = runMirror(m);
+    expect(run.status, run.text).toBe(0);
+    expect(SKILL_OPS.length, "PREMISE: the plugin skill set is not empty").toBeGreaterThan(0);
+    // Two-sided: the page set is exactly the plugin skill set, named by the op.
+    expect(skillPagesIn(m)).toEqual(SKILL_OPS.map((op) => `${op}.md`).sort());
+    expect(skillPagesIn(m).length).toBe(PLUGIN_SKILL_ADAPTER_COUNT);
+    for (const op of skillPagesIn(m).map((f) => f.slice(0, -".md".length))) {
+      const page = readFileSync(join(m, "docs", "reference", "skills", `${op}.md`), "utf8");
+      const lines = page.split("\n");
+      expect(lines[0], op).toBe(PROVENANCE);
+      expect(lines[1], op).toBe(`# ${op}`);
+      const [description] = skillField(op, "description");
+      expect(description, `PREMISE: skills/${op}/SKILL.md has a description`).toBeTruthy();
+      expect(lines[3], op).toBe(description);
+      // The allowed tools, as the authority reads the block sequence, under their own heading.
+      const [tools] = skillField(op, "allowed-tools");
+      expect(tools, `PREMISE: skills/${op}/SKILL.md has allowed-tools`).toBeTruthy();
+      const at = lines.indexOf("## Allowed tools");
+      expect(at, `${op}: no ## Allowed tools heading`).toBeGreaterThan(0);
+      expect(lines[at + 2], op).toBe(tools);
+      // The source is the repository URL of the plugin skill file; the twin is named as generated.
+      const url = `${PLUGIN_JSON.repository}/blob/main/skills/${op}/SKILL.md`;
+      expect(page, op).toContain(`Source: [skills/${op}/SKILL.md](${url})`);
+      expect(page, op).toContain("npm run freshness:skill-twins");
+      expect(page.endsWith("\n") && !page.endsWith("\n\n"), `${op}: one trailing newline`).toBe(true);
+    }
+  });
+
+  it("the committed index has one `## Skills` table that links exactly the committed skill pages, both ways, and both equal the plugin skill ops", () => {
+    // Read-only over the committed tree: the index's `skills/<op>.md` link targets, the files under
+    // docs/reference/skills/ and the kit-model plugin skill set are three derivations of one fact.
+    const index = readFileSync(OUT, "utf8");
+    expect(index.split("\n").filter((l) => l === "## Skills").length, "one ## Skills heading").toBe(1);
+    const linked = [...index.matchAll(/\]\(skills\/([^)\s/]+\.md)\)/g)].map((x) => x[1]).sort();
+    const onDisk = skillPagesIn(ROOT);
+    const ops = SKILL_OPS.map((op) => `${op}.md`).sort();
+    expect(ops.length, "PREMISE: the plugin skill set is not empty").toBeGreaterThan(0);
+    expect(new Set(linked).size, "each skill page is linked once").toBe(linked.length);
+    expect(linked.filter((f) => !onDisk.includes(f)), "linked from the index, no page on disk").toEqual([]);
+    expect(onDisk.filter((f) => !linked.includes(f)), "a page on disk the index does not link").toEqual([]);
+    expect(linked).toEqual(ops);
+    expect(onDisk).toEqual(ops);
+  });
+
   it("deletes a stray .md page under docs/reference/ and leaves a non-page file alone", () => {
     const m = catalogMirror();
     expect(runMirror(m).status).toBe(0);
@@ -457,26 +548,9 @@ describe("generate-catalog.js (DOCS-01)", () => {
   it("fail-closed: two workflows declaring the same `order` → exit 1 naming both files, no partial write", () => {
     const m = mkdtempSync(join(tmpdir(), "grugops-catalog-dup-order-"));
     tmpDirs.push(m);
-    mkdirSync(join(m, "scripts"), { recursive: true });
-    mkdirSync(join(m, "docs", "reference"), { recursive: true });
-    cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
-    // NOT VACUOUS — same attribution the H1 case above makes: an empty closure would leave the mirror
-    // a module short and this case would exit 1 on ERR_MODULE_NOT_FOUND while claiming a refusal.
-    expect(
-      GEN_MODULES,
-      "the generator's import closure came back empty — the mirror would be one module short and this case would go green on ERR_MODULE_NOT_FOUND",
-    ).toContain("frontmatter.js");
-    for (const mod of GEN_MODULES) {
-      cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
-    }
-    cpSync(join(ROOT, "agent-factory", "roles"), join(m, "agent-factory", "roles"), {
-      recursive: true,
-    });
-    cpSync(
-      join(ROOT, "agent-factory", "workflows"),
-      join(m, "agent-factory", "workflows"),
-      { recursive: true },
-    );
+    // NOT VACUOUS — mirrorGeneratorInto asserts the closure holds the frontmatter authority, the same
+    // attribution the H1 case above makes.
+    mirrorGeneratorInto(m);
 
     // Tamper: give a second workflow an order another one already declares. The DONOR's value is read
     // off the mirrored corpus rather than typed here, so this fixture cannot go stale against a kit
@@ -686,20 +760,7 @@ describe("generate-catalog.js (DOCS-01)", () => {
   function catalogMirror(): string {
     const m = mkdtempSync(join(tmpdir(), "grugops-catalog-extent-"));
     tmpDirs.push(m);
-    mkdirSync(join(m, "scripts"), { recursive: true });
-    mkdirSync(join(m, "docs", "reference"), { recursive: true });
-    cpSync(GEN_JS, join(m, "scripts", "generate-catalog.js"));
-    for (const mod of GEN_MODULES) {
-      cpSync(join(ROOT, "scripts", mod), join(m, "scripts", mod));
-    }
-    cpSync(join(ROOT, "agent-factory", "roles"), join(m, "agent-factory", "roles"), {
-      recursive: true,
-    });
-    cpSync(
-      join(ROOT, "agent-factory", "workflows"),
-      join(m, "agent-factory", "workflows"),
-      { recursive: true },
-    );
+    mirrorGeneratorInto(m);
     return m;
   }
   const runMirror = (m: string): { status: number | null; text: string } => {
