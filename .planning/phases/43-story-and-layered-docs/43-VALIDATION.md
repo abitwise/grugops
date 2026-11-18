@@ -3,9 +3,9 @@ phase: "43"
 slug: "story-and-layered-docs"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-17"
 ---
 
@@ -46,18 +46,18 @@ Filled in by the planner from the plans. Requirement-to-command map from researc
 
 | Requirement | Behavior | Test Type | Automated Command | File Exists | Status |
 |-------------|----------|-----------|-------------------|-------------|--------|
-| STORY-01 | README opens with the tagline; no "simple software factory" | unit (text) | `npx vitest run scripts/check-story-docs.test.ts` | ❌ W0 | ⬜ pending |
-| STORY-01 | Moved and new claims verbatim at anchors | gate | `npm run check:claim-anchors && npm run check:audit-register` | ✅ | ⬜ pending |
-| STORY-02 | Docs index links to every reference page | unit | `npx vitest run scripts/generate-catalog.test.ts` | ✅ (extend) | ⬜ pending |
-| STORY-02 | Examples free of hand-trace shapes | unit | `npx vitest run scripts/trace-instructions.test.ts` | ✅ (extend scan set) | ⬜ pending |
-| STORY-02 | Start table and host prose bound to the registry | unit | `npx vitest run install/host-entry-docs.test.ts install/host-tools-prose.test.ts` | ✅ (re-target) | ⬜ pending |
-| STORY-03 | Page per role and skill; missing, extra or stale is red | gate + unit | `npm run freshness:catalog && npx vitest run scripts/catalog-freshness.test.ts` | ✅ (rewrite) | ⬜ pending |
-| STORY-04 | New pages in the corpus before written; pins moved | gate | `npm run check:public-docs && npm run check:banned-claims` | ✅ | ⬜ pending |
-| STORY-04 | Retired rows kept by id; text absent | gate + unit | `npm run check:claim-anchors && npx vitest run scripts/check-claim-anchors.test.ts scripts/audit-model.test.ts` | ✅ (extend) | ⬜ pending |
-| STORY-05 | GAP-D1 sentence wherever "parallel"; `CLAUDE.md` names no `/grug`; no dead shipped links | gate + unit | `npm run check:story-docs && npx vitest run scripts/check-story-docs.test.ts` | ❌ W0 | ⬜ pending |
-| STORY-05 | No cost or token claims | gate | `npm run check:banned-claims` | ✅ | ⬜ pending |
-| STORY-05 | `CLAUDE.md` line-83 citation intact | unit | `npx vitest run scripts/model-dial-consistency.test.ts` | ✅ | ⬜ pending |
-| D-11 | Docs ship to the kit home; record, prune and update | integration | `npx vitest run install/installer-kit-home.test.ts install/installer-prune.test.ts install/installer-fs-census.test.ts install/ledger.test.ts install/installer-dry-run.test.ts` | ✅ (re-pin) | ⬜ pending |
+| STORY-01 | README opens with the tagline; no "simple software factory" | unit (text) | `npx vitest run scripts/check-story-docs.test.ts` | ✅ | ✅ green |
+| STORY-01 | Moved and new claims verbatim at anchors | gate | `npm run check:claim-anchors && npm run check:audit-register` | ✅ | ✅ green |
+| STORY-02 | Docs index links to every reference page | unit | `npx vitest run scripts/generate-catalog.test.ts` | ✅ (extend) | ✅ green |
+| STORY-02 | Examples free of hand-trace shapes | unit | `npx vitest run scripts/trace-instructions.test.ts` | ✅ (extend scan set) | ✅ green |
+| STORY-02 | Start table and host prose bound to the registry | unit | `npx vitest run install/host-entry-docs.test.ts install/host-tools-prose.test.ts` | ✅ (re-target) | ✅ green |
+| STORY-03 | Page per role and skill; missing, extra or stale is red | gate + unit | `npm run freshness:catalog && npx vitest run scripts/catalog-freshness.test.ts` | ✅ (rewrite) | ✅ green |
+| STORY-04 | New pages in the corpus before written; pins moved | gate | `npm run check:public-docs && npm run check:banned-claims` | ✅ | ✅ green |
+| STORY-04 | Retired rows kept by id; text absent | gate + unit | `npm run check:claim-anchors && npx vitest run scripts/check-claim-anchors.test.ts scripts/audit-model.test.ts` | ✅ (extend) | ✅ green |
+| STORY-05 | GAP-D1 sentence wherever "parallel"; `CLAUDE.md` names no `/grug`; no dead shipped links | gate + unit | `npm run check:story-docs && npx vitest run scripts/check-story-docs.test.ts` | ✅ | ✅ green |
+| STORY-05 | No cost or token claims | gate | `npm run check:banned-claims` | ✅ | ✅ green |
+| STORY-05 | `CLAUDE.md` line-83 citation intact | unit | `npx vitest run scripts/model-dial-consistency.test.ts` | ✅ | ✅ green |
+| D-11 | Docs ship to the kit home; record, prune and update | integration | `npx vitest run install/installer-kit-home.test.ts install/installer-prune.test.ts install/installer-fs-census.test.ts install/ledger.test.ts install/installer-dry-run.test.ts` | ✅ (re-pin) | ✅ green (one installer-fs-census case fails on Node v26 `openAsBlobSync`; a 43-BASELINE.md failure that predates the phase) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -90,40 +90,40 @@ plan runs that test file and checks with `git grep` that no row under docs/refer
 
 | Wave | Plan | Task | Requirement | Automated command (first verify line) | Status |
 |------|------|------|-------------|----------------------------------------|--------|
-| 1 | 43-01 | 1 tracer | STORY-04 | `npm run build && npx vitest run scripts/check-claim-anchors.test.ts scripts/audit-model.test.ts` | ⬜ |
-| 1 | 43-01 | 2 | STORY-04 | same files plus `scripts/check-audit-register.test.ts scripts/generate-guarantees.test.ts` | ⬜ |
-| 1 | 43-01 | 3 | STORY-04 | `node scripts/check-claim-anchors.js && node scripts/check-audit-register.js && npx vitest run scripts/audit-model.test.ts` | ⬜ |
-| 1 | 43-02 | 1 tracer | STORY-04 | `npx vitest run scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts`; guards file vs its own pre-edit run | ⬜ |
-| 1 | 43-02 | 2 | STORY-04 | `npx vitest run install/installer-kit-home.test.ts scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts` | ⬜ |
-| 2 | 43-03 | 1 tracer | STORY-05 | `npx vitest run scripts/check-story-docs.test.ts scripts/model-dial-consistency.test.ts install/host-entry-docs.test.ts …` | ⬜ |
-| 2 | 43-03 | 2 | STORY-05 | `npx vitest run scripts/check-story-docs.test.ts install/message-references.test.ts …` | ⬜ |
-| 2 | 43-03 | 3 | STORY-05, STORY-02 | `npx vitest run scripts/check-story-docs.test.ts scripts/skills-kit-text.test.ts scripts/check-claim-anchors.test.ts scripts/frontmatter.test.ts`; guards file whole | ⬜ |
-| 3 | 43-04 | 1 tracer | STORY-03 | `npm run generate:catalog`, then `git status --porcelain --untracked-files=all -- docs/reference` empty, then `npx vitest run scripts/catalog-freshness.test.ts scripts/generate-catalog.test.ts`; guards file whole | ⬜ |
-| 3 | 43-04 | 2 | STORY-03 | `npx vitest run scripts/catalog-freshness.test.ts scripts/generate-catalog.test.ts scripts/kit-model.test.ts scripts/frontmatter.test.ts …`; guards file whole | ⬜ |
-| 3 | 43-06 | 1 tracer | STORY-02 (D-11, D-27) | `npx vitest run install/installer-kit-home.test.ts install/ledger.test.ts` | ⬜ |
-| 3 | 43-06 | 2 | STORY-02 | `npx vitest run install/installer-fs-census.test.ts install/installer-cross-version.test.ts install/marker-binding.test.ts …`; guards file whole (detection) | ⬜ |
-| 3 | 43-07 | 1-3 | STORY-02 | the ad hoc four-pattern hand-trace scan over examples/01-03 plus `check:story-docs` and the corpus gates | ⬜ |
-| 3 | 43-08 | 1-2 | STORY-02, STORY-05 | the ad hoc four-pattern hand-trace scan over examples/04-05 plus the corpus gates | ⬜ |
-| 4 | 43-05 | 1 tracer | STORY-03 | `npm run generate:catalog`, porcelain check over docs/reference, `npx vitest run scripts/catalog-freshness.test.ts scripts/generate-catalog.test.ts`; guards file whole | ⬜ |
-| 4 | 43-05 | 2 | STORY-03 | `npx vitest run scripts/generate-catalog.test.ts scripts/catalog-freshness.test.ts install/host-entry-docs.test.ts install/host-tools-prose.test.ts`; guards file whole | ⬜ |
-| 4 | 43-15 | 1 tracer | STORY-02 (D-11) | `npx vitest run install/installer-kit-home.test.ts install/installer-dry-run.test.ts install/installer-prune.test.ts install/ledger.test.ts` | ⬜ |
-| 4 | 43-15 | 2 | STORY-02 | `npx vitest run install/message-references.test.ts install/installer-cross-version.test.ts …` | ⬜ |
-| 5 | 43-14 | 1 tracer | STORY-03 | `npx vitest run scripts/generate-catalog.test.ts scripts/catalog-freshness.test.ts install/host-entry-docs.test.ts install/host-tools-prose.test.ts …`; guards file whole | ⬜ |
-| 5 | 43-14 | 2 | STORY-03 (D-13) | `npx vitest run scripts/generate-catalog.test.ts scripts/model-dial-consistency.test.ts scripts/catalog-freshness.test.ts`; guards file whole | ⬜ |
-| 5 | 43-09 | 1-3 | STORY-02, STORY-04 | `node scripts/check-claim-anchors.js && node scripts/check-audit-register.js && … && npm run check:story-docs` | ⬜ |
-| 6 | 43-10 | 1-3 | STORY-02, STORY-04 | `npx vitest run install/host-entry-docs.test.ts install/host-tools.test.ts scripts/check-uat-oracles.test.ts …` and the job-section check | ⬜ |
-| 7 | 43-11 | 1-3 | STORY-01, STORY-04 | the claim gates, `npm run freshness:guarantees`, `npx vitest run scripts/check-story-docs.test.ts …`; the retired-commit live case; guards file whole (Task 3) | ⬜ |
-| 8 | 43-12 | 1-3 | STORY-05 | `npx vitest run scripts/trace-instructions.test.ts`; the reader review; the phase gate against 43-BASELINE.md, with late guard pin moves | ⬜ |
-| 9 | 43-13 | 1-3 | SC-6 | evidence files exist and carry no home path; the human decides by typed name (manual) | ⬜ |
+| 1 | 43-01 | 1 tracer | STORY-04 | `npm run build && npx vitest run scripts/check-claim-anchors.test.ts scripts/audit-model.test.ts` | ✅ |
+| 1 | 43-01 | 2 | STORY-04 | same files plus `scripts/check-audit-register.test.ts scripts/generate-guarantees.test.ts` | ✅ |
+| 1 | 43-01 | 3 | STORY-04 | `node scripts/check-claim-anchors.js && node scripts/check-audit-register.js && npx vitest run scripts/audit-model.test.ts` | ✅ |
+| 1 | 43-02 | 1 tracer | STORY-04 | `npx vitest run scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts`; guards file vs its own pre-edit run | ✅ |
+| 1 | 43-02 | 2 | STORY-04 | `npx vitest run install/installer-kit-home.test.ts scripts/check-public-docs-vocabulary.test.ts scripts/check-banned-claims.test.ts` | ✅ |
+| 2 | 43-03 | 1 tracer | STORY-05 | `npx vitest run scripts/check-story-docs.test.ts scripts/model-dial-consistency.test.ts install/host-entry-docs.test.ts …` | ✅ |
+| 2 | 43-03 | 2 | STORY-05 | `npx vitest run scripts/check-story-docs.test.ts install/message-references.test.ts …` | ✅ |
+| 2 | 43-03 | 3 | STORY-05, STORY-02 | `npx vitest run scripts/check-story-docs.test.ts scripts/skills-kit-text.test.ts scripts/check-claim-anchors.test.ts scripts/frontmatter.test.ts`; guards file whole | ✅ |
+| 3 | 43-04 | 1 tracer | STORY-03 | `npm run generate:catalog`, then `git status --porcelain --untracked-files=all -- docs/reference` empty, then `npx vitest run scripts/catalog-freshness.test.ts scripts/generate-catalog.test.ts`; guards file whole | ✅ |
+| 3 | 43-04 | 2 | STORY-03 | `npx vitest run scripts/catalog-freshness.test.ts scripts/generate-catalog.test.ts scripts/kit-model.test.ts scripts/frontmatter.test.ts …`; guards file whole | ✅ |
+| 3 | 43-06 | 1 tracer | STORY-02 (D-11, D-27) | `npx vitest run install/installer-kit-home.test.ts install/ledger.test.ts` | ✅ |
+| 3 | 43-06 | 2 | STORY-02 | `npx vitest run install/installer-fs-census.test.ts install/installer-cross-version.test.ts install/marker-binding.test.ts …`; guards file whole (detection) | ✅ |
+| 3 | 43-07 | 1-3 | STORY-02 | the ad hoc four-pattern hand-trace scan over examples/01-03 plus `check:story-docs` and the corpus gates | ✅ |
+| 3 | 43-08 | 1-2 | STORY-02, STORY-05 | the ad hoc four-pattern hand-trace scan over examples/04-05 plus the corpus gates | ✅ |
+| 4 | 43-05 | 1 tracer | STORY-03 | `npm run generate:catalog`, porcelain check over docs/reference, `npx vitest run scripts/catalog-freshness.test.ts scripts/generate-catalog.test.ts`; guards file whole | ✅ |
+| 4 | 43-05 | 2 | STORY-03 | `npx vitest run scripts/generate-catalog.test.ts scripts/catalog-freshness.test.ts install/host-entry-docs.test.ts install/host-tools-prose.test.ts`; guards file whole | ✅ |
+| 4 | 43-15 | 1 tracer | STORY-02 (D-11) | `npx vitest run install/installer-kit-home.test.ts install/installer-dry-run.test.ts install/installer-prune.test.ts install/ledger.test.ts` | ✅ |
+| 4 | 43-15 | 2 | STORY-02 | `npx vitest run install/message-references.test.ts install/installer-cross-version.test.ts …` | ✅ |
+| 5 | 43-14 | 1 tracer | STORY-03 | `npx vitest run scripts/generate-catalog.test.ts scripts/catalog-freshness.test.ts install/host-entry-docs.test.ts install/host-tools-prose.test.ts …`; guards file whole | ✅ |
+| 5 | 43-14 | 2 | STORY-03 (D-13) | `npx vitest run scripts/generate-catalog.test.ts scripts/model-dial-consistency.test.ts scripts/catalog-freshness.test.ts`; guards file whole | ✅ |
+| 5 | 43-09 | 1-3 | STORY-02, STORY-04 | `node scripts/check-claim-anchors.js && node scripts/check-audit-register.js && … && npm run check:story-docs` | ✅ |
+| 6 | 43-10 | 1-3 | STORY-02, STORY-04 | `npx vitest run install/host-entry-docs.test.ts install/host-tools.test.ts scripts/check-uat-oracles.test.ts …` and the job-section check | ✅ |
+| 7 | 43-11 | 1-3 | STORY-01, STORY-04 | the claim gates, `npm run freshness:guarantees`, `npx vitest run scripts/check-story-docs.test.ts …`; the retired-commit live case; guards file whole (Task 3) | ✅ |
+| 8 | 43-12 | 1-3 | STORY-05 | `npx vitest run scripts/trace-instructions.test.ts`; the reader review; the phase gate against 43-BASELINE.md, with late guard pin moves | ✅ |
+| 9 | 43-13 | 1-3 | SC-6 | evidence files exist and carry no home path; the human decides by typed name (manual) | ✅ manual: accepted 2026-11-18 (43-UAT.md) |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `scripts/check-story-docs.ts` + `scripts/check-story-docs.test.ts` (GAP-D1 sentence, `/grug` in `CLAUDE.md`, dead links in shipped docs), plus the `package.json` script and the ci.yml step
-- [ ] Shipped-docs derivation (`install/kit-source.ts` export) + unit test
-- [ ] Retired-claim status (open question 1, resolved by D-25) + tests in `scripts/check-claim-anchors.test.ts` and `scripts/audit-model.test.ts`
-- [ ] Baseline capture of every CI gate and the full suite by test name, before plan 1
+- [x] `scripts/check-story-docs.ts` + `scripts/check-story-docs.test.ts` (GAP-D1 sentence, `/grug` in `CLAUDE.md`, dead links in shipped docs), plus the `package.json` script and the ci.yml step
+- [x] Shipped-docs derivation (`install/kit-source.ts` export) + unit test
+- [x] Retired-claim status (open question 1, resolved by D-25) + tests in `scripts/check-claim-anchors.test.ts` and `scripts/audit-model.test.ts`
+- [x] Baseline capture of every CI gate and the full suite by test name, before plan 1
 
 ---
 
@@ -131,18 +131,26 @@ plan runs that test file and checks with `git grep` that no row under docs/refer
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Unscored work is never auto-delegated to a junior, mid or senior engineer adapter; each level is reached only when the Tech Lead's plan names it | SC-6 (Phase 39 UAT test 10) | Needs a live Claude Code host; headless `claude -p` may not show spawns | Run on a live Claude Code host in a scratch repo; record evidence in the phase directory; human signs off with a typed name |
-| A `grugops-designer` design note reaches `scripts/context-io.js` through Bash and is admitted, not refused as unsealed | SC-6 (Phase 39 UAT test 14) | Needs a live Claude Code host | Same scratch repo; record the admission outcome; human signs off with a typed name |
+| Unscored work is never auto-delegated to a junior, mid or senior engineer adapter; each level is reached only when the Tech Lead's plan names it | SC-6 (Phase 39 UAT test 10) | Needs a live Claude Code host; headless `claude -p` may not show spawns | Run on a live Claude Code host in a scratch repo; record evidence in the phase directory; human signs off with a typed name. Done: accepted 2026-11-18, see 43-UAT.md `## Human decision` (name added at the human's instruction, not typed) |
+| A `grugops-designer` design note reaches `scripts/context-io.js` through Bash and is admitted, not refused as unsealed | SC-6 (Phase 39 UAT test 14) | Needs a live Claude Code host | Same scratch repo; record the admission outcome; human signs off with a typed name. Done: accepted 2026-11-18 with the route reworded to `tools/grugops/note.js`, see 43-UAT.md |
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 120s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 120s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** validated 2026-11-18 by /gsd-validate-phase 43 (state A audit). Requirement commands re-run on HEAD bad96ba4: the eight gate commands exit 0; the requirement test files pass in the wave 9 full run (12031 tests, 21 failures, all in 43-BASELINE.md, 0 new). 43-13 (SC-6) is manual and human-accepted.
+
+## Validation Audit 2026-11-18
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
