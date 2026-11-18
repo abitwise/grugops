@@ -1514,8 +1514,20 @@ export function bannedClaimScanOverlap(parts = BANNED_CLAIM_SCAN_PARTS) {
  *         guarantees 1, skills 1, overlap 3)
  *
  * The same run reported 0 findings over 159/159 elements.
+ *
+ * MOVED AGAIN 159 → 160 ON 2026-11-18 IN PLAN 43-10, AND THE ENTRANT IS NAMED: `docs/usage.md`, the
+ * hand-written usage page that now carries the start table moved from README.md (D-01, D-09). It
+ * moves through the `publicDocs` corpus ONLY (43 → 44), by the plan 43-02 rule (D-21); it is a member
+ * of no other part here, so the overlap stays at 3 and the deduped total moves by one. Read off this
+ * gate's own refusal with the page written and the pin not yet moved, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 160 document(s), expected exactly 159 (kit 79,
+ *         publicDocs 44, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, skills 1, overlap 3)
+ *
+ * The same run reported 0 findings over 160/160 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 159;
+export const BANNED_CLAIM_SCAN_COUNT = 160;
 /**
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is
