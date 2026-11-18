@@ -27,6 +27,9 @@ const CONFIG = readFileSync(join(ROOT, "agent-factory/config/factory.config.md")
 const ORCHESTRATOR = readFileSync(join(ROOT, "agent-factory/roles/orchestrator.md"), "utf8");
 const ROLE_SWITCH = readFileSync(join(ROOT, "agent-factory/roles/_role-switch-protocol.md"), "utf8");
 const KIT_README = readFileSync(join(ROOT, "agent-factory/README.md"), "utf8");
+// The § How work flows bullets, with claim C-28-033, moved byte for byte to docs/how-it-works.md in
+// plan 43-09 (D-28); the kit README keeps the heading and one line that points there.
+const HOW_IT_WORKS = readFileSync(join(ROOT, "docs/how-it-works.md"), "utf8");
 const NOTE_CONTRACT = readFileSync(join(ROOT, "agent-factory/contracts/context-note.md"), "utf8");
 
 /** The body of the `## <heading>` section (prefix match), up to the next `## ` heading. */
@@ -771,9 +774,12 @@ describe("the role-switch step agrees with Workflow 17 (plan 41-06; D-04, D-05)"
 
 describe("the README says who claims (plan 41-06; D-04)", () => {
   it("says the Orchestrator claims at dispatch, and no longer says a role claims its subtask", () => {
-    const at = KIT_README.indexOf("- **The lifecycle**");
+    // Plan 43-09 (D-28) moved the bullet to docs/how-it-works.md; the kit README points to it.
+    expect(KIT_README).toContain("](../docs/how-it-works.md#how-work-flows)");
+    expect(KIT_README).not.toContain("- **The lifecycle**");
+    const at = HOW_IT_WORKS.indexOf("- **The lifecycle**");
     expect(at).toBeGreaterThanOrEqual(0);
-    const bullet = KIT_README.slice(at, KIT_README.indexOf("\n\n", at));
+    const bullet = HOW_IT_WORKS.slice(at, HOW_IT_WORKS.indexOf("\n\n", at));
     expect(bullet.replace(/\n\s*/g, " ")).toContain("it claims each subtask at dispatch in its role's name");
     expect(bullet.replace(/\n\s*/g, " ")).not.toContain("each role claims its subtask");
     expect(bullet.split("\n")).toHaveLength(5);
