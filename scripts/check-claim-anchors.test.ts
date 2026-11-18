@@ -30,6 +30,8 @@ import {
   BANNED_CLAIM_EXEMPT_REGION,
   locateExemptRegion,
 } from "./check-banned-claims.js";
+// (Plan 43-11, D-25) The retired row's commit-token form, asked rather than retyped.
+import { RETIRED_COMMIT_RE } from "./check-claim-anchors.js";
 
 const REPO = join(import.meta.dirname, "..");
 const GATE = join(REPO, "scripts", "check-claim-anchors.js");
@@ -1219,5 +1221,99 @@ describe("check-claim-anchors: the retired arm's refusals (D-25)", () => {
     const r = run(root);
     expect(r.out).toMatch(/ALL CHECKS PASSED/);
     expect(r.status).toBe(0);
+  });
+});
+
+// ── (Plan 43-11, D-25) THE RETIRED-COMMIT PROOF, ON THE LIVE TREE ────────────────────────────────
+//
+// The gate checks only the FORM of a retired row's commit token (RETIRED_COMMIT_RE). This case
+// checks the commit itself, by reading git objects: the commit a retired row's mechanism names must
+// be an ancestor of HEAD, and `git show <sha>:<file>` must still hold the row's verbatim text.
+//
+// THE MERGE STYLE THIS ASSUMES, STATED RATHER THAN HIDDEN. It holds because this repository commits
+// phase work straight to main (`.planning/config.json`: `git.branching_strategy` is `none`), so a
+// named commit stays on HEAD's history, and CI checks out full history (`fetch-depth: 0` in
+// .github/workflows/ci.yml). A squash or rebase merge, or a shallow clone, would leave a named
+// commit unreachable. The case then FAILS by id and sha; it never skips. The ancestor check is what
+// makes a local run agree with CI: an orphaned commit still in the local object store does not pass.
+
+/** The first backticked hex commit token in a mechanism, or null. RETIRED_COMMIT_RE decides form. */
+function retiredCommitOf(mechanism: string): string | null {
+  const m = RETIRED_COMMIT_RE.exec(mechanism);
+  return m === null ? null : m[0].slice(1, -1);
+}
+
+/**
+ * Every reason the named commit does not prove the retired row's text once stood in its file. An
+ * empty list is the proof. Never throws and never skips: a missing object is a finding.
+ */
+function retiredCommitFindings(
+  root: string,
+  row: { readonly id: string; readonly file: string; readonly mechanism: string; readonly verbatim: string },
+): string[] {
+  const sha = retiredCommitOf(row.mechanism);
+  if (sha === null) return [`${row.id}: the mechanism names no backticked commit`];
+  const anc = spawnSync("git", ["merge-base", "--is-ancestor", sha, "HEAD"], { cwd: root, encoding: "utf8" });
+  if (anc.status !== 0) {
+    return [
+      `${row.id}: commit ${sha} is missing or not on HEAD's history (git merge-base --is-ancestor ` +
+        `exit ${anc.status}). A squash or rebase merge, or a shallow clone, leaves it unreachable. ` +
+        `Fix: re-point the row's mechanism to the commit on main where the text last stood (the row's ` +
+        `verbatim block is the text to look for).`,
+    ];
+  }
+  const show = spawnSync("git", ["show", `${sha}:${row.file}`], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (show.status !== 0) {
+    return [`${row.id}: commit ${sha} has no ${row.file} (git show exit ${show.status})`];
+  }
+  if (!show.stdout.includes(row.verbatim)) {
+    return [
+      `${row.id}: ${row.file} at commit ${sha} does not contain the row's verbatim text, so ${sha} ` +
+        `is not a commit where the text stood. Fix: re-point the mechanism to the commit on main ` +
+        `where the text last stood.`,
+    ];
+  }
+  return [];
+}
+
+describe("check-claim-anchors: every retired row names a commit on HEAD's history that held its text (D-25)", () => {
+  it("LIVE TREE: each retired row's commit is an ancestor of HEAD and holds the verbatim; there are 3", () => {
+    const retired = readRegistry(REPO).claims.filter((c) => c.status === "retired");
+    const findings = retired.flatMap((c) => retiredCommitFindings(REPO, c));
+    expect(findings.join("\n")).toBe("");
+    expect(retired.map((c) => c.id).sort().join(", ")).toBe("C-28-002, C-28-003, C-28-008");
+  });
+
+  it("FAILS by id and sha, never skips, when the named commit is not in the repository", () => {
+    const sha = "0000000deadbeef0000000deadbeef0000000000";
+    const findings = retiredCommitFindings(REPO, {
+      id: "C-28-999",
+      file: "README.md",
+      mechanism: `Withdrawn; the text last stood at \`${sha}\`.`,
+      verbatim: RETIRED_TEXT,
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatch(/C-28-999/);
+    expect(findings[0]).toContain(sha);
+    expect(findings[0]).toMatch(/missing or not on HEAD's history/);
+    expect(findings[0]).toMatch(/re-point the row's mechanism/);
+  });
+
+  it("FAILS by id and sha when the named commit is on HEAD's history but never held the text", () => {
+    const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: REPO, encoding: "utf8" }).stdout.trim();
+    const findings = retiredCommitFindings(REPO, {
+      id: "C-28-998",
+      file: "README.md",
+      mechanism: `Withdrawn; the text last stood at \`${head}\`.`,
+      verbatim: RETIRED_TEXT,
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatch(/C-28-998/);
+    expect(findings[0]).toContain(head);
+    expect(findings[0]).toMatch(/does not contain the row's verbatim text/);
   });
 });
