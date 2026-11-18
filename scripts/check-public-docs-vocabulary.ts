@@ -645,9 +645,10 @@ export function publicDocsScan(): string[] {
   return PUBLIC_DOCS_SCAN_PARTS.flatMap((p) => [...p.members]);
 }
 
-// The pinned cardinality OF THE SCAN. 14 today: 4 root markdown files (5 in the corpus, minus the
-// CHANGELOG.md exemption) + 5 examples + 1 kit README + 1 generated guarantees page + 1 skills page
-// + 2 shipped docs pages (the `docs` part).
+// The pinned cardinality OF THE SCAN: the root markdown files (the corpus's, minus the CHANGELOG.md
+// exemption), the examples, the kit README, the generated guarantees page, the skills page and the
+// shipped docs pages (the `docs` part). The number is the constant below, not this comment; the dated
+// "MOVED x -> y" paragraphs record how it got there.
 //
 // MOVED 10 -> 11 IN PLAN 30-07, AND THE ENTRANT IS NAMED RATHER THAN LEFT AS ARITHMETIC:
 // `docs/GUARANTEES.md`. Read off this gate's own refusal on the intermediate build rather than
