@@ -1,9 +1,9 @@
 ---
-status: pending human
+status: complete
 phase: 43-story-and-layered-docs
 source: [43-13-PLAN.md, 39-UAT.md tests 10 and 14, 43-READER-REVIEW.md]
 started: 2026-11-18T08:40:11Z
-updated: 2026-11-18T09:17:03Z
+updated: 2026-11-18T13:45:25Z
 ---
 
 # Phase 43 milestone UAT: Phase 39 tests 10 and 14
@@ -14,7 +14,7 @@ level is reached only when the Tech Lead's plan names it) and TIER-05 (the Desig
 
 ## Current Test
 
-[awaiting the human's decision on tests 10 and 14]
+[testing complete]
 
 ## Tests
 
@@ -22,7 +22,8 @@ level is reached only when the Tech Lead's plan names it) and TIER-05 (the Desig
 
 expected: On a live Claude Code host, unscored work is never auto-delegated to a level adapter (junior, mid or
 senior). Each level is reached only when the Tech Lead's plan names it.
-result: pending human
+result: accepted (human decision 2026-11-18, option A: the six runs answer the question; the limits stated below are
+accepted)
 evidence: `uat-evidence/test10-runs.md`
 source_ref: 39-UAT.md test 10 (39-11 D3)
 
@@ -47,7 +48,9 @@ an unnamed subagent.
 
 expected: In the same scratch repo, spawn grugops-designer and have it publish a design note. It reaches
 scripts/context-io.js through Bash, and the note is admitted, not refused as unsealed.
-result: pending human
+result: accepted (human decision 2026-11-18, option A: accepted with the route reworded from `scripts/context-io.js`
+to `tools/grugops/note.js`, the generated copy of the writer a scripted install ships; a separate scratch repository
+set up the same way is acceptable. The `expected:` line above is left as written; the rewording is this decision's)
 evidence: `uat-evidence/test14-designer-note.md`
 source_ref: 39-UAT.md test 14 (live designer)
 
@@ -66,19 +69,25 @@ this run used its own repository made the same way, so no test 10 note shared it
 ## Reader-review findings handed to this UAT
 
 Plan 43-12's reader review (`43-READER-REVIEW.md` § Findings) left six findings `UNKNOWN - verify` for this UAT. Each is
-a judgment, not a check a command can run, and none is settled here.
+a judgment, not a check a command can run. The human's decision of 2026-11-18 (below) settled five; F-11 stays open
+for a fresh reader. None of the rewordings is made in this plan.
 
 - **F-07:** reword the two anchored `always` safety sentences, C-28-001 (docs/concepts.md) and C-28-023
-  (agent-factory/README.md), both measured `overstated`, or keep them as published? result: pending human
+  (agent-factory/README.md), both measured `overstated`, or keep them as published? result: reword both sentences (human decision
+  2026-11-18); a follow-up in `deferred-items.md`, not done in this plan
 - **F-08:** keep `single-job "grug" agents` in C-28-001 and C-28-022, or move the brand word out of the core
-  description? result: pending human
+  description? result: keep `single-job "grug" agents` (human decision 2026-11-18)
 - **F-09:** reword C-28-033's "every shipped change is accountable end to end" and "exactly what it needs" in
-  docs/how-it-works.md (the second clause was kept by a human decision on 2026-11-04)? result: pending human
-- **F-10:** bring docs/skills.md and install/README.md into the claim registry's anchored set? result: pending human
+  docs/how-it-works.md (the second clause was kept by a human decision on 2026-11-04)? result: reword the first
+  clause, for example toward "leaves a trail from requirement to release"; keep "exactly what it needs" (human
+  decision 2026-11-18); a follow-up in `deferred-items.md`, not done in this plan
+- **F-10:** bring docs/skills.md and install/README.md into the claim registry's anchored set? result: yes, bring both pages into the registry (human decision 2026-11-18); a follow-up in
+  `deferred-items.md`, not done in this plan
 - **F-11:** does a newcomer read the story as intended (README → concepts → how it works → usage → an example)?
-  result: pending human
+  result: deferred to a fresh reader; the human did not answer it
 - **F-12:** change the generator's `Loaded by the Orchestrator in turn` row on the Orchestrator's own reference page,
-  and name workflows for the Compliance Officer and Installer pages? result: pending human
+  and name workflows for the Compliance Officer and Installer pages? result: fix in the generator (human decision
+  2026-11-18); a follow-up in `deferred-items.md`, not done in this plan
 
 ## Other observations
 
@@ -113,3 +122,29 @@ a judgment, not a check a command can run, and none is settled here.
 
 ## Human decision
 
+Reply 1 (2026-11-18), verbatim:
+
+> Test 10 - A. Accept ; Test 14 - A. Accept, route reworded to tools/grugops/note.js ; Optional F-07..F-12 use your recommended path.
+
+The reply did not end with a typed name, so the human was asked to end it with one. Reply 2 (2026-11-18), verbatim:
+
+> add my name, i approve
+
+Acceptance: accepted by Olger — name added by the agent at Olger's instruction ("add my name, i approve",
+2026-11-18); the name was not typed in the reply.
+
+What the picks mean (the options as they were put to the human):
+
+- **Test 10, option A (accept):** the six runs answer the question. No level adapter was reached before a Tech Lead
+  plan named it. The limits are accepted: run 6 was cut at 20 minutes, the grant refused `git` branch and `npm` so no
+  ticket reached a pull request, and no session handed work to an unnamed subagent.
+- **Test 14, option A (accept, route reworded):** the test's route reads `tools/grugops/note.js` (the generated copy of
+  the writer a scripted install ships) in place of `scripts/context-io.js`. A separate scratch repository set up the
+  same way is acceptable.
+- **F-07..F-12, the recommended path:** F-07 reword the two `always` safety sentences (C-28-001, C-28-023); F-08 keep
+  `single-job "grug" agents`; F-09 reword the first clause of C-28-033 ("every shipped change is accountable end to
+  end", for example toward "leaves a trail from requirement to release") and keep "exactly what it needs" (kept by a
+  human decision on 2026-11-04); F-10 bring docs/skills.md and install/README.md into the claim registry; F-12 fix
+  in the generator (the Orchestrator page's `Loaded by the Orchestrator in turn` row, and named workflows for the
+  Compliance Officer and Installer pages). F-11 was not answered and is deferred to a fresh reader. F-07, F-09, F-10
+  and F-12 are follow-ups in `deferred-items.md`; none is done in this plan.

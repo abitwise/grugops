@@ -42,3 +42,10 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
   `install/uninstall.ts` (`scripts/runnable-ref/test-skip-integrity.js` → `tools/grugops/test-skip-integrity.js`).
 - **Remedy (for human triage):** install the tool under a name Node's default glob does not match, or document the
   collision in install/README.md.
+
+## Reader-review follow-ups decided in the 43-13 UAT (source: 43-13 UAT decision, 2026-11-18, 43-UAT.md § Human decision)
+
+- **F-07:** reword the two anchored `always` safety sentences, C-28-001 (docs/concepts.md) and C-28-023 (agent-factory/README.md), and re-measure both registry rows in the same commit.
+- **F-09:** reword the first clause of C-28-033 in docs/how-it-works.md ("every shipped change is accountable end to end", for example toward "leaves a trail from requirement to release"); keep "exactly what it needs" (human decision 2026-11-04).
+- **F-10:** bring docs/skills.md and install/README.md into the claim registry's anchored set.
+- **F-12:** fix in the reference-page generator: the Orchestrator's own page row `Loaded by the Orchestrator in turn`, and named workflows for the Compliance Officer and Installer pages (both now `UNKNOWN - verify`).
