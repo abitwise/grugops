@@ -46,6 +46,7 @@ import {
   listWorkflowDisplayNames,
 } from "./kit-model.js";
 import { parseFrontmatter } from "./frontmatter.js";
+import { HOST_TOOLS } from "../install/host-tools.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const GEN_JS = join(ROOT, "scripts", "generate-catalog.js");
@@ -133,6 +134,21 @@ function snapshotReference(): Map<string, Buffer> {
     } catch {
       return;
     }
+    if (st.isDirectory()) {
+      for (const n of readdirSync(abs).sort()) walk(rel === "" ? n : `${rel}/${n}`);
+    } else if (st.isFile()) {
+      snap.set(rel, readFileSync(abs));
+    }
+  };
+  walk("");
+  return snap;
+}
+/** Every regular file under `dir`, by POSIX relative path, with its bytes (lstat; links never followed). */
+function snapshotDir(dir: string): Map<string, Buffer> {
+  const snap = new Map<string, Buffer>();
+  const walk = (rel: string): void => {
+    const abs = rel === "" ? dir : join(dir, ...rel.split("/"));
+    const st = lstatSync(abs);
     if (st.isDirectory()) {
       for (const n of readdirSync(abs).sort()) walk(rel === "" ? n : `${rel}/${n}`);
     } else if (st.isFile()) {
@@ -500,6 +516,149 @@ describe("generate-catalog.js (DOCS-01)", () => {
     expect(onDisk.filter((f) => !linked.includes(f)), "a page on disk the index does not link").toEqual([]);
     expect(linked).toEqual(ops);
     expect(onDisk).toEqual(ops);
+  });
+
+  // ── Invocation per host, workflows named, roles reached (plan 43-05 Task 2, D-15) ──────────────
+  //
+  // Every expected value is DERIVED here from the same sources the generator reads: the host registry
+  // (HOST_TOOLS), plugin.json, the standalone twin whose description equals the plugin skill's, the
+  // workflow paths the skill body names and those workflows' `## Agents involved` bullets. No command
+  // spelling is typed in this file.
+  /** The body lines of `## <heading>` in a page, up to the next level-two heading. */
+  const pageSection = (page: string, heading: string): string[] => {
+    const lines = page.split("\n");
+    const at = lines.indexOf(`## ${heading}`);
+    if (at === -1) return [];
+    const end = lines.findIndex((l, i) => i > at && l.startsWith("## "));
+    return lines.slice(at + 1, end === -1 ? lines.length : end);
+  };
+  const committedSkillPage = (op: string): string => {
+    const path = join(REF_DIR, "skills", `${op}.md`);
+    return existsSync(path) ? readFileSync(path, "utf8") : "";
+  };
+  /** The standalone twin (`.claude/skills/<d>/SKILL.md`) whose description equals the plugin skill's. */
+  const twinNameOf = (op: string): string => {
+    const [description] = skillField(op, "description");
+    const names = readdirSync(join(ROOT, ".claude", "skills"))
+      .filter((d) => existsSync(join(ROOT, ".claude", "skills", d, "SKILL.md")))
+      .flatMap((d) => {
+        const parsed = parseFrontmatter(readFileSync(join(ROOT, ".claude", "skills", d, "SKILL.md"), "utf8"));
+        if (!parsed.ok) throw new Error(`.claude/skills/${d}/SKILL.md: unreadable frontmatter`);
+        return (parsed.value.get("description") ?? [])[0] === description ? (parsed.value.get("name") ?? []) : [];
+      });
+    if (names.length !== 1) throw new Error(`PREMISE: skills/${op} has ${names.length} standalone twins, expected 1`);
+    return names[0];
+  };
+  /** Escape a cell the way the generator does (backslash, then pipe). */
+  const asCell = (t: string): string => t.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+  const DISPATCHER = SKILL_OPS.find((op) => skillField(op, "name")[0] === PLUGIN_JSON.name);
+
+  it("gate.md's Invocation table has one plain-text row per HOST_TOOLS host, in registry order: the standalone and plugin commands for the spawn host, the dispatcher route for the sequential hosts", () => {
+    const rows = pageSection(committedSkillPage("gate"), "Invocation").filter((l) => l.startsWith("| ") && !l.startsWith("| ---"));
+    // The header row, then one row per host, each opening with the host's registry name in plain text.
+    expect(rows.length, "the Invocation table: a header and one row per host").toBe(1 + HOST_TOOLS.length);
+    HOST_TOOLS.forEach((host, i) => {
+      const row = rows[i + 1];
+      expect(row.startsWith(`| ${host.name} | `), `row ${i + 1} opens with the plain host name ${host.name}`).toBe(true);
+      if (host.dispatch === "spawn") {
+        expect(row).toContain(`\`/${twinNameOf("gate")} "<request>"\``);
+        expect(row).toContain(`\`/${PLUGIN_JSON.name}:${skillField("gate", "name")[0]} "<request>"\``);
+      } else {
+        expect(row).toContain(`Through the dispatcher: ${asCell(host.invoke)}`);
+      }
+    });
+    const codex = HOST_TOOLS.find((h) => h.id === "codex");
+    expect(codex, "PREMISE: the registry has a Codex row").toBeDefined();
+    expect(rows.find((r) => r.startsWith(`| ${codex!.name} | `))).toContain("$grugops");
+  });
+
+  it("the dispatcher's page shows each sequential host's invoke text as is", () => {
+    expect(DISPATCHER, "PREMISE: one plugin skill is named after the plugin (the dispatcher)").toBeDefined();
+    const rows = pageSection(committedSkillPage(DISPATCHER!), "Invocation");
+    for (const host of HOST_TOOLS.filter((h) => h.dispatch === "sequential")) {
+      expect(rows, host.name).toContain(`| ${host.name} | ${asCell(host.invoke)} |`);
+    }
+    expect(pageSection(committedSkillPage(DISPATCHER!), "Workflows").join("\n")).toContain(
+      "The Orchestrator picks the workflow for the request.",
+    );
+  });
+
+  it("gate.md lists the workflows its body names and links the roles they involve plus the roles the body names", () => {
+    const body = readFileSync(join(ROOT, "skills", "gate", "SKILL.md"), "utf8");
+    const named = [...new Set([...body.matchAll(/agent-factory\/workflows\/([A-Za-z0-9._-]+\.md)/g)].map((x) => x[1]))].sort();
+    expect(named.length, "PREMISE: the gate skill names at least one workflow").toBeGreaterThan(0);
+    const page = committedSkillPage("gate");
+    const wf = pageSection(page, "Workflows").join("\n");
+    for (const f of named) expect(wf).toContain(`(../../../agent-factory/workflows/${f})`);
+    // The roles: each `- <Display Name> — ` bullet of the named workflows' Agents involved section that
+    // is a role display name, plus each non-underscore role file the body names.
+    const files = listRoles(ROOT);
+    const names = listRoleDisplayNames(ROOT);
+    const expected = new Set<string>();
+    for (const f of named) {
+      const text = readFileSync(join(ROOT, "agent-factory", "workflows", f), "utf8").split("\n");
+      const at = text.indexOf("## Agents involved");
+      expect(at, `PREMISE: ${f} has an Agents involved section`).toBeGreaterThan(-1);
+      for (const l of text.slice(at + 1)) {
+        if (l.startsWith("## ")) break;
+        const m = l.match(/^- (.+?) — /);
+        if (m && names.includes(m[1])) expected.add(files[names.indexOf(m[1])]);
+      }
+    }
+    for (const x of body.matchAll(/agent-factory\/roles\/([A-Za-z0-9._-]+\.md)/g)) {
+      if (!x[1].startsWith("_")) expected.add(x[1]);
+    }
+    expect(expected.has("orchestrator.md"), "PREMISE: the Orchestrator is among the roles reached").toBe(true);
+    const linked = [...pageSection(page, "Roles it reaches").join("\n").matchAll(/\]\(\.\.\/agents\/([^)]+\.md)\)/g)].map((x) => x[1]).sort();
+    expect(linked).toEqual([...expected].sort());
+  });
+
+  it("no generated row opens with a bold cell, and the generator types no command spelling", () => {
+    for (const op of SKILL_OPS) {
+      expect(committedSkillPage(op), `PREMISE: docs/reference/skills/${op}.md exists`).not.toBe("");
+    }
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((n) => (lstatSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : [join(dir, n)]));
+    const bold = walk(REF_DIR).flatMap((f) =>
+      readFileSync(f, "utf8").split("\n").filter((l) => /^\| *\*\*/.test(l)).map((l) => `${f}: ${l}`),
+    );
+    expect(bold).toEqual([]);
+    const src = readFileSync(join(ROOT, "scripts", "generate-catalog.ts"), "utf8");
+    expect(src.match(/'\/grugops|"\/grugops/g) ?? []).toEqual([]);
+  });
+
+  it("fail-closed: a skill body naming a workflow listWorkflows does not hold → exit 1 naming the skill and the path, and no page changes", () => {
+    const m = catalogMirror();
+    expect(runMirror(m).status).toBe(0);
+    const before = snapshotDir(join(m, "docs", "reference"));
+    expect(before.size, "PREMISE: the first run wrote the tree").toBe(PAGE_TOTAL);
+    const victim = join(m, "skills", "gate", "SKILL.md");
+    writeFileSync(victim, `${readFileSync(victim, "utf8")}\nAlso run \`agent-factory/workflows/99-nope.md\`.\n`);
+    const run = runMirror(m);
+    expect(run.status, run.text).toBe(1);
+    expect(run.text).toContain("skills/gate/SKILL.md");
+    expect(run.text).toContain("agent-factory/workflows/99-nope.md");
+    expect(run.text).not.toContain("ERR_MODULE_NOT_FOUND");
+    expect(sameSnapshot(snapshotDir(join(m, "docs", "reference")), before)).toBe(true);
+  });
+
+  it("fail-closed: two standalone twins sharing one description → exit 1 naming both, and no page changes", () => {
+    const m = catalogMirror();
+    expect(runMirror(m).status).toBe(0);
+    const before = snapshotDir(join(m, "docs", "reference"));
+    const twin = twinNameOf("gate");
+    const copyDir = join(m, ".claude", "skills", `${twin}-copy`);
+    mkdirSync(copyDir, { recursive: true });
+    writeFileSync(
+      join(copyDir, "SKILL.md"),
+      readFileSync(join(m, ".claude", "skills", twin, "SKILL.md"), "utf8").replace(`name: ${twin}`, `name: ${twin}-copy`),
+    );
+    const run = runMirror(m);
+    expect(run.status, run.text).toBe(1);
+    expect(run.text).toContain(`.claude/skills/${twin}/SKILL.md`);
+    expect(run.text).toContain(`.claude/skills/${twin}-copy/SKILL.md`);
+    expect(run.text).not.toContain("ERR_MODULE_NOT_FOUND");
+    expect(sameSnapshot(snapshotDir(join(m, "docs", "reference")), before)).toBe(true);
   });
 
   it("deletes a stray .md page under docs/reference/ and leaves a non-page file alone", () => {
