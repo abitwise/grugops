@@ -166,23 +166,40 @@ function runGapD1Check() {
     };
     reportMeasured(m, emit, (f) => `    ${f.file}: ${f.reason}`);
 }
-// An inline link's target: `](target)`, `](<target>)`, optionally followed by a title.
-const INLINE_LINK = /\]\(\s*<?([^)\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
+// An inline link's target, optionally followed by a title. Two target forms (IN-04, plan 43.1-04):
+// group 1 is `](<target>)`, where the whole text between the angle brackets is the target and may
+// hold spaces; group 2 is a bare `](target)`, which may hold one level of balanced parentheses, such
+// as `page_(1).md`. The bare form's characters exclude `(`, `)`, space, `<` and `>`, so the inner
+// repetition cannot overlap the outer one.
+const INLINE_LINK = /\]\(\s*(?:<([^<>\n]+)>|((?:[^()\s<>]|\([^()\s<>]*\))+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
+// An HTML `href=` or `src=` attribute with a single- or double-quoted value, such as
+// `<a href="page.md">` or `<img src='art.png'>`. The attribute name follows whitespace, so a tag
+// whose attributes run onto the next line is still read.
+const HTML_LINK_ATTR = /(?<=\s)(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
 // A reference definition: `[label]: target`, up to three spaces of indent.
 const REFERENCE_DEF = /^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?/;
 // An inline code span; a link written inside one is text, not a link.
 const CODE_SPAN = /`[^`\n]*`/g;
 // A URL scheme (`https:`, `mailto:`), as opposed to a relative path.
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
-/** The link targets on one line of prose, in order. */
+/**
+ * The link targets on one line of prose, in order: a reference definition first, then every inline
+ * link and HTML `href`/`src` attribute in the order they appear. Code spans are dropped first.
+ */
 export function lineLinkTargets(line) {
     const out = [];
     const def = REFERENCE_DEF.exec(line);
     if (def !== null)
         out.push(def[1]);
     const prose = line.replace(CODE_SPAN, "");
+    const found = [];
     for (const m of prose.matchAll(INLINE_LINK))
-        out.push(m[1]);
+        found.push({ at: m.index, target: (m[1] ?? m[2]) });
+    for (const m of prose.matchAll(HTML_LINK_ATTR))
+        found.push({ at: m.index, target: (m[1] ?? m[2]) });
+    found.sort((a, b) => a.at - b.at);
+    for (const f of found)
+        out.push(f.target);
     return out;
 }
 function decode(s) {
