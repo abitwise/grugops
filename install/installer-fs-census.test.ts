@@ -362,6 +362,12 @@ const CLASSIFIED_SITES: readonly ClassifiedSite[] = [
     why: "install.ts:1495-1498 returns before unlinkSync at :1505 (anything that is not a directory, a link included, removed as a name; red-team of plan 33.1-27). A throw is a counted verify and `removed` needs gone()",
   },
   {
+    site: "install.ts:retireStaleRunnables:unlinkSync",
+    count: 1,
+    gate: "dry-run-return-above",
+    why: "install.ts:1120 `if (DRY_RUN)` reports would-remove and continues before unlinkSync at :1131 (plan 43.1-02, D-02, D66). Reached only for a kit-false file entry of an `ok` previous ledger directly under tools/grugops/ that no RUNNABLES destination names, and only while owns(PREVIOUS_LEDGER, TARGET, rel, \"file\") answers owned, asked again just before the call (the path holds the recorded bytes and mode, no link followed on the way). A throw is a counted verify and `removed` needs gone()",
+  },
+  {
     site: "install.ts:renderAdaptersInMirror:cpSync",
     count: 2,
     gate: "scratch-outside-roots",

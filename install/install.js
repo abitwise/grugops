@@ -830,6 +830,140 @@ const unrecordedStaleAdapterText = (rel, why) => `${rel} — this kit version do
 // unrecordedAdaptersUnreadableText: the note when the target's own adapter directory could not be listed.
 const unrecordedAdaptersUnreadableText = (code) => `.claude/agents/ — cannot list ${join(TARGET, ".claude", "agents")} (${code}), so the check for unshipped grugops ` +
     `adapters the install ledger has no record of is skipped. No adapter is deleted either way.`;
+// STALE RUNNABLES (plan 43.1-02, D-02, D66; threats T-43.1-03, T-43.1-04). A kit version can stop shipping a runnable
+// destination: plan 43.1-02 gave the skip-integrity checker a destination no default `node --test` glob matches (see
+// DESTINATION NAMES at RUNNABLES). writeMarker carries a held kit-false record forward, so before this an upgraded
+// target kept the earlier file, still recorded, and a host's own plain `node --test` still ran it.
+//
+// THE SET IS DERIVED, NEVER LISTED: every kit-false `file` entry of the previous ledger whose path is a direct child of
+// `tools/grugops/` (STALE_RUNNABLE_PATH: one name, never `.` or `..`, nothing deeper) that no RUNNABLES destination
+// names, and that is still present in the target by lstat (a file already gone runs nothing, and the next ledger drops
+// its record by the carry rules). No retired runnable name is written down anywhere. `held` is the one ownership answer
+// (install-marker.ts owns): the path still holds exactly the bytes and mode the record says install wrote, no link is
+// followed on the way, and a hard link is refused.
+//
+// WHY INSTALL MAY REMOVE HERE (D-02, the human's decision of 2026-11-19). Install never removed a file before this. A
+// held member is install reversing its own recorded write, under the rule uninstall's reverseFile already applies to
+// every recorded file: removed only while owns answers owned, and owns is asked again just before the removal. The
+// bytes there are exactly what install wrote, so this removes no user content. DRY_RUN prints `would-remove` and
+// changes nothing. Nothing is recorded here: once the file is gone, writeMarker's carry rule drops its entry (its record
+// no longer holds). A removal that fails, or a file still present after it, is a counted verify and the file is left.
+//
+// WHAT IS LEFT. A member that is not held (edited, replaced, or reached through a link on the way) is the user's. It is
+// left byte for byte and named in a counted verify (exit 3), and the same carry rule drops its record, so a later
+// uninstall leaves it too. Only an `ok` previous ledger is asked: with no ledger nothing is removed (a malformed one
+// stops install before this, INSTALL_REFUSAL).
+//
+// THE PRESENCE PATH (unrecordedStaleRunnables, the unrecordedStaleAdapters shape): every `.js` entry directly in
+// `tools/grugops/` that no RUNNABLES destination names and that the ledger, when `ok`, holds no kit-false record of.
+// Install cannot tell who wrote such a file, so it claims nothing: one `note` each, no verify, no exit change, and
+// nothing removed or recorded. The note repeats on every run until the file is gone.
+const STALE_RUNNABLE_PATH = /^tools\/grugops\/(?!\.\.?$)[^/]+$/;
+// shippedRunnable: a repo-relative path this kit writes as a runnable (a RUNNABLES destination).
+const shippedRunnable = (rel) => RUNNABLES.some(([, dest]) => dest === rel);
+const byRelPath = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+function staleRunnables(ledger) {
+    const out = [];
+    for (const e of entriesOfKind(ledger, "file")) {
+        if (e.kit || !STALE_RUNNABLE_PATH.test(e.path) || shippedRunnable(e.path))
+            continue;
+        try {
+            lstatSync(join(TARGET, ...e.path.split("/")));
+        }
+        catch (err) {
+            const code = errCode(err);
+            if (code === "ENOENT" || code === "ENOTDIR")
+                continue;
+        }
+        out.push({ rel: e.path, held: owns(ledger, TARGET, e.path, "file").owned });
+    }
+    return out.sort((a, b) => byRelPath(a.rel, b.rel));
+}
+// staleRunnableText: the ONE wording of a stale runnable, for the removal (and its preview) and for the verify.
+function staleRunnableText(s) {
+    if (s.held) {
+        return (`${s.rel} (this kit version no longer ships it, and a plain \`node --test\` in this repository can run it when ` +
+            `its name matches Node's default test globs; install wrote it, recorded it in the install ledger, and it still ` +
+            `held exactly that)`);
+    }
+    return (`${s.rel} is a runnable an earlier kit installed, and it no longer holds what the install ledger records install ` +
+        `wrote there (you have since edited or replaced it, or a link is on its way), so it is yours, not install's to ` +
+        `remove. It was left in place. This kit version no longer ships it, and a plain \`node --test\` in this repository ` +
+        `may run it; delete it by hand if you do not use it.`);
+}
+// retireStaleRunnables (plan 43.1-02, D-02): install's half of STALE RUNNABLES, called in the install run directly after
+// materializeRunnable(), so it covers a plain install and a --migrate that continues into the install run. Then, whatever
+// the ledger's state, the presence path: one uncounted note per unrecorded `.js` entry this kit does not ship.
+function retireStaleRunnables() {
+    if (PREVIOUS_LEDGER.state === "ok") {
+        for (const s of staleRunnables(PREVIOUS_LEDGER)) {
+            if (!s.held) {
+                verify(staleRunnableText(s));
+                continue;
+            }
+            const path = join(TARGET, ...s.rel.split("/"));
+            if (DRY_RUN) {
+                report("would-remove", staleRunnableText(s));
+                continue;
+            }
+            // Asked again at the removal: owned only while the path still holds the record, no link followed on the way.
+            const own = owns(PREVIOUS_LEDGER, TARGET, s.rel, "file");
+            if (!own.owned) {
+                verify(staleRunnableText({ rel: s.rel, held: false }));
+                continue;
+            }
+            try {
+                unlinkSync(path);
+            }
+            catch (err) {
+                verify(`${s.rel} could not be removed (${errCode(err)}). It was left in place; remove it by hand, since a plain ` +
+                    `\`node --test\` in this repository may run it.`);
+                continue;
+            }
+            if (!gone(path)) {
+                verify(`${s.rel} is still present after its removal. Remove it by hand, since a plain \`node --test\` in this repository may run it.`);
+                continue;
+            }
+            report("removed", staleRunnableText(s));
+        }
+    }
+    const unrecorded = unrecordedStaleRunnables(PREVIOUS_LEDGER);
+    if (unrecorded.unreadable !== null) {
+        report("note", `tools/grugops/ — cannot list ${join(TARGET, "tools", "grugops")} (${unrecorded.unreadable}), so the check for ` +
+            `programs there that this kit version does not ship is skipped. Nothing is deleted either way.`);
+        return;
+    }
+    for (const rel of unrecorded.paths) {
+        report("note", `${rel} — this kit version does not ship it, and the install ledger ${ledgerSays(PREVIOUS_LEDGER)}, so install ` +
+            `cannot tell whether an earlier install wrote it. A plain \`node --test\` in this repository may run it when its ` +
+            `name matches Node's default test globs. Check it by hand and delete it if you do not use it; install never deletes it.`);
+    }
+}
+// unrecordedStaleRunnables: the presence path (see STALE RUNNABLES). `paths` are repo-relative and sorted by byte order.
+// An absent `tools/grugops/` is an empty list. One that exists but cannot be listed is `unreadable` (its error code),
+// never read as empty. It only reads.
+function unrecordedStaleRunnables(ledger) {
+    const recorded = new Set();
+    if (ledger.state === "ok") {
+        for (const e of entriesOfKind(ledger, "file"))
+            if (!e.kit)
+                recorded.add(e.path);
+    }
+    let names;
+    try {
+        names = readdirSync(join(TARGET, "tools", "grugops"));
+    }
+    catch (err) {
+        const code = errCode(err);
+        if (code === "ENOENT" || code === "ENOTDIR")
+            return { paths: [], unreadable: null };
+        return { paths: [], unreadable: code };
+    }
+    const paths = names
+        .map((n) => `tools/grugops/${n}`)
+        .filter((rel) => rel.endsWith(".js") && STALE_RUNNABLE_PATH.test(rel) && !shippedRunnable(rel) && !recorded.has(rel));
+    return { paths: paths.sort(byRelPath), unreadable: null };
+}
 // report / mkdirp / sameContent / isoStamp: install-side helpers declared HERE (above the doctor +
 // the early --update / --prune-old-kit / --migrate branches) so those early branches — which run
 // before the original install run — can call them (transitively, via copyKit → dirsSameContent →
@@ -9174,6 +9308,9 @@ seedState();
 // seedFile shape. This is the TOOL-02 convention Phase 16's test-integrity checker reuses.
 console.log("\n-- runnables --");
 materializeRunnable();
+// Plan 43.1-02 (D-02, D66): a runnable an earlier kit recorded writing that this kit no longer ships is removed while
+// the path still holds that record; anything else is left and named (see STALE RUNNABLES).
+retireStaleRunnables();
 // 7b. Report a retired configuration key in the target — read-only, never a rewrite (D-05).
 reportRetiredConfigKeys();
 // 7c. Claude Code ask rules for the governed command spellings (D-18). After seedState(), so a
