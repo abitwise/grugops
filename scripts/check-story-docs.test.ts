@@ -294,6 +294,58 @@ describe("check 3 — shipped docs links resolve in a kit home (D-11)", () => {
     expect(targets("[m](missing.md)\n", "README.md", "checkout")).toEqual(["README.md:1:missing.md"]);
   });
 
+  // IN-04 (plan 43.1-04): the link forms the reader skipped. Each form gets a dead case and a live one.
+  describe("the link forms IN-04 named", () => {
+    const WIDE_TREE = new Set([...TREE, "docs/existing page.md", "docs/existing_(1).md", "docs/img.png"]);
+    const wide: LinkContext = {
+      exists: (rel) => WIDE_TREE.has(rel),
+      shipped: new Set([...ctx.shipped, "docs/existing page.md", "docs/existing_(1).md", "docs/img.png"]),
+      repository: REPO,
+    };
+    const found = (text: string): string[] =>
+      linkFindings("docs/page.md", text, "ship", wide).map((f) => `${f.line}:${f.target}`);
+
+    it("an angle-bracket target with a space is read whole: a missing one is a finding, an existing one is not", () => {
+      expect(found("[x](<missing page.md>)\n")).toEqual(["1:missing page.md"]);
+      expect(found("[x](<existing page.md>)\n")).toEqual([]);
+      expect(found('[x](<existing page.md> "Title")\n')).toEqual([]);
+    });
+
+    it("a target holding balanced parentheses is read whole, not cut at the first )", () => {
+      expect(found("[x](missing_(1).md)\n")).toEqual(["1:missing_(1).md"]);
+      expect(found("[x](existing_(1).md)\n")).toEqual([]);
+      expect(found("[x](existing_(1).md 'Title') and [y](other.md)\n")).toEqual([]);
+    });
+
+    it("an HTML href or src attribute is read: a missing target is a finding, an existing one is not", () => {
+      expect(found('<a href="missing.md">x</a>\n')).toEqual(["1:missing.md"]);
+      expect(found("<img src='missing.png' alt=\"x\">\n")).toEqual(["1:missing.png"]);
+      expect(found('<a href="other.md">x</a> <img src="img.png">\n')).toEqual([]);
+    });
+
+    it("an HTML href follows the scheme rule: another host is skipped, a dead repository URL is a finding", () => {
+      expect(found('<a href="https://example.org/x.md">x</a>\n')).toEqual([]);
+      expect(found(`<a href="${REPO}/blob/main/no-such-file.md">x</a>\n`)).toEqual([
+        `1:${REPO}/blob/main/no-such-file.md`,
+      ]);
+    });
+
+    it("the new forms inside an inline code span or a fenced block are still ignored", () => {
+      expect(found('Write `[x](<missing page.md>)`, `[y](missing_(1).md)` or `<a href="missing.md">`.\n')).toEqual([]);
+      expect(found('```html\n<a href="missing.md">x</a>\n<img src="missing.png">\n[x](<missing page.md>)\n```\n')).toEqual(
+        [],
+      );
+    });
+
+    it("several forms on one line are read in the order they appear", () => {
+      expect(found('<img src="gone.png"> then [x](<gone page.md>) then [y](gone_(2).md)\n')).toEqual([
+        "1:gone.png",
+        "1:gone page.md",
+        "1:gone_(2).md",
+      ]);
+    });
+  });
+
   it("the live tree: every shipped docs link resolves in a kit home", () => {
     const { out } = runGate(ROOT);
     const line = checkLine(out, "STORY-05 shipped links");
