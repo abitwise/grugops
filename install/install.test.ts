@@ -145,7 +145,7 @@ import { realTargetPath } from "./user-file.js";
 // Plan 34.1-06 (D-23): the adapter kinds every install before this phase wrote, the one statement of the legacy rule.
 import { LEGACY_ADAPTER_KINDS, readInstallMarker } from "./install-marker.js";
 // Comparing a path the product PRINTED in that one spelling (plan 34-12, D-19, WIN-1).
-import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, makePreV3StateFixture, pathText, printedCommand, printedInvocation, runPrintedCommand, spawnBin, statedModeWords, statedSpelling, statedWords, withAgentFlags } from "./installer-paths.test-support.js";
+import { ALL_AGENT_FLAGS, MARKER_REL, commandContextFor, lineNamesPath, makePreV3ChessFixture, makePreV3StateFixture, pathText, printedCommand, printedInvocation, runPrintedCommand, spawnBin, statedModeWords, statedSpelling, statedWords, withAgentFlags } from "./installer-paths.test-support.js";
 /** Whether any line of `text` names `absPath` (lineNamesPath, one line at a time). */
 const namesPath = (text: string, absPath: string): boolean => text.split("\n").some((l) => lineNamesPath(l, absPath));
 
@@ -169,14 +169,17 @@ import { HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, PI_PROMPT_REL, agentC
 import {
   ARCHIVE_REL,
   BOARD_REL,
+  CONTEXT_REL,
   EPICS_REL,
   FEATURES_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   LEGACY_HANDOFFS_REL,
   LEGACY_STATE_ROOT_REL,
+  MEMORY_BANK_REL,
   METRICS_REL,
   NFR_DIR_REL,
+  PROGRESS_REL,
   PRE_V3_BOARD_REL,
   STATE_ROOT_REL,
   TRACE_DIR_REL,
@@ -6927,6 +6930,185 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
     expect(r.stdout, r.stderr).toMatch(/tests 0/);
     expect(r.stdout).not.toContain("tools/grugops/");
+  });
+
+  // ── D66: the old runnable name on a target an earlier kit installed (plan 43.1-02, D-02) ───────────────────────
+  // A target installed before plan 43.1-02 holds the checker at tools/grugops/test-skip-integrity.js, recorded in its
+  // install ledger. writeMarker carries a held kit-false record forward, so a destination-only rename would leave that
+  // file installed and the host's `node --test` still red (RESEARCH Pitfall 3). By D-02 (the human, 2026-11-19) install
+  // and --migrate remove it while the ledger holds it and the path still holds that record, through the one ownership
+  // answer (install-marker.ts owns, the rule uninstall's reverseFile applies). An edited copy, a file with no record, a
+  // record whose way passes through a link, and a target with no ledger are each left and named. Each world is what an
+  // earlier install left: a fresh install whose checker file and ledger record are renamed to the old name.
+  describe("D66 — the old runnable name (plan 43.1-02, D-02)", () => {
+    const NEW_REL = "tools/grugops/skip-integrity.js";
+    const OLD_REL = "tools/grugops/test-skip-integrity.js";
+    type World = { target: string; home: string; scratchHome: string };
+    const at = (w: World, rel: string): string => join(w.target, ...rel.split("/"));
+    /** One install run over `w` with `args`, DRY_RUN when `dryRun` (the licenseInstall environment, plus arguments). */
+    const d66Install = (w: World, args: string[] = [], dryRun = false) => {
+      const r = spawnSync("node", [INSTALL_JS, "--yes", ...withAgentFlags(args)], {
+        encoding: "utf8",
+        timeout: 180_000,
+        env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, GRUGOPS_HOME: w.home, HOME: w.scratchHome, TARGET: w.target, DRY_RUN: dryRun ? "1" : "" },
+      });
+      expect(r.error).toBeUndefined();
+      return { status: r.status, stdout: r.stdout ?? "", out: `${r.stdout ?? ""}\n${r.stderr ?? ""}` };
+    };
+    /** Move the ledger's kit-false file entry at `from` to `to`, written back as install writes the marker. */
+    function moveRecord(w: World, from: string, to: string): void {
+      const marker = readMarkerObject(w.target);
+      expect(fileRecords(marker, false)[from], `PREMISE: the ledger has no kit-false record at ${from}`).toBeDefined();
+      const next = withLedger(marker, (l) => l.map((e) => (e.kind === "file" && e.path === from ? { ...e, path: to } : e)));
+      writeFileSync(join(w.target, ".grugops", "install.json"), JSON.stringify(next, null, 2) + "\n");
+    }
+    /** What an install before plan 43.1-02 left: the checker at the old name, and the ledger's record of it there. */
+    function heldOldName(): World {
+      const w = installedHost(COMMONJS_HOST);
+      renameSync(at(w, NEW_REL), at(w, OLD_REL));
+      moveRecord(w, NEW_REL, OLD_REL);
+      return w;
+    }
+    const linesNaming = (out: string, label: string, rel: string): string[] => labelledLines(out, label).filter((l) => l.includes(rel));
+    const recordAt = (w: World, rel: string): string | undefined => fileRecords(readMarkerObject(w.target))[rel];
+
+    it("held: a re-install removes the old-name runnable it recorded, reports it removed, drops its record, and the host's node --test then runs nothing", () => {
+      const w = heldOldName();
+      const r = d66Install(w);
+      expect(r.status, r.out).toBe(0);
+      expect(existsSync(at(w, OLD_REL)), r.out).toBe(false);
+      const removed = linesNaming(r.stdout, "removed", OLD_REL);
+      expect(removed, r.out).toHaveLength(1);
+      expect(removed[0]).toContain("node --test");
+      expect(existsSync(at(w, NEW_REL))).toBe(true);
+      expect(recordAt(w, OLD_REL), "the next ledger still records the removed file").toBeUndefined();
+      expect(recordAt(w, NEW_REL)).toBeDefined();
+      const t = spawnSync(process.execPath, ["--test"], { cwd: w.target, encoding: "utf8", env: { PATH: process.env.PATH ?? "" } });
+      expect(t.status, `${t.stdout}${t.stderr}`).toBe(0);
+      expect(t.stdout).toMatch(/tests 0/);
+    });
+
+    it("DRY_RUN: the same target prints would-remove naming the old path, and no byte of the target changes", () => {
+      const w = heldOldName();
+      const before = snapshot(w.target);
+      const r = d66Install(w, [], true);
+      expect(r.status, r.out).toBe(0);
+      expect(linesNaming(r.stdout, "would-remove", OLD_REL), r.out).toHaveLength(1);
+      expect(linesNaming(r.stdout, "removed", OLD_REL)).toEqual([]);
+      expect(existsSync(at(w, OLD_REL))).toBe(true);
+      expect(snapshot(w.target)).toBe(before);
+    });
+
+    it("edited: an old-name runnable the user changed is left byte for byte, named in a counted verify that names node --test (exit 3), and its record is dropped", () => {
+      const w = heldOldName();
+      writeFileSync(at(w, OLD_REL), `${readFileSync(at(w, OLD_REL), "utf8")}// a line the user added\n`);
+      const edited = readFileSync(at(w, OLD_REL));
+      const r = d66Install(w);
+      expect(r.status, r.out).toBe(3);
+      expect(readFileSync(at(w, OLD_REL)).equals(edited), "the user's edited file changed").toBe(true);
+      const v = linesNaming(r.stdout, "verify", OLD_REL);
+      expect(v, r.out).toHaveLength(1);
+      expect(v[0]).toContain("node --test");
+      expect(v[0]).toContain("left in place");
+      expect(linesNaming(r.stdout, "removed", OLD_REL)).toEqual([]);
+      expect(recordAt(w, OLD_REL)).toBeUndefined();
+    });
+
+    it("unrecorded: a .js file directly under tools/grugops/ that this kit does not ship and the ledger does not record is left, with one note and no exit change", () => {
+      const w = installedHost(COMMONJS_HOST);
+      const own = "// a user's own program\n";
+      writeFileSync(at(w, OLD_REL), own);
+      const r = d66Install(w);
+      expect(r.status, r.out).toBe(0);
+      expect(readFileSync(at(w, OLD_REL), "utf8")).toBe(own);
+      const notes = linesNaming(r.stdout, "note", OLD_REL);
+      expect(notes, r.out).toHaveLength(1);
+      expect(notes[0]).toContain("has no record of it");
+      expect(r.stdout.split("\n").filter((l) => l.includes(OLD_REL))).toEqual(notes);
+    });
+
+    it("--migrate: on a pre-v3 layout the held old-name runnable is removed and the next ledger drops its record", { timeout: 300_000 }, () => {
+      const w = heldOldName();
+      for (const rel of [STATE_ROOT_REL, PROGRESS_REL, CONTEXT_REL]) rmSync(join(w.target, ...rel.split("/")), { recursive: true, force: true });
+      makePreV3ChessFixture(w.target);
+      expect(existsSync(join(w.target, ...LEGACY_STATE_ROOT_REL.split("/"))), "PREMISE: the target is on the pre-v3 layout").toBe(true);
+      const r = d66Install(w, ["--migrate"]);
+      expect(r.status, r.out).toBe(0);
+      expect(existsSync(join(w.target, ...LEGACY_STATE_ROOT_REL.split("/"))), "the state migrate did not run").toBe(false);
+      expect(existsSync(at(w, OLD_REL)), r.out).toBe(false);
+      expect(linesNaming(r.stdout, "removed", OLD_REL), r.out).toHaveLength(1);
+      expect(recordAt(w, OLD_REL)).toBeUndefined();
+      expect(existsSync(at(w, NEW_REL))).toBe(true);
+    });
+
+    it("uninstall: a target still holding the old-name runnable under its record has it removed through the ledger walk", () => {
+      const w = heldOldName();
+      const u = licenseUninstall(w.target, w.home, w.scratchHome);
+      expect(u.status, `${u.stdout}\n${u.stderr}`).toBe(0);
+      expect(existsSync(at(w, OLD_REL))).toBe(false);
+      expect(u.stdout).toContain(`${OLD_REL} (grugops runnable, recorded in the install ledger`);
+    });
+
+    it("[LAYOUT-03] link on the way: a record whose path passes through a link into memory-bank/ is not install's; nothing under the state root is removed or changed", () => {
+      const POSITION = "install/install.test.ts: D66 link on the way";
+      const PINNED_BY = "the held, edited and unrecorded D66 cases beside this one (the link half is unmeasured on this host)";
+      const w = installedHost(COMMONJS_HOST);
+      const parked = `${MEMORY_BANK_REL}/parked-tools`;
+      renameSync(join(w.target, "tools", "grugops"), at(w, parked));
+      renameSync(at(w, `${parked}/skip-integrity.js`), at(w, `${parked}/test-skip-integrity.js`));
+      moveRecord(w, NEW_REL, OLD_REL);
+      const skipped = stageSymlinkOrSkip(join("..", MEMORY_BANK_REL, "parked-tools"), join(w.target, "tools", "grugops"), "symlink tools/grugops into a state root (D66)", POSITION);
+      if (skipped !== null) {
+        console.warn(skipLine(skipped, PINNED_BY));
+        return;
+      }
+      expect(lstatSync(join(w.target, "tools", "grugops")).isSymbolicLink(), "PREMISE: the link was not staged").toBe(true);
+      const before = snapshot(at(w, MEMORY_BANK_REL));
+      const bytes = readFileSync(at(w, `${parked}/test-skip-integrity.js`));
+      const r = d66Install(w);
+      expect(snapshot(at(w, MEMORY_BANK_REL)), r.out).toBe(before);
+      expect(readFileSync(at(w, `${parked}/test-skip-integrity.js`)).equals(bytes)).toBe(true);
+      expect(linesNaming(r.stdout, "removed", OLD_REL), r.out).toEqual([]);
+      const v = linesNaming(r.stdout, "verify", OLD_REL);
+      expect(v, r.out).toHaveLength(1);
+      expect(v[0]).toContain("not install's");
+    });
+
+    it("[LAYOUT-03] no previous ledger: an old-name file in a target with no install marker is never removed; only the presence note names it", () => {
+      const w: World = { target: mkTmp(), home: mkTmp(), scratchHome: mkTmp() };
+      writeFileSync(join(w.target, "package.json"), COMMONJS_HOST);
+      mkdirSync(join(w.target, "tools", "grugops"), { recursive: true });
+      const planted = "// planted before any install\n";
+      writeFileSync(at(w, OLD_REL), planted);
+      const r = d66Install(w);
+      expect(r.status, r.out).toBe(0);
+      expect(readFileSync(at(w, OLD_REL), "utf8")).toBe(planted);
+      expect(linesNaming(r.stdout, "removed", OLD_REL)).toEqual([]);
+      expect(linesNaming(r.stdout, "verify", OLD_REL)).toEqual([]);
+      const notes = linesNaming(r.stdout, "note", OLD_REL);
+      expect(notes, r.out).toHaveLength(1);
+      expect(notes[0]).toContain("is absent");
+    });
+
+    it("[LAYOUT-03] ordering: stale-runnable lines are printed in byte order of their paths, the same in a preview and a run", () => {
+      const w = installedHost(COMMONJS_HOST);
+      const moves: Array<[string, string]> = [
+        ["tools/grugops/note.js", "tools/grugops/zz-note.js"],
+        ["tools/grugops/claim.js", "tools/grugops/aa-claim.js"],
+      ];
+      for (const [from, to] of moves) {
+        renameSync(at(w, from), at(w, to));
+        moveRecord(w, from, to);
+      }
+      const named = (out: string, label: string): string[] =>
+        labelledLines(out, label).flatMap((l) => /tools\/grugops\/(?:aa-claim|zz-note)\.js/.exec(l)?.[0] ?? []);
+      const expected = ["tools/grugops/aa-claim.js", "tools/grugops/zz-note.js"];
+      const dry = d66Install(w, [], true);
+      expect(named(dry.stdout, "would-remove"), dry.out).toEqual(expected);
+      const real = d66Install(w);
+      expect(real.status, real.out).toBe(0);
+      expect(named(real.stdout, "removed"), real.out).toEqual(expected);
+    });
   });
 
   it("tools/grugops/package.json: uninstall removes it by its record and leaves the host's own package.json byte for byte", () => {
