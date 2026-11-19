@@ -11,8 +11,9 @@
 //
 // The mechanism (D-11/D-PL3): authored as .ts in the central kit, compiled to a committed
 // test-skip-integrity.js (same tsc build + freshness gate as everything else, D-02), then
-// MATERIALIZED by install.ts into the host's committed path tools/grugops/test-skip-integrity.js.
-// The host runs `node tools/grugops/test-skip-integrity.js .grugops/test-skips.md --skip-count <N>`
+// MATERIALIZED by install.ts into the host's committed path tools/grugops/skip-integrity.js (renamed from
+// test-skip-integrity.js by plan 43.1-02, D66, so a host's own `node --test` default globs do not run it).
+// The host runs `node tools/grugops/skip-integrity.js .grugops/test-skips.md --skip-count <N>`
 // with ONLY Node present — no ~/.grugops, no npm, no node_modules. That is why this file imports
 // node: builtins ONLY (Pitfall 3): a single committed .js must run in bare host CI where the
 // central kit is absent. The markdown table is parsed with plain String.split — no markdown
@@ -68,7 +69,7 @@ const todayRaw = flagValue("--today");
 // tell "could not run" apart from "ran and found nothing"). T-16-01-04: malformed/missing input
 // must return a clean error, never crash open.
 if (!registryPath) {
-    process.stderr.write("Error: no registry file path was provided. Usage: node test-skip-integrity.js <registry-file> [--skip-count <N>] [--json]\n");
+    process.stderr.write("Error: no registry file path was provided. Usage: node tools/grugops/skip-integrity.js <registry-file> [--skip-count <N>] [--json]\n");
     process.exit(2);
 }
 let contents;

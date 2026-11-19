@@ -6367,8 +6367,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const mirror = mappingDests("uninstall.ts", "RUNNABLES_MIRROR");
     expect(mirror).toEqual(RUNNABLE_RELS);
     // The integer, so a pair that shrinks together still fails. Four kit-shipped runnables:
-    // reference-check, test-skip-integrity, uat-spec-integrity (Phase 31, D-13) and
-    // host-protection, the read-only git-host check (Phase 33.1, D-19), plus, since quick task
+    // reference-check, skip-integrity (installed under its source name until plan 43.1-02, D66),
+    // uat-spec-integrity (Phase 31, D-13) and host-protection, the read-only git-host check (Phase 33.1, D-19), plus, since quick task
     // 261018-hs8 (Task 4, 2026-10-18), the MIT license for them: 4 -> 5. 5 -> 8 on 2026-10-22 (plan 37-13,
     // SPLIT-05): the three state runnables state-check, trace-render and state-roll, so seven programs.
     // 8 -> 9 on 2026-10-27, plan 37-40 (D-21, G-37-2): tools/grugops/package.json, the `{"type":"module"}`
@@ -6843,7 +6843,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   const LOAD_FAILURES = ["SyntaxError", "Cannot use import statement outside a module", "MODULE_TYPELESS_PACKAGE_JSON", "ERR_REQUIRE_ESM"] as const;
   const OWN_BODY: Record<string, { args: (target: string) => string[]; status: number; text: string }> = {
     "reference-check.js": { args: () => [], status: 2, text: "no input file path was provided" },
-    "test-skip-integrity.js": { args: () => [], status: 2, text: "no registry file path was provided" },
+    "skip-integrity.js": { args: () => [], status: 2, text: "no registry file path was provided" },
     "uat-spec-integrity.js": { args: (t) => [t], status: 2, text: "ZERO uat specs were visited" },
     // Refused before any gh call: an unknown argument is bad usage.
     "host-protection.js": { args: () => ["--brnach", "x"], status: 2, text: "unknown argument: --brnach" },
@@ -6913,6 +6913,20 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     rmSync(join(target, PACKAGE_REL));
     for (const run of runPrograms(target)) expect(run.out, run.rel).toContain("MODULE_TYPELESS_PACKAGE_JSON");
     expect(readFileSync(join(target, "package.json"), "utf8")).toBe(TYPELESS_HOST);
+  });
+
+  // D66 (plan 43.1-02): until this plan the skip-integrity checker was installed as tools/grugops/test-skip-integrity.js,
+  // which Node's default `node --test` glob `**/test-*.js` matches, so a host's own plain `node --test` ran it and
+  // failed. This case runs the real default globs of the Node that runs the suite (22 in CI) instead of a copied
+  // pattern list, so a later destination that any default glob matches is red here.
+  it("runnable names: a host's plain `node --test` after a fresh install finds no grugops file (D66)", () => {
+    const { target } = installedHost(COMMONJS_HOST);
+    expect(existsSync(join(target, "tools", "grugops", "skip-integrity.js")), "the checker was not installed at its new name").toBe(true);
+    const r = spawnSync(process.execPath, ["--test"], { cwd: target, encoding: "utf8", env: { PATH: process.env.PATH ?? "" } });
+    expect(r.error).toBeUndefined();
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+    expect(r.stdout, r.stderr).toMatch(/tests 0/);
+    expect(r.stdout).not.toContain("tools/grugops/");
   });
 
   it("tools/grugops/package.json: uninstall removes it by its record and leaves the host's own package.json byte for byte", () => {

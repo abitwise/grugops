@@ -5851,6 +5851,11 @@ function skipLayoutMarker(dest) {
 // is a kit-shipped runnable program; the two other rows are the license text for those programs and the
 // package file that makes Node load them as ES modules (plan 37-40, D-21).
 //
+// DESTINATION NAMES (plan 43.1-02, D66, 2026-11-19): a destination may differ from its source name, and no
+// destination may match Node's default `node --test` globs (Node 22 docs: `**/*.test.*`, `**/*-test.*`,
+// `**/*_test.*`, `**/test-*.*`, `**/test.*`, `**/test/**`), because a host's own plain `node --test` run would
+// execute it. That is why the skip-integrity checker's source keeps its name and lands as skip-integrity.js.
+//
 // REVERSAL COUNTERPART (WR-04, plan 27-13): this mapping is MIRRORED by RUNNABLES_MIRROR in
 // install/uninstall.ts, in the "removing grugops runnables" pass. Every file this loop writes into
 // the user's repository has a removal counterpart there, guarded by the isProtected denylist and by
@@ -5859,7 +5864,7 @@ function skipLayoutMarker(dest) {
 // pass exists to close — edit the two together.
 const RUNNABLES = [
     ["scripts/runnable-ref/reference-check.js", "tools/grugops/reference-check.js"],
-    ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/test-skip-integrity.js"],
+    ["scripts/runnable-ref/test-skip-integrity.js", "tools/grugops/skip-integrity.js"],
     ["scripts/runnable-ref/uat-spec-integrity.js", "tools/grugops/uat-spec-integrity.js"],
     ["scripts/runnable-ref/host-protection.js", "tools/grugops/host-protection.js"],
     // The three state runnables (phase 37, plan 37-13, 2026-10-22, SPLIT-05): the read-only budget and index
