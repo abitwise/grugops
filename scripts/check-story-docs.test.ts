@@ -11,9 +11,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   GAP_D1_SENTENCE,
+  GRUG_AGENT_WORD,
   GRUG_COMMAND_WORD,
   gapD1Findings,
   gapD1ScanSet,
+  grugAgentFindings,
   grugCommandFindings,
   linkFindings,
   readmeStoryFindings,
@@ -106,6 +108,64 @@ describe("check 1 — the /grug command word (D-23)", () => {
     const { status, out } = runGate(mirror);
     expect(status).toBe(1);
     expect(checkLine(out, "STORY-05 /grug command word")).toContain("ZERO elements visited");
+  });
+});
+
+describe("check 1 — the removed grug- agent name (WR-03, plan 43.1-04)", () => {
+  // The commit plan 43.1-04 measured CLAUDE.md at, before its edit: line 134 still named the
+  // removed agent in a plugin `settings.json` route that does not exist.
+  const WR03_COMMIT = "8136dafe302a18dd7a6562004711304c9644e90d";
+
+  it.each(["grug-orchestrator", '{ "agent": "grug-orchestrator" }', "`grug-map`", "the grug-release agent"])(
+    "matches %s",
+    (s) => {
+      expect(GRUG_AGENT_WORD.test(s)).toBe(true);
+    },
+  );
+
+  it.each([
+    "grugops-orchestrator",
+    "claude --agent grugops-orchestrator",
+    ".claude/agents/grug-orchestrator.md",
+    "agents/grug-map.md",
+    "my-grug-orchestrator",
+    "xgrug-orchestrator",
+    "grug-",
+    "grug-Map",
+    "/grug-map",
+  ])("does not match %s", (s) => {
+    expect(GRUG_AGENT_WORD.test(s)).toBe(false);
+  });
+
+  it("a planted CLAUDE.md line with the old agent setting is one finding naming the line", () => {
+    const text = '# Project\n\n- Orchestrator = main thread via plugin `settings.json` `{ "agent": "grug-orchestrator" }`.\n';
+    expect(grugAgentFindings(text).map((f) => f.line)).toEqual([3]);
+    expect(grugCommandFindings(text)).toEqual([]);
+  });
+
+  it("a line naming grugops-orchestrator is no finding", () => {
+    expect(grugAgentFindings("- Orchestrator = main thread via `claude --agent grugops-orchestrator`.\n")).toEqual([]);
+  });
+
+  it("the CLAUDE.md at commit 8136dafe gives exactly one agent finding, at line 134", () => {
+    const old = execFileSync("git", ["show", `${WR03_COMMIT}:CLAUDE.md`], { cwd: ROOT, encoding: "utf8" });
+    expect(grugAgentFindings(old).map((f) => f.line)).toEqual([134]);
+  });
+
+  it("finds no grug- agent name in the live CLAUDE.md", () => {
+    const live = readFileSync(join(ROOT, "CLAUDE.md"), "utf8");
+    const found = grugAgentFindings(live);
+    expect(found.length, `CLAUDE.md lines naming a grug- agent: ${found.map((f) => f.line).join(", ")}`).toBe(0);
+  });
+
+  it("refuses a mirror whose CLAUDE.md names the old agent, naming the line", () => {
+    const mirror = freshTmp("gops-story-agent-");
+    writeIn(mirror, "CLAUDE.md", "# Project\n\nRun `claude --agent grugops-orchestrator`.\nOr set `grug-orchestrator`.\n");
+    const { status, out } = runGate(mirror);
+    expect(status).toBe(1);
+    expect(checkLine(out, "STORY-05 /grug command word")).toContain("FAIL");
+    expect(out).toContain("CLAUDE.md:4:");
+    expect(out).not.toContain("CLAUDE.md:3:");
   });
 });
 

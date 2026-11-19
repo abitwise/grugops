@@ -5,7 +5,8 @@
 //   1. CLAUDE.md names no `/grug` command word (D-23). The command that ships is `/grugops`; a
 //      Claude Code session in this repository reads CLAUDE.md as an instruction, so a stale command
 //      name there is a wrong instruction. There is no exemption list: a historical mention is
-//      reworded without the slash token.
+//      reworded without the slash token. The same check refuses a removed `grug-<name>` agent name
+//      (WR-03, plan 43.1-04): the shipped agents are `grugops-<name>`.
 //   2. Any public page, and the install guide, that mentions parallel work carries the GAP-D1
 //      sentence (D-22): parallel scheduling is real on hosts with a spawn tool, and the own-session
 //      capture that would prove it live is still `UNKNOWN - verify`. The match is an exact byte
@@ -84,16 +85,32 @@ const renderLine = (f: LineFinding): string => `    ${f.file}:${f.line}: ${f.tex
 // `.claude/skills/grug/`, where a word character, `.`, `/` or `-` sits right before the slash.
 export const GRUG_COMMAND_WORD = /(?<![\w./-])\/grug(?!ops)(?![A-Za-z0-9_])/;
 
+// A removed agent name (WR-03, plan 43.1-04): `grug-` followed by a lowercase letter, such as
+// `grug-orchestrator`. The shipped agents are `grugops-<name>`. Not a path segment such as
+// `agents/grug-map.md`, and not part of a longer word: a word character, `.`, `/` or `-` before it
+// rules it out. A `/grug-map` command word is check 1's other pattern.
+export const GRUG_AGENT_WORD = /(?<![\w./-])grug-(?=[a-z])/;
+
 // The one file this check reads.
 export const GRUG_SCAN_SET: readonly string[] = ["CLAUDE.md"];
 
-/** One finding per line of `text` that carries a `/grug` command word. Lines are 1-based. */
-export function grugCommandFindings(text: string, file: string = "CLAUDE.md"): LineFinding[] {
+/** One finding per line of `text` that matches `pattern`. Lines are 1-based. */
+function patternFindings(pattern: RegExp, text: string, file: string): LineFinding[] {
   const out: LineFinding[] = [];
   text.split("\n").forEach((line, i) => {
-    if (GRUG_COMMAND_WORD.test(line)) out.push({ file, line: i + 1, text: excerpt(line) });
+    if (pattern.test(line)) out.push({ file, line: i + 1, text: excerpt(line) });
   });
   return out;
+}
+
+/** One finding per line of `text` that carries a `/grug` command word. Lines are 1-based. */
+export function grugCommandFindings(text: string, file: string = "CLAUDE.md"): LineFinding[] {
+  return patternFindings(GRUG_COMMAND_WORD, text, file);
+}
+
+/** One finding per line of `text` that carries a removed `grug-<name>` agent name. Lines are 1-based. */
+export function grugAgentFindings(text: string, file: string = "CLAUDE.md"): LineFinding[] {
+  return patternFindings(GRUG_AGENT_WORD, text, file);
 }
 
 function runGrugCheck(): void {
@@ -103,10 +120,16 @@ function runGrugCheck(): void {
     const text = readOrNull(rel);
     if (text === null) continue;
     visited += 1;
-    findings.push(...grugCommandFindings(text, rel));
+    // One finding per line, in line order, even when a line carries both forms.
+    const byLine = new Map<number, LineFinding>();
+    for (const f of [...grugCommandFindings(text, rel), ...grugAgentFindings(text, rel)]) {
+      if (!byLine.has(f.line)) byLine.set(f.line, f);
+    }
+    findings.push(...[...byLine.values()].sort((a, b) => a.line - b.line));
   }
   const m: Measured<LineFinding> = {
-    label: "STORY-05 /grug command word (CLAUDE.md names only the shipped /grugops commands)",
+    label:
+      "STORY-05 /grug command word and grug- agent name (CLAUDE.md names only the shipped /grugops commands and grugops- agents)",
     visited,
     expected: GRUG_SCAN_SET.length,
     findings,

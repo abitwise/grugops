@@ -131,7 +131,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 - Use the **plugin form**, named `grugops` → commands read `/grugops:plan`, `/grugops:ticket`, etc.
 - Keep `grugops` as the repo / marketplace / package name regardless (brand §5.2).
 - Because: plugins always namespace `/<plugin>:<command>`; `/grugops:plan` is the shipped branded shape.
-- Orchestrator = main thread via plugin `settings.json` `{ "agent": "grug-orchestrator" }`; it spawns role subagents with the `Agent` tool.
+- Orchestrator = main thread via `claude --agent grugops-orchestrator` (the `--claude` install writes `.claude/agents/grugops-orchestrator.md`; the plugin form ships no agents); it spawns role subagents with the `Agent` tool.
 - Because: running the Orchestrator as the main thread is the designed dispatch path; nesting (a subagent spawning subagents, up to `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`) is allowed by the platform but not relied on.
 - Single-agent sequential role-load model (Orchestrator loads each role file into its own context in turn).
 - Because: these tools read AGENTS.md and don't have Claude's spawnable-subagent model; this is the portable baseline anyway.
