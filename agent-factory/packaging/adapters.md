@@ -12,12 +12,12 @@ host tool points at the same files. the wrapper is thin; the brain is shared.
 pointer at that one entry rule — it never copies the role body, it just tells the host
 tool how to reach it.
 
-The single thing that changes from tool to tool is *which entry file the host reads* to reach
-the Orchestrator. The dispatch model itself does NOT change: rather than **spawn** sub-agents
-(not available across every host CLI; on Claude Code sub-agents can nest to the documented
-depth, see below), grugops uses one uniform single-window sequential role-load — the
-Orchestrator **loads** each role file into one context in turn. **Only the entry file differs, never the dispatch model and never the content.** Same
-roles, same shared context, same gates.
+What differs on every host is *which entry file the host reads* to reach the Orchestrator. The
+dispatch model differs on one host. On Claude Code the coordinator adapter **spawns** role agents
+in the Full and Reduced tiers (see "The three entry tiers (Claude Code)" below). The
+non-spawning host CLIs (every other row of the table below) and Claude Code's Degraded tier use the
+single-window sequential role-load: the Orchestrator **loads** each role file into one context in
+turn. The roles, the shared context and the gates are the same on every host.
 
 > **Note on this document vs. `agent-factory/README.md`.** The README carries an earlier
 > usage overview whose Claude Code row predates the command-form decision (D-29). **This
@@ -158,7 +158,10 @@ it, and it does not ask for approval before every tool call (source:
 `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md`, retrieved
 2026-10-06). On Pi, the git host is therefore the only hard control on merge and deploy: branch
 protection or rulesets on protected branches, and a production deployment environment with required
-reviewers (`install/README.md` §5). A Pi extension can block a tool call, but grugops ships none.
+reviewers (`install/README.md` §5). The environment holds a deploy only when the
+deploy credentials live solely in its secrets; a credential held anywhere else (a repository or
+organization secret, a CI variable, a runner, a developer machine) can deploy without its reviewer.
+A Pi extension can block a tool call, but grugops ships none.
 
 ## Safety enforcement — where each rule is held
 
@@ -170,7 +173,10 @@ tool. There are three tiers:
   production deployment environment, each meeting every item of the git-host setup checklist in
   `install/README.md` §5. It is the only tier that sees every
   push and merge, and every deployment that runs through its environments, whatever command
-  started it. grugops never configures it. `tools/grugops/host-protection.js` reports read-only on
+  started it. For a deploy, that holds only when the
+  deploy credentials live solely in the production environment's secrets; a credential held
+  anywhere else (a repository or organization secret, a CI variable, a runner, a developer
+  machine) can deploy without its reviewer. grugops never configures it. `tools/grugops/host-protection.js` reports read-only on
   the branch items; its production line reads `UNKNOWN - verify` by design (33.1 D-31), so the
   human confirms the production environment's settings on the host.
 - **Speed bump — host CLI approval prompts.** They cover the usual command spellings and are
