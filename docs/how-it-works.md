@@ -65,12 +65,12 @@ The gate also runs `node tools/grugops/trace-render.js .`. It renders one trace 
 A release follows [Workflow 12](../agent-factory/workflows/12-release.md), run by the [Release Manager](reference/agents/release-manager.md). It sets the version, compiles the changelog and release notes from the included tickets, confirms the migration, rollback and recovery plans, attaches the NFR, security and compliance evidence, and walks the release-readiness checklist.
 
 <!-- claim: C-28-053 -->
-Step 6 is the human step, and it is keyed to the `production_requires_human_confirmation` checkpoint. At that checkpoint's default, the workflow records a named person's approval, runs the read-only git-host check, and waits for a named person to confirm the production action. [GUARANTEES.md](GUARANTEES.md) shows where that checkpoint is held on this repository.
+Step 6 is the human step, and it is keyed to the `production_requires_human_confirmation` checkpoint. At that checkpoint's default, the workflow records a named person's approval, runs the read-only git-host check, and waits for a named person to confirm the production action. [GUARANTEES.md](GUARANTEES.md) shows where that checkpoint is held in the grugops source checkout at its default settings. Your own setting is in `.grugops/factory.config.json`.
 
 ## A person merges and deploys
 
 <!-- claim: C-28-054 -->
-The workflows and role files tell agents to stop at a pull request and to leave merge and deploy to people. That is written text, and it holds only as well as an agent follows it. What stops a merge or a deploy mechanically is set on your git host: branch protection or rulesets on protected branches, and deployment environments with required reviewers for production. That is the hard floor. On Claude Code, the standalone installer also writes ask rules, so the CLI asks before the usual merge and deploy commands; they are a speed bump, not a security boundary. [GUARANTEES.md](GUARANTEES.md) shows which safety claims hold on this repository.
+The workflows and role files tell agents to stop at a pull request and to leave merge and deploy to people. That is written text, and it holds only as well as an agent follows it. What stops a merge or a deploy mechanically is set on your git host: branch protection or rulesets on protected branches, and deployment environments with required reviewers for production. That is the hard floor, and for a deploy it holds only when the deploy credentials live solely in the production environment's secrets. On Claude Code, the standalone installer also writes ask rules, so the CLI asks before the usual merge and deploy commands; they are a speed bump, not a security boundary. [GUARANTEES.md](GUARANTEES.md) shows which safety claims hold in the grugops source checkout at its default settings. Your own floors are set in `.grugops/factory.config.json`.
 
 ## How work flows
 
@@ -80,8 +80,8 @@ The workflows and role files tell agents to stop at a pull request and to leave 
   mode). The board *is* the state; the column an item sits in is its status.
 - **Traceability** — the audit trail, rendered per ticket from published note refs. Each ticket's
   file under `memory-bank/plans/traceability/` links requirement → ticket → code → test → UAT →
-  release, and `memory-bank/plans/traceability.md` indexes them one line per ticket, so every
-  shipped change is accountable end to end.
+  release, and `memory-bank/plans/traceability.md` indexes them one line per ticket, so each
+  shipped change leaves a trail from requirement to release.
 - **The lifecycle** — the Orchestrator decomposes each request into subtasks and enqueues
   them for whichever stages the work actually needs (analysis, design, engineering, QE,
   security/NFR, UAT, release); it claims each subtask at dispatch in its role's name, and

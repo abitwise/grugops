@@ -28,9 +28,11 @@ A: It has the parts a regulated team asks for. The config dial's `enterprise` mo
    code, tests and release. The role files and workflows tell agents to stop at a pull request and
    to leave merge and deploy to people. Those are written rules, and they hold only as well as an
    agent follows them. The hard floor is your git host: branch protection or rulesets on protected
-   branches, and deployment environments with required reviewers for production. grugops never
-   configures your git host; you set those protections yourself. [GUARANTEES.md](GUARANTEES.md)
-   shows which safety claims hold on this repository.
+   branches, and deployment environments with required reviewers for production. For a deploy,
+   that floor holds only when the deploy credentials live solely in the production environment's
+   secrets. grugops never configures your git host; you set those protections yourself.
+   [GUARANTEES.md](GUARANTEES.md) shows which safety claims hold in the grugops source checkout at
+   its default settings. Your own floors are set in `.grugops/factory.config.json`.
 
 Q: Why "grug"?
 A: It's named for *The Grug Brained Developer* (https://grugbrain.dev) by Carson Gross, an essay
