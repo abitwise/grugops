@@ -796,7 +796,7 @@ Wave 9 *(human checkpoint)*
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
 | 42. Skills per role and evaluation | v3.0 | 8/8 | Complete    | 2026-11-17 |
 | 43. Story and layered docs | v3.0 | 15/15 | Complete    | 2026-11-18 |
-| 43.1. Close v3.0 P1 debt (INSERTED) | v3.0 | 0/9 | Not started | - |
+| 43.1. Close v3.0 P1 debt (INSERTED) | v3.0 | 1/9 | In Progress | - |
 
 ## Backlog
 
@@ -813,11 +813,11 @@ Wave 9 *(human checkpoint)*
   5. The kit-home overlap check refuses a kit home and target that are the same directory under another spelling, including a macOS firmlink (`/System/Volumes/Data…`), by comparing device and inode rather than path strings. A test pins the refusal (D739; backlog 999.1, B1).
   6. The 12 P1 items are marked resolved in their `deferred-items.md` sources and in `.planning/v3.0-DEFERRED-TRIAGE.md`.
 
-**Plans:** 9 plans in 4 waves (wave 1: 01-05; wave 2: 06, 07; wave 3: 08; wave 4: 09)
+**Plans:** 1/9 plans executed in 4 waves (wave 1: 01-05; wave 2: 06, 07; wave 3: 08; wave 4: 09)
 
 Plans:
 **Wave 1**
-- [ ] 43.1-01-PLAN.md — CI unblock: the archived-path readers use .planning/milestones/v2.1-phases/; the flip gate leaves CI by decision D-01 (D0-D4, D6)
+- [x] 43.1-01-PLAN.md — CI unblock: the archived-path readers use .planning/milestones/v2.1-phases/; the flip gate leaves CI by decision D-01 (D0-D4, D6)
 - [ ] 43.1-02-PLAN.md — the checker installs as tools/grugops/skip-integrity.js; install and --migrate retire the recorded old name (D-02); the typeless premise per Node 22 (D66)
 - [ ] 43.1-03-PLAN.md — the catalog generator links Workflow 17 and derives the Orchestrator rows and the none cell (IN-03, F-12, D-05)
 - [ ] 43.1-04-PLAN.md — CLAUDE.md names grugops-orchestrator; check:story-docs catches grug- agents and reads more link forms (WR-03, IN-04)
