@@ -7,7 +7,7 @@ These pages explain what grugops is, how a request moves through it and how to u
 - [Using grugops](usage.md): start a session on each host and get each job done.
 - [Reference](reference/README.md): a page for every role and skill, and a table of the workflows.
 - [Third-party skills](skills.md): what grugops says about skills from other projects.
-- [Safety guarantees](GUARANTEES.md): which safety claims hold on this repository.
+- [Safety guarantees](GUARANTEES.md): which safety claims hold in the grugops source checkout at its default settings.
 - [FAQ](faq.md): short answers to common questions.
 
 ## Examples
