@@ -1320,6 +1320,10 @@ describe("generate-catalog.js (DOCS-01)", () => {
 describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () => {
   const SIX = ["One job", "Activates when", "Output", "Board moves", "Hard limits", "Stop when"] as const;
   const SEQUENTIAL_CELL = "Loaded by the Orchestrator in turn; no per-role adapter.";
+  // The launch role's own row on a non-spawn host (plan 43.1-03, F-12): the session itself is the Orchestrator there.
+  const LAUNCH_ROLE_CELL = "The session itself acts as the Orchestrator; no per-role adapter.";
+  // The derived Workflows cell of a role no workflow names (plan 43.1-03, D-05): derived, not unknown.
+  const NO_WORKFLOW_CELL = "none — no workflow's `## Agents involved` names this role";
   const ROLE_FILES: readonly string[] = listRoles(ROOT);
   const NAMES: readonly string[] = listRoleDisplayNames(ROOT);
   const SPECS = listAgentAdapterSpecs(ROOT);
@@ -1405,7 +1409,7 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
       }
       const wfCell = fieldCell(text, "Workflows") ?? "";
       const wfs = workflowsNaming(NAMES[ROLE_FILES.indexOf(file)]);
-      if (wfs.length === 0) expect(wfCell, file).toBe("UNKNOWN - verify");
+      if (wfs.length === 0) expect(wfCell, file).toBe(NO_WORKFLOW_CELL);
       else {
         const linked = [...wfCell.matchAll(/\]\(\.\.\/\.\.\/\.\.\/agent-factory\/workflows\/([^)]+\.md)\)/g)].map((x) => x[1]);
         expect(linked, file).toEqual(wfs);
@@ -1419,8 +1423,11 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
         expect(row.startsWith(`| ${h.name} | `), `${file}: row ${i + 1} opens with the plain name ${h.name}`).toBe(true);
         if (h.dispatch === "spawn") {
           for (const s of SPECS.filter((x) => x.roleFile === file)) expect(row, file).toContain(`\`${s.name}\``);
+        } else if (SPECS.some((x) => x.roleFile === file && x.name === LAUNCH_AGENT_NAME)) {
+          expect(row.startsWith(`| ${h.name} | ${LAUNCH_ROLE_CELL}`), `${file}: ${h.name} row opens with the launch-role sentence`).toBe(true);
+          expect(row, file).not.toContain(SEQUENTIAL_CELL);
         } else {
-          expect(row, file).toContain(SEQUENTIAL_CELL);
+          expect(row, file).toBe(`| ${h.name} | ${SEQUENTIAL_CELL} |`);
         }
       });
 
@@ -1498,6 +1505,52 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
     const n = unmatchedBullets();
     expect(n, "PREMISE: WF04's Receiving role bullet still names no role").toBeGreaterThan(0);
     expect(r.stdout).toContain(`${n} workflow bullet(s) name no role`);
+  });
+
+  it("a role no workflow names reads the derived none cell, never UNKNOWN - verify or an empty cell; a named role keeps its links (plan 43.1-03, D-05)", () => {
+    const m = mirror();
+    const r = run(m);
+    expect(r.status, r.text).toBe(0);
+    const unnamed = NAMES.filter((n) => workflowsNaming(n).length === 0);
+    expect(unnamed, "PREMISE: no workflow names the Compliance Officer or the Installer").toEqual(
+      expect.arrayContaining(["Compliance Officer", "Installer"]),
+    );
+    for (const n of unnamed) expect(fieldCell(page(m, ROLE_FILES[NAMES.indexOf(n)]), "Workflows"), n).toBe(NO_WORKFLOW_CELL);
+    for (const n of NAMES.filter((x) => !unnamed.includes(x))) {
+      const wfCell = fieldCell(page(m, ROLE_FILES[NAMES.indexOf(n)]), "Workflows") ?? "";
+      expect(wfCell, n).toContain("](../../../agent-factory/workflows/");
+      expect(wfCell, n).not.toContain("none —");
+    }
+  });
+
+  it("on each non-spawn host the Orchestrator's row says the session itself acts as the Orchestrator, then its launch text; the spawn row and every other role's rows are unchanged (plan 43.1-03, F-12)", () => {
+    const m = mirror();
+    expect(run(m).status).toBe(0);
+    const launch = SPECS.find((s) => s.name === LAUNCH_AGENT_NAME)!;
+    const rows = section(page(m, launch.roleFile), "Adapters per host");
+    const spawn = HOST_TOOLS.find((h) => h.dispatch === "spawn")!;
+    const spawnRow = rows.find((l) => l.startsWith(`| ${spawn.name} | `)) ?? "";
+    expect(spawnRow).not.toContain(LAUNCH_ROLE_CELL);
+    expect(spawnRow).not.toContain(SEQUENTIAL_CELL);
+    const sequential = HOST_TOOLS.filter((h) => h.dispatch !== "spawn");
+    expect(sequential.length, "PREMISE: there are non-spawn hosts").toBeGreaterThan(0);
+    for (const h of sequential) {
+      const row = rows.find((l) => l.startsWith(`| ${h.name} | `)) ?? "";
+      if (h.launchAgent === null) expect(row, h.name).toBe(`| ${h.name} | ${LAUNCH_ROLE_CELL} |`);
+      else {
+        const note = launchLiveNote(h);
+        const tail = ` Launch: ${launchInvoke(h)}${note === null ? ` (${LAUNCH_NOT_LIVE})` : ""}`.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+        expect(row, h.name).toBe(`| ${h.name} | ${LAUNCH_ROLE_CELL}${tail} |`);
+      }
+    }
+    const pageText = page(m, launch.roleFile);
+    expect(pageText.split(LAUNCH_ROLE_CELL).length - 1).toBe(sequential.length);
+    expect(pageText).not.toContain(SEQUENTIAL_CELL);
+    for (const file of ROLE_FILES.filter((f) => f !== launch.roleFile)) {
+      const other = page(m, file);
+      expect(other, file).not.toContain(LAUNCH_ROLE_CELL);
+      expect(other.split(SEQUENTIAL_CELL).length - 1, file).toBe(sequential.length);
+    }
   });
 
   it("a role with `capabilities` removed reads UNKNOWN - verify; declared skills are listed; a refused declaration reads UNKNOWN - verify plus the reason", () => {
