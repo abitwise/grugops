@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
-status: executing
-stopped_at: Completed 43.1-08-PLAN.md
-last_updated: "2026-11-19T11:22:23.145Z"
+status: verifying
+stopped_at: Completed 43.1-09-PLAN.md
+last_updated: "2026-11-19T11:33:00.088Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 43.1 execution started
-state_head: 4c46b0132cc2a09f60a1f2988078f455066c990e
+state_head: 5e25d79d21ed2a30e9c8d67e201c8c86ba4277ec
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 174
-  completed_plans: 173
+  completed_plans: 174
   percent: 90
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 
 Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-19 — Phase 43.1 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -892,6 +892,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P06 | 13 min | 2 tasks | 5 files |
 | Phase 43.1 P07 | 15 min | 3 tasks | 12 files |
 | Phase 43.1 P08 | 15min | 3 tasks | 6 files |
+| Phase 43.1 P09 | 12 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2493,6 +2494,8 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-07: C-28-018's registered block extended to AGENTS.md line 106 (the Enforcement bullet) so the D-04 change is anchored; status stays overstated/accepted
 - [Phase 43.1]: 43.1-07: GUARANTEES pointer is one line, two sentences: which claims hold in the grugops source checkout at its default settings, and that a user's own floors are set in .grugops/factory.config.json; no command named as reporting them
 - [Phase 43.1]: 43.1-08: docs/skills.md (C-28-075..086) and a bounded install/README.md set (C-28-087..090) joined the claim registry; no new safety row; the 5 opening sentence stays unregistered
+- [Phase 43.1]: 43.1-09: a deferred heading entry is resolved only by a status line whose whole value is resolved; commits go in a separate Resolved by bullet
+- [Phase 43.1]: 43.1-09: the 12 P1 items are resolved in their sources, the triage and the JSONL; audit-open lists 756 (768 minus the 12), D5 open; C-28-076 stays an open human decision
 
 ### Pending Todos
 
@@ -2835,8 +2838,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-19T11:22:21.341Z
-Stopped at: Completed 43.1-08-PLAN.md
+Last session: 2026-11-19T11:32:58.236Z
+Stopped at: Completed 43.1-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
