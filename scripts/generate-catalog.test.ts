@@ -1356,12 +1356,14 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
     const v = parsed.value.get(key) ?? [];
     return v.length === 1 && v[0].trim() !== "" ? v[0].trim() : undefined;
   };
-  /** The workflow files whose `## Agents involved` has a bullet `- <name> — `, in numeric order. */
+  /** The display name an `## Agents involved` bullet names: `- <name> — ` or `- <name>: `, an optional leading `The ` (plan 43.1-03, IN-03). */
+  const bulletName = (l: string): string | undefined => l.match(/^- (?:The )?(.+?)(?: — |: )/)?.[1];
+  /** The workflow files whose `## Agents involved` has a bullet naming `name`, in numeric order. */
   const workflowsNaming = (name: string): string[] =>
     readdirSync(join(ROOT, WORKFLOWS_SUBPATH))
       .filter(isNumberedWorkflowFile)
       .map((f) => ({ f, text: readFileSync(join(ROOT, WORKFLOWS_SUBPATH, f), "utf8") }))
-      .filter(({ text }) => section(text, "Agents involved").some((l) => l.startsWith(`- ${name} — `)))
+      .filter(({ text }) => section(text, "Agents involved").some((l) => bulletName(l) === name))
       .map(({ f, text }) => ({ f, order: Number(frontmatterOne(text, "order")) }))
       .sort((a, b) => a.order - b.order)
       .map(({ f }) => f);
@@ -1372,8 +1374,8 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
       .flatMap((f) => section(readFileSync(join(ROOT, WORKFLOWS_SUBPATH, f), "utf8"), "Agents involved"))
       .filter((l) => l.startsWith("- "))
       .filter((l) => {
-        const m = l.match(/^- (.+?) — /);
-        return m === null || !NAMES.includes(m[1]);
+        const n = bulletName(l);
+        return n === undefined || !NAMES.includes(n);
       }).length;
 
   it("PREMISES: the role set, the adapter specs and the six sections are all non-empty in the kit", () => {
@@ -1476,6 +1478,25 @@ describe("generate-catalog.js — the full role pages (plan 43-14, D-14)", () =>
     expect(fieldCell(page(m, tl), "Workflows")).toContain(`(../../../agent-factory/workflows/${wf04})`);
     const n = unmatchedBullets();
     expect(n, "PREMISE: WF04's Receiving role bullet names no role").toBeGreaterThan(0);
+    expect(r.stdout).toContain(`${n} workflow bullet(s) name no role`);
+  });
+
+  it("the Orchestrator page links WF17 through its `- The Orchestrator: ` bullet, and the bullets naming no role are still counted (plan 43.1-03, IN-03)", () => {
+    const m = mirror();
+    const r = run(m);
+    expect(r.status, r.text).toBe(0);
+    const orch = ROLE_FILES[NAMES.indexOf("Orchestrator")];
+    expect(orch, "PREMISE: a role is named Orchestrator").toBeDefined();
+    const wf17 = readdirSync(join(ROOT, WORKFLOWS_SUBPATH)).find((f) => f.startsWith("17-"));
+    expect(wf17, "PREMISE: a workflow numbered 17 exists").toBeDefined();
+    expect(
+      section(readFileSync(join(ROOT, WORKFLOWS_SUBPATH, wf17!), "utf8"), "Agents involved").some((l) => l.startsWith("- The Orchestrator: ")),
+      "PREMISE: WF17 names the Orchestrator in the `- The <Name>: ` shape, not `- <Name> — `",
+    ).toBe(true);
+    expect(fieldCell(page(m, orch), "Workflows")).toContain(`(../../../agent-factory/workflows/${wf17})`);
+    expect(workflowsNaming("Orchestrator")).toContain(wf17);
+    const n = unmatchedBullets();
+    expect(n, "PREMISE: WF04's Receiving role bullet still names no role").toBeGreaterThan(0);
     expect(r.stdout).toContain(`${n} workflow bullet(s) name no role`);
   });
 

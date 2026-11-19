@@ -618,6 +618,12 @@ catch (e) {
     fail(`cannot list the kit workflows: ${e.message}`);
 }
 const roleByName = new Map(roles.map((r) => [r.name, r]));
+// The `## Agents involved` bullet that names a role (plan 43.1-03, IN-03). A bullet names a role when it
+// reads `- <Name> — ` or `- <Name>: `, with an optional leading `The `; Workflow 17's
+// `- The Orchestrator: it schedules the queue, ...` is the shape the `: ` arm and the `The ` prefix add.
+// The captured text is then resolved against the role display names; text that is no display name
+// (WF04's `Receiving role (…)`) stays unmatched and is counted. Both readers below use this one matcher.
+const AGENT_BULLET = /^- (?:The )?(.+?)(?: — |: )/;
 const roleByFile = new Map(roles.map((r) => [r.file, r]));
 const workflowByFile = new Map(workflows.map((w) => [w.file, w]));
 const namedFiles = (text, dir) => {
@@ -642,7 +648,7 @@ for (const k of skills) {
             fail(`${w.file}: no \`## Agents involved\` section — cannot say which roles ${k.sourceRel} reaches`);
         }
         for (const line of agents.split("\n")) {
-            const bullet = line.match(/^- (.+?) — /);
+            const bullet = line.match(AGENT_BULLET);
             const role = bullet === null ? undefined : roleByName.get(bullet[1]);
             if (role !== undefined)
                 reached.set(role.file, role);
@@ -681,9 +687,10 @@ roles.sort((a, b) => {
 // measurement can do nothing else. The name above is the evidence now.
 workflows.sort((a, b) => a.order - b.order);
 // ── What each role page derives beyond its role file (plan 43-14, D-14) ───────────────────────
-// Workflows: each workflow whose `## Agents involved` has a bullet `- <display name> — ` names that
-// role. A bullet whose text before ` — ` is no role display name (WF04's `Receiving role (…)`, or a
-// bullet with no ` — ` at all) matches no role; it is counted in the output line, never linked.
+// Workflows: each workflow whose `## Agents involved` has a bullet `- <display name> — ` or
+// `- The <display name>: ` (AGENT_BULLET, plan 43.1-03) names that role. A bullet whose captured text is
+// no role display name (WF04's `Receiving role (…)`, or a bullet with neither ` — ` nor `: `) matches no
+// role; it is counted in the output line, never linked.
 const workflowsOfRole = new Map();
 let unmatchedBullets = 0;
 {
@@ -696,7 +703,7 @@ let unmatchedBullets = 0;
         for (const line of agents.split("\n")) {
             if (!line.startsWith("- "))
                 continue;
-            const bullet = line.match(/^- (.+?) — /);
+            const bullet = line.match(AGENT_BULLET);
             const role = bullet === null ? undefined : roleOfName.get(bullet[1]);
             if (role === undefined) {
                 unmatchedBullets++;
