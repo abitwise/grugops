@@ -315,7 +315,14 @@ export const CLAIM_KIND_CARDINALITY: readonly {
   // `architecture`: none asserts a merge or deploy outcome. This gate refused until the number moved;
   // the number was taken from that refusal's own text ("architecture declares 60 but the registry
   // carries 68").
-  { kind: "architecture", count: 68 },
+  // 68 -> 70 (plan 43.1-08 task 3, 2026-11-19; D-06, F-10). TWO ROWS ADDED, NONE RECLASSIFIED.
+  // `C-28-089` (install/README.md § 5 (a) hard-floor paragraph) and `C-28-090` (its production
+  // checklist with the credential item and the GitHub paragraphs) are hard-floor statements, so
+  // `architecture` by the C-28-054, C-28-060 and C-28-072 precedent: they say where enforcement lives
+  // and assert no merge or deploy outcome. The § 5 opening hard-rule sentence would be `safety` and is
+  // not registered (the registry's D-16 section says why). This gate refused until the number moved
+  // ("architecture declares 68 but the registry carries 70").
+  { kind: "architecture", count: 70 },
   // 8 -> 9 (plan 43.1-08, 2026-11-19; D-06, reader-review finding F-10). ONE ROW ADDED, NONE
   // RECLASSIFIED. The docs/skills.md sentence that grugops never vendors or installs a skill and that
   // `install.js --check` only reports a declared skill it cannot find (first committed as `C-28-075`,
@@ -329,7 +336,12 @@ export const CLAIM_KIND_CARDINALITY: readonly {
   // change the exit code and `--check` installs nothing) state installer behavior and rest on no
   // safety floor. This gate refused until the number moved ("install declares 9 but the registry
   // carries 12").
-  { kind: "install", count: 12 },
+  // 12 -> 14 (plan 43.1-08 task 3, 2026-11-19; D-06, F-10). TWO ROWS ADDED, NONE RECLASSIFIED.
+  // `C-28-087` (install/README.md's kit-home bullet, which never writes the checkout-only records) and
+  // `C-28-088` (the `What the installer touches (per-repo), and only this` heading) state installer
+  // behavior and rest on no safety floor. This gate refused until the number moved ("install declares
+  // 12 but the registry carries 14").
+  { kind: "install", count: 14 },
 ];
 
 /**

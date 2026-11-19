@@ -68,6 +68,13 @@ reader review the registry carries **74 rows**: those 72 plus `C-28-073` and `C-
 paragraphs of `docs/usage.md` that moved from README.md unanchored and carry absolutes. The number was
 DERIVED from `readRegistry().claims.length` at that commit.
 
+**Annotation, plan 43.1-08 — the derived current count after docs/skills.md and install/README.md
+joined, ADDED rather than substituted.** The sentences above stand as written. As committed by plan
+43.1-08 (phase 43.1 decision D-06, reader-review finding F-10) the registry carries **90 rows**: the 74
+above plus `C-28-075`..`C-28-086`, every absolute paragraph of `docs/skills.md`, and
+`C-28-087`..`C-28-090`, four bounded regions of `install/README.md`. None of the sixteen is
+`kind: safety`. The number was DERIVED from `readRegistry().claims.length` at this plan's commit.
+
 **This is a MAPPING, not a list (D-13).** The question a row answers is not *what is a claim* but
 *which public sentences become false if floor F is lowered* — the join Phase 30's AUTO-01 closed
 checkpoint set consumes. Phase 30's claim-dropping filters to `kind: safety`; the `architecture` and
@@ -1363,6 +1370,93 @@ The Designer and Frontend/UI read design-system files in your repository, such a
 The record `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` names the six candidates, the six checks, the evidence and the exact versions it read on 2026-11-16. It is reopened only when someone asks to bump an evaluated skill to a newer version, or when an upstream security advisory names an evaluated skill.
 ```
 
+### C-28-087
+
+- file: install/README.md
+- line: 49-56
+- kind: install
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). F-10 named its sentence `It never writes the records that stay in the checkout there`. Measured 2026-11-19 against `install/kit-source.ts` and a six-agent install run on 2026-11-19 (`node install/install.js --target <scratch repo> --claude --codex --antigravity --opencode --copilot --pi --yes`, with `GRUGOPS_HOME` and `HOME` pointed at scratch folders, exit 0). (1) The kit home holds `agent-factory/`, `docs/` and `examples/`: the run's kit home held those three folders and the kit marker file `.grugops-kit.json`, which is a file, not a folder; `KIT_ENTRY_PATHS` in `install/install-marker.ts` is the kit root plus `SHIPPED_DOCS_ROOTS` (`docs`, `examples`). (2) `Install copies only those pages`: the run's kit home held 39 `.md` pages under `docs/` and `examples/`, and `shippedDocs(".")` returned 39 paths on the same tree. (3) `It never writes the records that stay in the checkout there`: `CHECKOUT_ONLY_DOCS` lists exactly the five paths the bullet names (`docs/audit/`, `docs/design/`, `docs/initial/`, `docs/dogfood-human-runbook.md`, `docs/pre-v3-state-layout.md`), `shippedDocs` leaves each out, and none of the five existed in the run's kit home. `install/installer-kit-home.test.ts` holds this (`a fresh install copies every shipped page byte for byte, records the kit entries, leaves no checkout-only path, and the README link resolves`; `the source roots are docs and examples, and the checkout-only list is the five recorded paths`). (4) `Shared, read-only`: the kit home's files are not write-protected (mode `-rw-rw-r--` in the run); `read-only` names the kit's role. Per-repo state goes to the target (the next bullet), and no script under `tools/grugops/` or `hooks/` names `GRUGOPS_HOME` or the kit marker (`grep -ln`, 2026-11-19, no match). All hold.
+
+```
+- **Shared, read-only kit** → copied once to `${GRUGOPS_HOME:-$HOME/.grugops}` (default
+  `~/.grugops`). One kit, shared across every repo you install into. This kit home holds three
+  folders side by side: `agent-factory/` (the kit itself), `docs/` and `examples/`. The `docs/` and
+  `examples/` folders are copies of the public user docs and the worked examples, so the links between
+  the kit and those pages resolve in the kit home as they do in a grugops checkout. Install copies
+  only those pages. It never writes the records that stay in the checkout there: `docs/audit/`,
+  `docs/design/`, `docs/initial/`, the maintainer runbook (`docs/dogfood-human-runbook.md`) and the
+  pre-v3 layout page (`docs/pre-v3-state-layout.md`).
+```
+
+### C-28-088
+
+- file: install/README.md
+- line: 460
+- kind: install
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). The heading asserts that the section below it lists everything an install touches in the target repository. Measured 2026-11-19 against a six-agent install run on 2026-11-19 (`node install/install.js --target <scratch repo> --claude --codex --antigravity --opencode --copilot --pi --yes`, with `GRUGOPS_HOME` and `HOME` pointed at scratch folders, exit 0): every path the run wrote in the target, `AGENTS.md`, `CLAUDE.md`, `.claude/agents/`, `.claude/skills/`, `.claude/settings.json`, `.agents/skills/grugops/SKILL.md`, `.agents/agents/grugops-orchestrator.md`, `.opencode/agents/grugops-orchestrator.md`, `.opencode/commands/grugops.md`, `.github/agents/grugops-orchestrator.agent.md`, `.github/copilot-instructions.md`, `.pi/grugops-orchestrator.md`, `.pi/prompts/grugops.md`, `.grugops/factory.config.json`, `.grugops/install.json`, `memory-bank/` with `memory-bank/plans/`, and `tools/grugops/`, is named in the section (`grep -F` of each path over the section's lines, 2026-11-19); the run wrote nothing under its scratch `HOME`. The run did not exercise `opencode.json`: its kit home was not under `HOME`, so install printed a `note` and wrote no rule; the section names `opencode.json` and the condition. Not measured: a target with existing files (the refresh and blocked arms), `--symlink`, a re-install, `--update`, `--migrate`, `--prune-old-kit` and Windows; whether the section names every path those runs write is `UNKNOWN - verify`. Holds for the measured run.
+
+```
+### What the installer touches (per-repo), and only this
+```
+
+### C-28-089
+
+- file: install/README.md
+- line: 1783-1790
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). A hard-floor statement, so `architecture` with `depends_on: —`, as C-28-054, C-28-060 and C-28-072 are: it says where enforcement lives and how far it reaches, and asserts no merge or deploy outcome. Measured 2026-11-19. The git host as the tier that sees every push, merge and deployment through its environments: docs/GUARANTEES.md § Where each floor is enforced, and the `protected_branch_merge` and `production_requires_human_confirmation` `enforcement.hardFloor` text in `scripts/audit-model.ts`. The deploy condition, `only when the deploy credentials live solely in the production environment's secrets`, is the D-04 wording plan 43.1-05 wrote (phase 43.1 decision D-04, deferred item D693), and it rests on GitHub's statement that an environment's secrets reach only the jobs that reference the environment and only after a required reviewer approves (`docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments`, cited in 43.1-RESEARCH.md Item 6; this plan did not re-read the page, so its current wording is `UNKNOWN - verify`). `grugops never configures your git host`: the host check, `scripts/runnable-ref/host-protection.ts` (installed as `tools/grugops/host-protection.js`), calls the host only through `runGh(["api", "--method", "GET", "-i", path])` and `gh auth status`, and no install code path calls the host (`grep -n "gh api" install/*.ts`, tests excluded, printed nothing on 2026-11-19). `grugops checks it read-only`: the same script. Holds.
+
+```
+Your git host's protection (branch protection or rulesets, and deployment environments) is the only
+tier that sees every push and merge, and every deployment that runs through its deployment
+environments, whatever command started it. For a deploy, that holds only when the
+deploy credentials live solely in the production environment's secrets: a credential held anywhere
+else (a repository or organization secret, a CI variable, a runner, a developer machine) can deploy
+without that environment's reviewer. It is the guarantee; the two tiers below sit in front of
+it. **grugops never configures your git host for you.** You set it up with the checklist below, and
+grugops checks it read-only.
+```
+
+### C-28-090
+
+- file: install/README.md
+- line: 1850-1871
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). The production checklist with its credential item, the GitHub settings paragraph and the GitHub citation paragraph after it. A hard-floor statement, so `architecture` with `depends_on: —`, the C-28-054 precedent. Measured 2026-11-19. (1) The six checklist items are the `ENVIRONMENT_FLOOR` rows of `scripts/runnable-ref/host-protection.ts` (installed as `tools/grugops/host-protection.js`), byte for byte: `scripts/runnable-ref/host-protection.test.ts` (`README drift: the second checklist list under #### Git-host setup checklist equals --json floor.environment, both ways`) holds it; the credential item, `keeps the deploy credentials to itself`, is the D-04 wording plan 43.1-05 added (phase 43.1 decision D-04). (2) The GitHub settings paragraph (`Required reviewers`, `Prevent self-review`, the administrator bypass setting, `Protected branches only`, and required reviewers on the Free, Pro and Team plans only for public repositories) was read from GitHub's Deployments and environments reference through Context7 in plan 33.1-20 (`.planning/milestones/v2.1-phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-20-SUMMARY.md`). (3) The citation paragraph, that an environment's secrets reach only the jobs that reference it and only after a required reviewer approves, is cited in 43.1-RESEARCH.md Item 6 from `docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments`. This plan did not re-read GitHub's page, so its current wording is `UNKNOWN - verify`; the rows here record the text as those two plans cited it. Holds as cited.
+
+```
+For production, keep a deployment environment that:
+
+- [ ] has the name your deploy jobs use;
+- [ ] requires at least one reviewer;
+- [ ] keeps the deploy credentials to itself: the deploy credentials live solely in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine;
+- [ ] prevents self-review;
+- [ ] does not let administrators bypass its protection rules;
+- [ ] allows deployments only from protected branches.
+
+On GitHub these are the environment's "Required reviewers" setting with at least one reviewer
+named and "Prevent self-review" turned on, "Allow administrators to bypass configured protection
+rules" turned off, and deployment branches set to "Protected branches only". GitHub documents
+"Protected branches only" for branch protection rules, and states that when no branch has them,
+every branch can deploy
+([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
+GitHub also documents that on the Free, Pro and Team plans required reviewers are available only for
+public repositories.
+
+GitHub documents that an environment's secrets reach only the jobs that reference the environment,
+and only after a required reviewer approves, so a deploy credential stored anywhere else is not gated
+by that reviewer
+([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
+```
+
 ## The unanchorable claim — `.claude-plugin/plugin.json`
 
 C-28-038 above is registered like every other row and is **excluded from the D-16 bijection by
@@ -1604,6 +1698,22 @@ Two further limits, named for the same reason:
   honestly measured. The measurements are recorded in prose beside each row so a later reader can
   re-run them, which is the only real check available.
 - **The unanchorable row is outside the bijection.** See § *The unanchorable claim* above.
+
+**Annotation, plan 43.1-08 (2026-11-19, phase 43.1 decision D-06) — install/README.md is only partly
+registered.** Four regions of `install/README.md` are anchored: `C-28-087` (the kit-home bullet of the
+two-root layout, which carries the sentence reader-review finding F-10 named), `C-28-088` (the
+`What the installer touches (per-repo), and only this` heading), `C-28-089` (the § 5 (a) hard-floor
+paragraph) and `C-28-090` (the § 5 (a) production checklist with its credential item and the two
+GitHub paragraphs after it). The rest of the guide is not registered. That includes the § 5 opening
+sentence, `The hard rule never changes: grugops never merges a protected branch and never deploys to
+production without named human confirmation.`, and the guide's other absolutes, such as the installer
+being idempotent and additive in § 2. D-06 bounds this phase to the four regions. The opening sentence
+asserts a merge and deploy outcome, so by the C-28-018 precedent it would be `kind: safety`, and a
+safety row would add install/README.md to the watched corpus of `check:diff-disposition`, which would
+then need a disposition row for every clause changed in the guide since its base. Registering the
+rest of the guide is deferred (`.planning/phases/43.1-close-v3-0-p1-debt/43.1-CONTEXT.md` § Deferred
+Ideas). Until then the gate proves nothing about an unanchored sentence of install/README.md, the
+limit the first paragraph of this section states for every page.
 
 ## Adjudicated as NOT a claim
 

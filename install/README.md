@@ -45,6 +45,7 @@ way on every platform Node runs on, including Windows.
 The installer uses a **two-root** layout, so the kit and your per-repo state stay cleanly
 separated:
 
+<!-- claim: C-28-087 -->
 - **Shared, read-only kit** → copied once to `${GRUGOPS_HOME:-$HOME/.grugops}` (default
   `~/.grugops`). One kit, shared across every repo you install into. This kit home holds three
   folders side by side: `agent-factory/` (the kit itself), `docs/` and `examples/`. The `docs/` and
@@ -455,6 +456,7 @@ probably meant `--target <your-repo>`. This guard always runs, even under `--yes
 because it is a mechanical safety check, not a prompt. If you really do mean to install into the
 source checkout, pass **`--allow-self`** (or `--force`) to override it.
 
+<!-- claim: C-28-088 -->
 ### What the installer touches (per-repo), and only this
 
 What an install writes in the **target repo** depends on the agents it is for: there is one flag per
@@ -1777,6 +1779,7 @@ Only the first one holds whatever command an agent types.
 
 ### (a) Hard floor — the git host
 
+<!-- claim: C-28-089 -->
 Your git host's protection (branch protection or rulesets, and deployment environments) is the only
 tier that sees every push and merge, and every deployment that runs through its deployment
 environments, whatever command started it. For a deploy, that holds only when the
@@ -1843,6 +1846,7 @@ it belongs to the repository the check inspected: a repository ruleset must name
 repository line spells them. A ruleset whose source is an enterprise or any other owner reads `UNKNOWN - verify` for the
 lines it would show.
 
+<!-- claim: C-28-090 -->
 For production, keep a deployment environment that:
 
 - [ ] has the name your deploy jobs use;

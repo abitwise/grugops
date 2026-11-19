@@ -84,8 +84,10 @@ import {
 // Moved BY HAND, in the same commit as the map.
 // 60 -> 68 architecture and 9 -> 12 install (plan 43.1-08 task 2, 2026-11-19): the rest of docs/skills.md's
 // absolutes, `C-28-075`, `C-28-077` .. `C-28-086`. Moved BY HAND, in the same commit as the map.
-const MIRROR_ARCHITECTURE_CLAIMS = 68;
-const MIRROR_INSTALL_CLAIMS = 12;
+// 68 -> 70 architecture and 12 -> 14 install (plan 43.1-08 task 3, 2026-11-19): `C-28-087` .. `C-28-090`,
+// four bounded regions of install/README.md. Moved BY HAND, in the same commit as the map.
+const MIRROR_ARCHITECTURE_CLAIMS = 70;
+const MIRROR_INSTALL_CLAIMS = 14;
 
 /**
  * The SAFETY ARM, spelled out exactly as the live registry carries it. The gate pins this roster
