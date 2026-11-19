@@ -397,7 +397,7 @@ const withinSpelling = (child, parent) => child.startsWith(parent.endsWith("/") 
  * proof). The kit entry that is the target, lies inside it or holds it; else, when the kit home is the
  * target or lies inside it, the kit root (every entry then lies inside the target); else null.
  */
-export function kitHomeOverlapBySpelling(input) {
+export function overlapBySpelling(input) {
     const t = input.target.realAt;
     const hit = input.entries.find((k) => k.realAt === t || withinSpelling(k.realAt, t) || withinSpelling(t, k.realAt));
     if (hit !== undefined)
@@ -435,7 +435,7 @@ function identityRelation(a, b) {
     return end === a.length - 1 ? "same" : "inside";
 }
 /** THE IDENTITY TEST: the string test's shapes over node lists. */
-function kitHomeOverlapByIdentity(input) {
+function overlapByIdentity(input) {
     const t = input.target.nodes;
     const hit = input.entries.find((k) => identityRelation(k.nodes, t) !== null || identityRelation(t, k.nodes) !== null);
     if (hit !== undefined)
@@ -444,7 +444,7 @@ function kitHomeOverlapByIdentity(input) {
 }
 /** The overlap decision install.ts refuses on: the string test, then the identity test; a hit by either is a hit. */
 export function kitHomeOverlap(input) {
-    return kitHomeOverlapBySpelling(input) ?? kitHomeOverlapByIdentity(input);
+    return overlapBySpelling(input) ?? overlapByIdentity(input);
 }
 // ── THE TREE RECORD (plan 33.1-37, D-33 (c)) ──────────────────────────────────────────────────────
 //

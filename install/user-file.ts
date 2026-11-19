@@ -447,7 +447,7 @@ export function realPathThroughExisting(p: string): string | null {
 // on the Linux machines this is tested on); production code omits it.
 //
 // kitHomeOverlap is the decision, a pure function over the real spellings and node lists of the kit
-// entries, the kit home and the target. The string test (kitHomeOverlapBySpelling) is the rule
+// entries, the kit home and the target. The string test (overlapBySpelling) is the rule
 // install.ts held before this plan, moved here unchanged; the identity test is the same shapes over node
 // lists. A hit by either is a hit.
 //
@@ -520,7 +520,7 @@ const withinSpelling = (child: string, parent: string): boolean => child.startsW
  * proof). The kit entry that is the target, lies inside it or holds it; else, when the kit home is the
  * target or lies inside it, the kit root (every entry then lies inside the target); else null.
  */
-export function kitHomeOverlapBySpelling<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
+export function overlapBySpelling<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
   const t = input.target.realAt;
   const hit = input.entries.find((k) => k.realAt === t || withinSpelling(k.realAt, t) || withinSpelling(t, k.realAt));
   if (hit !== undefined) return hit;
@@ -556,7 +556,7 @@ function identityRelation(a: readonly PathNode[], b: readonly PathNode[]): "same
 }
 
 /** THE IDENTITY TEST: the string test's shapes over node lists. */
-function kitHomeOverlapByIdentity<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
+function overlapByIdentity<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
   const t = input.target.nodes;
   const hit = input.entries.find((k) => identityRelation(k.nodes, t) !== null || identityRelation(t, k.nodes) !== null);
   if (hit !== undefined) return hit;
@@ -565,7 +565,7 @@ function kitHomeOverlapByIdentity<E extends PlacedPath>(input: KitHomeOverlapInp
 
 /** The overlap decision install.ts refuses on: the string test, then the identity test; a hit by either is a hit. */
 export function kitHomeOverlap<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
-  return kitHomeOverlapBySpelling(input) ?? kitHomeOverlapByIdentity(input);
+  return overlapBySpelling(input) ?? overlapByIdentity(input);
 }
 
 // ── THE TREE RECORD (plan 33.1-37, D-33 (c)) ──────────────────────────────────────────────────────
