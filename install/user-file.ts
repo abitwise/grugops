@@ -548,8 +548,17 @@ function anchorEnd(child: readonly PathNode[], parent: readonly PathNode[]): num
   return -1;
 }
 
-/** The identity relation of `a` to `b`: one directory, `a` strictly inside `b`, or neither. */
+/**
+ * THE DEGENERATE GUARD (plan 43.1-06, the rule of scripts/context-io.ts's home-boundary builder, plan 41-13): a
+ * directory and its parent are demonstrably different, so where an existing node reports its parent's
+ * `dev:ino` the platform's identities say nothing about this path. Such a list takes no part in the identity
+ * test, and the string test decides alone.
+ */
+const degenerate = (nodes: readonly PathNode[]): boolean => nodes.some((n, i) => i > 0 && n.id !== null && n.id === nodes[i - 1].id);
+
+/** The identity relation of `a` to `b`: one directory, `a` strictly inside `b`, or neither (always neither when either list is degenerate). */
 function identityRelation(a: readonly PathNode[], b: readonly PathNode[]): "same" | "inside" | null {
+  if (degenerate(a) || degenerate(b)) return null;
   const end = anchorEnd(a, b);
   if (end < 0) return null;
   return end === a.length - 1 ? "same" : "inside";
