@@ -8,7 +8,7 @@ Make this factory usable in the current tool.
 | Tier | enterprise |
 | Capabilities | read edit shell |
 | Skills | none declared |
-| Workflows | UNKNOWN - verify |
+| Workflows | none — no workflow's `## Agents involved` names this role |
 | Source | [agent-factory/roles/installer.md](../../../agent-factory/roles/installer.md) |
 
 ## Adapters per host

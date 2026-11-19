@@ -8,7 +8,7 @@ Protect people and the audit trail: classify the data a change touches and recor
 | Tier | enterprise |
 | Capabilities | read edit shell |
 | Skills | none declared |
-| Workflows | UNKNOWN - verify |
+| Workflows | none — no workflow's `## Agents involved` names this role |
 | Source | [agent-factory/roles/compliance-officer.md](../../../agent-factory/roles/compliance-officer.md) |
 
 ## Adapters per host

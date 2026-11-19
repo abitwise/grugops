@@ -305,6 +305,12 @@ interface RoleEntry {
 // behind and where it stops, and links the file for the rest.
 const ROLE_PAGE_SECTIONS = ["One job", "Activates when", "Output", "Board moves", "Hard limits", "Stop when"] as const;
 const UNKNOWN = "UNKNOWN - verify";
+// The Workflows cell of a role no workflow's `## Agents involved` names (plan 43.1-03, D-05, F-12). The
+// generator derives this answer from every workflow, so it is "none", not unknown; the text states how.
+const NO_WORKFLOW = "none — no workflow's `## Agents involved` names this role";
+// The launch role's row on a host that loads roles in turn (plan 43.1-03, F-12): there the session itself is
+// the Orchestrator, so "loaded by the Orchestrator" would describe the role as loading itself.
+const LAUNCH_ROLE_SEQUENTIAL = "The session itself acts as the Orchestrator; no per-role adapter.";
 interface WorkflowEntry {
   file: string;
   text: string;
@@ -931,12 +937,14 @@ pages.set(INDEX_PAGE, lines.join("\n"));
 // six sections copied from the role file, and a link to the role source, three levels up from
 // docs/reference/agents/ (plan 43-14). Nothing here is typed per role: every cell is read from the role
 // file, the workflows, the role-skills reader, kit-model's adapter specs or the host registry, and a
-// cell none of them answers reads UNKNOWN - verify.
+// cell none of them answers reads UNKNOWN - verify. The Workflows cell is always answered: every
+// workflow's `## Agents involved` was read, so a role none names gets the derived NO_WORKFLOW text, not
+// UNKNOWN - verify (plan 43.1-03, D-05).
 for (const r of roles) {
   const wfs = workflowsOfRole.get(r.file) ?? [];
   const workflowsCell =
     wfs.length === 0
-      ? UNKNOWN
+      ? cell(NO_WORKFLOW)
       : wfs.map((w) => `[${cell(w.name)}](../../../agent-factory/workflows/${w.file})`).join(", ");
   const specs = adapterSpecs.filter((s) => s.roleFile === r.file);
   const isLaunchRole = specs.some((s) => s.name === LAUNCH_AGENT_NAME);
@@ -947,7 +955,7 @@ for (const r of roles) {
     if (h.dispatch === "spawn") {
       return `| ${cell(h.name)} | ${specs.length === 0 ? UNKNOWN : specs.map((s) => `\`${s.name}\``).join(", ")} |`;
     }
-    let text = "Loaded by the Orchestrator in turn; no per-role adapter.";
+    let text = isLaunchRole ? LAUNCH_ROLE_SEQUENTIAL : "Loaded by the Orchestrator in turn; no per-role adapter.";
     if (isLaunchRole && h.launchAgent !== null) {
       // launchInvoke carries the live-run note when a human ran the form live; a form nobody ran live
       // gets the registry's not-live mark here, so no page states an unverified launch as fact.

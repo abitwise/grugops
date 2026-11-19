@@ -16,11 +16,11 @@ Decompose each request into subtasks and route each to the right role agent over
 | Host | Adapter |
 | --- | --- |
 | Claude Code | `grugops-orchestrator` |
-| Codex CLI | Loaded by the Orchestrator in turn; no per-role adapter. |
-| Antigravity CLI | Loaded by the Orchestrator in turn; no per-role adapter. Launch: pick `grugops-orchestrator` in the `/agents` panel to run the session as the Orchestrator (verified live by a human on 2026-10-18 on Antigravity CLI 1.4.2) |
-| OpenCode | Loaded by the Orchestrator in turn; no per-role adapter. Launch: pick `grugops-orchestrator` in the `/agents` panel to run the session as the Orchestrator (verified live by a human on 2026-10-18 on OpenCode 2.0.26) |
-| GitHub Copilot CLI | Loaded by the Orchestrator in turn; no per-role adapter. Launch: start the session as the Orchestrator with `copilot --agent grugops-orchestrator` (UNKNOWN - verify: no live run) |
-| Pi | Loaded by the Orchestrator in turn; no per-role adapter. Launch: start the session as the Orchestrator with `pi --append-system-prompt .pi/grugops-orchestrator.md` from the repository root (verified live by a human on 2026-10-18 on Pi 1.1.0). Warning: the flag reads the file into Pi's system prompt without Pi's project-trust check, so only use it in a repository you trust |
+| Codex CLI | The session itself acts as the Orchestrator; no per-role adapter. |
+| Antigravity CLI | The session itself acts as the Orchestrator; no per-role adapter. Launch: pick `grugops-orchestrator` in the `/agents` panel to run the session as the Orchestrator (verified live by a human on 2026-10-18 on Antigravity CLI 1.4.2) |
+| OpenCode | The session itself acts as the Orchestrator; no per-role adapter. Launch: pick `grugops-orchestrator` in the `/agents` panel to run the session as the Orchestrator (verified live by a human on 2026-10-18 on OpenCode 2.0.26) |
+| GitHub Copilot CLI | The session itself acts as the Orchestrator; no per-role adapter. Launch: start the session as the Orchestrator with `copilot --agent grugops-orchestrator` (UNKNOWN - verify: no live run) |
+| Pi | The session itself acts as the Orchestrator; no per-role adapter. Launch: start the session as the Orchestrator with `pi --append-system-prompt .pi/grugops-orchestrator.md` from the repository root (verified live by a human on 2026-10-18 on Pi 1.1.0). Warning: the flag reads the file into Pi's system prompt without Pi's project-trust check, so only use it in a repository you trust |
 
 ## One job
 Decompose each request into subtasks and route each to the right role agent over the shared queue.
