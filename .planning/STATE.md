@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
 status: executing
-stopped_at: Phase 43 complete, ready to plan Phase 43.1
-last_updated: "2026-11-19T08:12:33.592Z"
-last_activity: 2026-11-18
-last_activity_desc: Phase 43 complete, transitioned to Phase 43.1
-state_head: e9739e947be2ef15e8b9a8de1fb8b131a5b5a63e
+stopped_at: Completed 43.1-01-PLAN.md
+last_updated: "2026-11-19T09:26:18.750Z"
+last_activity: 2026-11-19
+last_activity_desc: Phase 43.1 execution started
+state_head: 30a2db953a17020f280efad9a658175f8783710b
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 174
-  completed_plans: 165
+  completed_plans: 166
   percent: 90
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 43 — Story and layered docs
+**Current focus:** Phase 43.1 — Close v3.0 P1 debt (INSERTED)
 
 ## Current Position
 
-Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — READY TO EXECUTE
-Plan: Not started
+Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-11-18 — Phase 43 complete, transitioned to Phase 43.1
+Last activity: 2026-11-19 — Phase 43.1 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -884,6 +884,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43 P11 | 18 min | 3 tasks | 23 files |
 | Phase 43 P12 | 41 min | 3 tasks | 18 files |
 | Phase 43 P13 | 5h 5min | 3 tasks | 4 files |
+| Phase 43.1 P01 | 5min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2471,6 +2472,7 @@ Recent decisions affecting current work:
 - [Phase 43]: 43-12: two moved docs/usage.md absolutes registered as C-28-073 and C-28-074; next free claim id C-28-075
 - [Phase 43]: 43-13: Phase 39 UAT tests 10 and 14 accepted by Olger (option A each; test 14 route reworded to tools/grugops/note.js); name added at his instruction, not typed
 - [Phase 43]: 43-13: reader-review findings F-07, F-09, F-10, F-12 become follow-ups; F-08 kept; F-11 deferred to a fresh reader
+- [Phase 43.1]: 43.1-01: the GAP-D1 flip gate left the CI gate block by D-01; CI_EXEMPT records scripts/check-flip-manifest.js and its test still spawns the module
 
 ### Pending Todos
 
@@ -2813,8 +2815,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-18T13:46:59.943Z
-Stopped at: Phase 43 complete, ready to plan Phase 43.1
+Last session: 2026-11-19T09:26:17.073Z
+Stopped at: Completed 43.1-01-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
