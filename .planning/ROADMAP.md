@@ -816,14 +816,21 @@ Wave 9 *(human checkpoint)*
 **Plans:** 9 plans in 4 waves (wave 1: 01-05; wave 2: 06, 07; wave 3: 08; wave 4: 09)
 
 Plans:
+**Wave 1**
 - [ ] 43.1-01-PLAN.md — CI unblock: the archived-path readers use .planning/milestones/v2.1-phases/; the flip gate leaves CI by decision D-01 (D0-D4, D6)
 - [ ] 43.1-02-PLAN.md — the checker installs as tools/grugops/skip-integrity.js; install and --migrate retire the recorded old name (D-02); the typeless premise per Node 22 (D66)
 - [ ] 43.1-03-PLAN.md — the catalog generator links Workflow 17 and derives the Orchestrator rows and the none cell (IN-03, F-12, D-05)
 - [ ] 43.1-04-PLAN.md — CLAUDE.md names grugops-orchestrator; check:story-docs catches grug- agents and reads more link forms (WR-03, IN-04)
 - [ ] 43.1-05-PLAN.md — the production floor's credential precondition in the model, GUARANTEES, WF12, install/README §5 and kit docs; adapters.md matches its table (D693, D-04, D692)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 43.1-06-PLAN.md — the kit-home overlap refusal also compares device and inode (D739)
 - [ ] 43.1-07-PLAN.md — GUARANTEES described as the source checkout at defaults; C-28-033 reworded; the anchored floor statements carry the precondition (WR-02, D-03, F-09, D-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 43.1-08-PLAN.md — docs/skills.md and a bounded install/README.md set join the claim registry (F-10, D-06)
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 43.1-09-PLAN.md — the 12 P1 items marked resolved, CHANGELOG Unreleased, the full ubuntu gate list and the suite by name (success criterion 6)
 
 ### Phase 999.1: Installer adversarial e2e lane — turn the per-plan red-team into a bounded, repeatable test flow (BACKLOG)
