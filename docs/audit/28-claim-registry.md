@@ -1210,14 +1210,157 @@ Why `--agent`: the Orchestrator is the main thread, and Claude Code enforces the
 ### C-28-075
 
 - file: docs/skills.md
-- line: 8
+- line: 4
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. (1) `grugops recommends no third-party skill`: `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` § Ratification records `ratify-none` (plan 42-04, 2026-11-16, accepted by the maintainer): all four proposed skills declined, and its opening line says `grugops recommends no third-party skill`. (2) `no grugops role declares one`: `node scripts/role-skills-reader.js .` printed `{"skills":{},"refusals":[]}` on 2026-11-19, so no role file's frontmatter carries a `skills:` value; the reader goes through the one parser, `roleSkillsOf` in `scripts/canonical-frontmatter.ts`. `scripts/skills-kit-text.test.ts` (§ Recommended skills names exactly the skills the shipped roles declare) ties the page's no-recommendation sentence to that report, so a declaration added without changing the page goes red. The first sentence is a definition and asserts nothing about grugops. Both assertions hold.
+
+```
+A skill is a folder with a `SKILL.md` file that a coding agent can load for a task. grugops recommends no third-party skill, and no grugops role declares one.
+```
+
+### C-28-076
+
+- file: docs/skills.md
+- line: 9
 - kind: install
 - depends_on: —
 - status: true
-- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06; reader-review finding F-10 named this sentence). Measured 2026-11-19 by reading `install/install.ts` and `install/kit-source.ts`. (1) `you vet yourself`: the page says it; no grugops code reviews a skill's content, and the doctor reads no `SKILL.md` text (`install/install.ts` comment above `doctorDeclaredSkills`: `no file content is read`). (2) `grugops never vendors or installs a skill`: the sentence follows `Any skill you install is third-party code` under the title `Third-party skills`, and it is measured in that frame, as a skill that is not grugops's own. The skills the installer writes are its own command skills and no other: `buildKitPlan` takes them from `SRC_SKILLS`, which is `srcSkillNames(GRUGOPS_SRC)` in `install/kit-source.ts`, the folders under the kit source's own `.claude/skills/` that hold a `SKILL.md` (on 2026-11-19 `grugops`, `grugops-gate`, `grugops-map`, `grugops-plan`, `grugops-release`, `grugops-ticket` and `grugops-uat`), plus the shared `AGENT_SKILL_REL` (`.agents/skills/grugops/SKILL.md`, `install/host-tools.ts`) for Codex CLI and Antigravity CLI. No code path reads a skill from outside the kit source, and the repository carries no third-party skill folder. Read without that frame, the sentence would also deny grugops's own command skills, which the installer does write; this row records them so a reader can judge the frame. (3) `install.js --check only reports a declared skill it cannot find`: `doctorDeclaredSkills` prints every skill line through `docReport` with the label `ok` or `advisory`, never through `docFail` or `docWarn`, so a missing skill changes no counter and no exit code, and nothing in it writes, copies or downloads. A skill it does find gives an `ok` line, so `only reports` is read as `does nothing but report`, which holds.
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06; reader-review finding F-10 named this sentence). Measured 2026-11-19 by reading `install/install.ts` and `install/kit-source.ts`. (1) `you vet yourself`: the page says it; no grugops code reviews a skill's content, and the doctor reads no `SKILL.md` text (`install/install.ts` comment above `doctorDeclaredSkills`: `no file content is read`). (2) `grugops never vendors or installs a skill`: the sentence follows `Any skill you install is third-party code` under the title `Third-party skills`, and it is measured in that frame, as a skill that is not grugops's own. The skills the installer writes are its own command skills and no other: `buildKitPlan` takes them from `SRC_SKILLS`, which is `srcSkillNames(GRUGOPS_SRC)` in `install/kit-source.ts`, the folders under the kit source's own `.claude/skills/` that hold a `SKILL.md` (on 2026-11-19 `grugops`, `grugops-gate`, `grugops-map`, `grugops-plan`, `grugops-release`, `grugops-ticket` and `grugops-uat`), plus the shared `AGENT_SKILL_REL` (`.agents/skills/grugops/SKILL.md`, `install/host-tools.ts`) for Codex CLI and Antigravity CLI. No code path reads a skill from outside the kit source, and the repository carries no third-party skill folder. Read without that frame, the sentence would also deny grugops's own command skills, which the installer does write; this row records them so a reader can judge the frame. (3) `install.js --check only reports a declared skill it cannot find`: `doctorDeclaredSkills` prints every skill line through `docReport` with the label `ok` or `advisory`, never through `docFail` or `docWarn`, so a missing skill changes no counter and no exit code, and nothing in it writes, copies or downloads. A skill it does find gives an `ok` line, so `only reports` is read as `does nothing but report`, which holds. This row was committed as `C-28-075` in plan 43.1-08's first task and renumbered `C-28-076` in its second, before the plan closed, so the ids run in page order; no other artifact cites the earlier id.
 
 ```
 Any skill you install is third-party code you vet yourself. grugops never vendors or installs a skill, and `install.js --check` only reports a declared skill it cannot find.
+```
+
+### C-28-077
+
+- file: docs/skills.md
+- line: 12
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. A hard-floor statement, so `architecture` with `depends_on: —`, as C-28-054, C-28-060 and C-28-072 are. A skill pre-approves tools through its `allowed-tools` frontmatter, which is a permission inside the host CLI on the user's machine. Branch protection or rulesets are enforced by the git host on the server side when a push or merge reaches it, so nothing a skill grants on the client changes them: docs/GUARANTEES.md § Where each floor is enforced names the git host as the hard floor, and `install/README.md` § 5 (a) says how to set it up. `.planning/phases/42-skills-per-role-and-evaluation/42-RESEARCH.md` research flag (a) records a live probe on Claude Code 2.1.325 in `-p` mode where a matching `permissions.ask` rule beat a skill's `allowed-tools`, and concludes that the git host stays the floor. The sentence names branch protection on the reader's git host, which the reader configures, and promises no outcome where none is configured, so it holds.
+
+```
+A skill can pre-approve tools for itself. Whatever a skill pre-approves, branch protection on your git host stays the hard floor.
+```
+
+### C-28-078
+
+- file: docs/skills.md
+- line: 15
+- kind: install
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). F-10 named the second sentence. Measured 2026-11-19. (1) `one line that says which rules win over a skill's text`: AGENTS.md line 32, `Use a skill for technique, never for process: grugops roles, workflows and hard limits outrank any skill's text ...`; `scripts/skills-kit-text.test.ts` (the skills precedence line occurs exactly once across the reader-facing corpus, and that once is in AGENTS.md) holds the count of one. (2) `An install never writes over a repository's own AGENTS.md`: the AGENTS.md step of `install/install.ts` (the block after the comment `AGENTS.md is never written when the target has one of the user's`) reads the target's AGENTS.md first. A file there goes to `refreshOwnFile`, which replaces it only when the previous install ledger holds a `sha256:` record of a copy install itself created and nobody has edited since; any other file is reported `skipped` (`target already has one — left untouched`), a blocked path is reported through `verify` and left untouched, and only an absent file is created by `linkOrCopy`. So a file the repository had before install, or one edited after it, is never written. (3) `that line is absent unless you add it` follows from (2): the repository's own file is left as it was. All three hold.
+
+```
+The kit's `AGENTS.md` has one line that says which rules win over a skill's text; read it there. An install never writes over a repository's own `AGENTS.md`, so in a repository that already had one, that line is absent unless you add it.
+```
+
+### C-28-079
+
+- file: docs/skills.md
+- line: 20
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` § Ratification: `ratify-none` on 2026-11-16, all four proposed skills declined, `grugops recommends no third-party skill`. `node scripts/role-skills-reader.js .` printed no declared skill on 2026-11-19, and `scripts/skills-kit-text.test.ts` requires this exact sentence in this section while no role declares a skill and refuses it once one does. Holds.
+
+```
+grugops recommends no third-party skill.
+```
+
+### C-28-080
+
+- file: docs/skills.md
+- line: 27
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. (1) `one skills: line ... by the skill's folder name`: `roleSkillsOf` in `scripts/canonical-frontmatter.ts` accepts one form only, `skills: ` followed by lower-case kebab names on one line (`SKILLS_ACCEPTED_FORM`), and refuses a block sequence, a quoted scalar and a repeated name; `install/install.ts` `skillFileIn` looks a declared name up as `<folder>/<name>/SKILL.md`, which is the folder name. (2) `Only a skill that passes the evaluation and that a maintainer ratifies is declared`: this is a process rule. 42-EVALUATION.md says a recommendable candidate is not recommended `until a named human ratifies it`, and § Ratification records that none was. On 2026-11-19 no role declares a skill (`node scripts/role-skills-reader.js .`), so no declared skill is unratified. No gate ties a future `skills:` line to a ratification record: `scripts/skills-kit-text.test.ts` ties the declarations to this page's § Recommended skills, not to the evaluation. The rule holds today and is held by review, not by a check.
+
+```
+A role names a skill on one `skills:` line in its frontmatter, by the skill's folder name, for example `skills: example-skill`. Only a skill that passes the evaluation and that a maintainer ratifies is declared.
+```
+
+### C-28-081
+
+- file: docs/skills.md
+- line: 32
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. This is the rule the role text gives the agent. `agent-factory/roles/_role-switch-protocol.md` step 2: `Use a skill the role names only when the host lists it. ... Otherwise take the role's fallback at once.` The `## Skills` contract (header `| Situation | Skill | Without it |`, record line with `not available; used fallback` and `Never claim a skill ran.`) is held for every role that declares a skill by `skillsSectionFindings` in `scripts/skills-kit-text.test.ts`; no role declares one on 2026-11-19, so no role carries the section yet. The sentence states the written rule, and it holds as written; whether an agent follows it is the limit docs/GUARANTEES.md § Where each floor is enforced states for all prose (`a written rule and nothing more`).
+
+```
+A role uses a skill only when the host lists it, and otherwise takes that fallback at once. When a row applies, the role's note says `used <skill>` or `<skill> not available; used fallback`, and the role's rule is `Never claim a skill ran.`
+```
+
+### C-28-082
+
+- file: docs/skills.md
+- line: 35
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. (1) `A skills: line adds no tool to a role`: `CANONICAL_SCHEMA` in `scripts/canonical-frontmatter.ts` does not include `skills` (the D-28 comment there: an adapter carrying a `skills:` line would make Claude Code preload the skill), so the adapter generator `scripts/generate-role-adapters.ts` copies no `skills:` value into an adapter's `tools:`. (2) `a role spawned as its own agent has no Skill tool`: every `.claude/agents/*.md` adapter's `tools:` line, read on 2026-11-19, carries no `Skill` grant, and `scripts/skills-kit-text.test.ts` (no Claude Code role adapter has a `Skill` tool) holds it. (3) `so it always takes the fallback`: without the `Skill` tool and with no preload, the host gives the spawned role no way to run a skill; reading a `SKILL.md` as a plain file is not running a skill, and the role-switch protocol says `Never search the disk for a skill.` All three hold.
+
+```
+A `skills:` line adds no tool to a role. On Claude Code, a role spawned as its own agent has no `Skill` tool, so it always takes the fallback.
+```
+
+### C-28-083
+
+- file: docs/skills.md
+- line: 49
+- kind: install
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. (1) `Each row comes from that host's documentation, read on 2026-11-16`: `HOST_SKILL_DIRS` in `install/host-tools.ts` cites 42-RESEARCH § Per-host skill discovery, `retrieved 2026-11-16`. (2) `is the same list install.js --check reads`: `doctorDeclaredSkills` in `install/install.ts` reads `HOST_SKILL_DIRS[h.id]`, and `scripts/skills-kit-text.test.ts` (one row per HOST_TOOLS host, equal cell by cell to HOST_SKILL_DIRS) holds the table to it. (3) `No host other than Claude Code was run`: 42-RESEARCH § Per-host skill discovery, `No host was run live in this session except Claude Code`, and 42-07-SUMMARY. (4) `that the variables in the last column move the user folders is an assumption from the documentation`: the `userOverrides` doc comment in `install/host-tools.ts`, `an assumption from the hosts' documentation, not a live run`. A live listing on the other hosts stays `UNKNOWN - verify`, as the paragraph says. All hold.
+
+```
+Each row comes from that host's documentation, read on 2026-11-16, and is the same list `install.js --check` reads. Project folders are relative to the repository root and user folders to your home directory. No host other than Claude Code was run, so on the others a live run that lists a skill from these folders is `UNKNOWN - verify`, and that the variables in the last column move the user folders is an assumption from the documentation.
+```
+
+### C-28-084
+
+- file: docs/skills.md
+- line: 56
+- kind: install
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19 against `install/install.ts`. (1) `These lines never change the exit code`: `doctorDeclaredSkills` prints every skill line through `docReport` with the label `ok` or `advisory`; `docReport` only prints, and only `docFail` and `docWarn` move the counters the exit status reads. (2) `--strict does not promote them`: `--strict` promotes `DOC_WARNS` only (`if (DOC_WARNS > 0 && STRICT)`), and no skill line is a WARN. (3) `--check installs nothing`: the `--check` arm calls `doctor()` and exits before the run banner and every mutation (the comment above `if (CHECK)`: `So --check never writes`); the doctor's header says it `MUTATES NOTHING INSIDE THE TARGET`. (4) `When no role declares a skill ... it prints no skill line`: the per-skill loop runs over the reader's declared skills, which is empty on 2026-11-19 (`node scripts/role-skills-reader.js .`), so it prints nothing; the only lines it could still print are a reader failure, a stray file name or a refused declaration, none of which is about a skill. All hold.
+
+```
+Found means a `SKILL.md` file is there, not that the host loads it. These lines never change the exit code, `--strict` does not promote them, and `--check` installs nothing. When no role declares a skill, as today, it prints no skill line.
+```
+
+### C-28-085
+
+- file: docs/skills.md
+- line: 61
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19. `agent-factory/roles/designer.md` § Hard limits and `agent-factory/roles/frontend-ui.md` § Hard limits each say `Never write design-system files in the user's repo; they are user artifacts you read`. `agent-factory/workflows/14-ui-design-to-build.md` step 1: `Read the design-system files in the user's repo ... Never write them ... When they disagree with the Designer's notes, the files win. Align the notes to the files. Record each conflict in a note for the human.` `scripts/skills-kit-text.test.ts` § design-system files holds all three places. The paragraph states the written rule; whether an agent follows it is the prose limit docs/GUARANTEES.md § Where each floor is enforced states. The last sentence is advice to the reader. Holds as written.
+
+```
+The Designer and Frontend/UI read design-system files in your repository, such as token, theme or style-guide files, and never write them. When those files and the Designer's notes disagree, the files win, and the Designer records the conflict in a note for you. If a skill you install offers to write such files, run that step yourself.
+```
+
+### C-28-086
+
+- file: docs/skills.md
+- line: 66
+- kind: architecture
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19 against `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md`. It names the six candidates, the six floors (the checks), their evidence and the pinned versions, read on 2026-11-16. § Revisit triggers: `This record is reopened only when one of two triggers fires`, a request to bump a pin and an upstream security advisory that names a pinned skill, and `There is no calendar check and no per-release check.` The page says `an evaluated skill` where the record says `a pinned skill`; since none was ratified, every evaluated skill's pin is the one the record read. Holds.
+
+```
+The record `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` names the six candidates, the six checks, the evidence and the exact versions it read on 2026-11-16. It is reopened only when someone asks to bump an evaluated skill to a newer version, or when an upstream security advisory names an evaluated skill.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`

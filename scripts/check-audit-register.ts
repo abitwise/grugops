@@ -306,14 +306,30 @@ export const CLAIM_KIND_CARDINALITY: readonly {
   // `--agent` path and the installer behave and asserts no merge or deploy outcome. This gate refused
   // until the number moved; the number was taken from that refusal's own text ("architecture declares
   // 58 but the registry carries 60").
-  { kind: "architecture", count: 60 },
+  // 60 -> 68 (plan 43.1-08 task 2, 2026-11-19; D-06, reader-review finding F-10). EIGHT ROWS ADDED,
+  // NONE RECLASSIFIED. `C-28-075`, `C-28-077`, `C-28-079` .. `C-28-082`, `C-28-085` and `C-28-086`
+  // register the absolutes on docs/skills.md that are not installer behavior: no recommended skill
+  // and no declaring role, the git host staying the hard floor whatever a skill pre-approves (the
+  // C-28-054 precedent), the one-line declaration, the use-only-when-listed rule, no `Skill` tool on
+  // a spawned role, the design-system never-write rule and the evaluation's reopen triggers. Each is
+  // `architecture`: none asserts a merge or deploy outcome. This gate refused until the number moved;
+  // the number was taken from that refusal's own text ("architecture declares 60 but the registry
+  // carries 68").
+  { kind: "architecture", count: 68 },
   // 8 -> 9 (plan 43.1-08, 2026-11-19; D-06, reader-review finding F-10). ONE ROW ADDED, NONE
-  // RECLASSIFIED. `C-28-075` registers the docs/skills.md sentence that grugops never vendors or
-  // installs a skill and that `install.js --check` only reports a declared skill it cannot find. It is
-  // `install`: it states what the installer and its doctor do, and it rests on no safety floor. This
-  // gate refused until the number moved; the number was taken from that refusal's own text ("install
-  // declares 8 but the registry carries 9").
-  { kind: "install", count: 9 },
+  // RECLASSIFIED. The docs/skills.md sentence that grugops never vendors or installs a skill and that
+  // `install.js --check` only reports a declared skill it cannot find (first committed as `C-28-075`,
+  // renumbered `C-28-076` in task 2 so the ids run in page order). It is `install`: it states what the
+  // installer and its doctor do, and it rests on no safety floor. This gate refused until the number
+  // moved; the number was taken from that refusal's own text ("install declares 8 but the registry
+  // carries 9").
+  // 9 -> 12 (plan 43.1-08 task 2, 2026-11-19; D-06, F-10). THREE ROWS ADDED, NONE RECLASSIFIED.
+  // `C-28-078` (an install never writes over a repository's own AGENTS.md), `C-28-083` (the host
+  // skill-folder table is the list `install.js --check` reads) and `C-28-084` (the skill lines never
+  // change the exit code and `--check` installs nothing) state installer behavior and rest on no
+  // safety floor. This gate refused until the number moved ("install declares 9 but the registry
+  // carries 12").
+  { kind: "install", count: 12 },
 ];
 
 /**
