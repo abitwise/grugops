@@ -40,7 +40,8 @@ const LEDGER = join(ROOT, "docs", "audit", "harness-false-result-instances.md");
  * ledger's title scopes it to phase 31, so this is the scope the ledger itself publishes rather than
  * a second convention invented here.
  */
-const PHASE_DIR = join(ROOT, ".planning", "phases", "31-autonomous-manual-testing");
+// The phase-31 records moved to the v2.1 milestone archive, which is final (plan 43.1-01).
+const PHASE_DIR = join(ROOT, ".planning", "milestones", "v2.1-phases", "31-autonomous-manual-testing");
 
 /** A backticked span that is a repo-relative path citation, with or without a `:line` suffix. */
 const PATH_SPAN = /^[A-Za-z0-9._/-]+\.(?:ts|js|md|json)(?::\d+)?$/;

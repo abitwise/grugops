@@ -425,7 +425,8 @@ describe("the `.temp/` residue predicate can observe its own subject", () => {
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 const INSTANCE_LIST = join(REPO_ROOT, "docs", "audit", "harness-false-result-instances.md");
-const PHASE_DIR = join(REPO_ROOT, ".planning", "phases", "31-autonomous-manual-testing");
+// The phase-31 records moved to the v2.1 milestone archive, which is final (plan 43.1-01).
+const PHASE_DIR = join(REPO_ROOT, ".planning", "milestones", "v2.1-phases", "31-autonomous-manual-testing");
 const AUDIT_DIR = join(REPO_ROOT, "docs", "audit");
 
 /** Ordinal words this phase's records actually use when claiming a numbered instance. */

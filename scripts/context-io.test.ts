@@ -11748,10 +11748,12 @@ describe("31-22 — CR-16: the origin is recognised by SHAPE conjoined with ROOT
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 describe("31-23 PROBE 5 — the cross-plan intended-change list is a declared set of size one", () => {
+  // The phase-31 records moved to the v2.1 milestone archive, which is final (plan 43.1-01).
   const SUMMARY_31_22 = join(
     ROOT,
     ".planning",
-    "phases",
+    "milestones",
+    "v2.1-phases",
     "31-autonomous-manual-testing",
     "31-22-SUMMARY.md",
   );
@@ -14965,10 +14967,12 @@ describe("31-29 — IN-14: a skipped entry is named by its arm, counted, and rep
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 describe("31-29 — the write path's residuals are an EXPORTED register, bound in both directions", () => {
+  // The phase-31 records moved to the v2.1 milestone archive, which is final (plan 43.1-01).
   const CONTEXT_DOC = join(
     ROOT,
     ".planning",
-    "phases",
+    "milestones",
+    "v2.1-phases",
     "31-autonomous-manual-testing",
     "31-CONTEXT.md",
   );

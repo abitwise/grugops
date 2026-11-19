@@ -3484,10 +3484,12 @@ describe("31-14 — the callers of both promotion routes are derived across file
 // D-19 and its sub-decisions. `31-14-SUMMARY.md` keeps its own six-row table untouched as the
 // history of that round; this case no longer reads it. The fail-closed premise is unchanged — a
 // missing file or a renamed heading must not make the binding vacuous.
+// The phase-31 records moved to the v2.1 milestone archive, which is final (plan 43.1-01).
 const DECLINE_DISPOSITION_DOC = join(
   ROOT,
   ".planning",
-  "phases",
+  "milestones",
+  "v2.1-phases",
   "31-autonomous-manual-testing",
   "31-CONTEXT.md",
 );
