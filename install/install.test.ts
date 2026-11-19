@@ -6906,15 +6906,25 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     }
   });
 
-  it("tools/grugops/package.json: on a host whose package.json has no type field, no program prints MODULE_TYPELESS_PACKAGE_JSON while the file is there, and each does without it", () => {
+  it("tools/grugops/package.json: on a host whose package.json has no type field, no program prints MODULE_TYPELESS_PACKAGE_JSON while the file is there, and the measured premise programs do without it", () => {
     const { target } = installedHost(TYPELESS_HOST);
     for (const run of runPrograms(target)) {
       expect(run.status, `${run.rel}\n${run.out}`).toBe(OWN_BODY[run.name].status);
       expect(run.out, run.rel).not.toContain("MODULE_TYPELESS_PACKAGE_JSON");
     }
-    // The premise: Node does warn on this host when the package file is not there.
+    // The premise: Node does warn on this host when the package file is not there. It is asserted only for the two
+    // programs that end by setting `process.exitCode`, state-check.js and claim.js, measured to print the warning on
+    // Node v22.23.5 and v26.12.1 (plan 43.1-02, 2026-11-19). The cause: Node 22 queues this warning and loses it when a
+    // program calls `process.exit()` during module evaluation, which the other seven programs do (trace-render.js and
+    // state-roll.js included, though they exit 0); Node 26 prints it first. An every-program premise therefore held on
+    // a local Node 26 and failed on CI's Node 22 (the 20th CI red, RESEARCH Item 3). The shipped programs do not change.
+    const PREMISE_PROGRAMS = ["state-check.js", "claim.js"];
+    expect(PREMISE_PROGRAMS.length, "premise set").toBeGreaterThan(0);
+    for (const name of PREMISE_PROGRAMS) expect(Object.keys(OWN_BODY), `${name} is not a row of OWN_BODY`).toContain(name);
     rmSync(join(target, PACKAGE_REL));
-    for (const run of runPrograms(target)) expect(run.out, run.rel).toContain("MODULE_TYPELESS_PACKAGE_JSON");
+    const premiseRuns = runPrograms(target).filter((run) => PREMISE_PROGRAMS.includes(run.name));
+    expect(premiseRuns.map((run) => run.name).sort()).toEqual([...PREMISE_PROGRAMS].sort());
+    for (const run of premiseRuns) expect(run.out, run.rel).toContain("MODULE_TYPELESS_PACKAGE_JSON");
     expect(readFileSync(join(target, "package.json"), "utf8")).toBe(TYPELESS_HOST);
   });
 

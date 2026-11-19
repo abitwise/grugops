@@ -201,7 +201,7 @@ unit            npm test           (node --test)                       -> tests 
 build           npm run build      (tsc --noEmit -p tsconfig.json)     -> rc 0
 uat-spec        not run: no *.uat.spec.ts file and no e2e lane for this change
 e2e             not run: quality.ui_e2e=ui-or-critical-path
-test-integrity  node tools/grugops/test-skip-integrity.js .grugops/test-skips.md --skip-count 0 -> rc 0
+test-integrity  node tools/grugops/skip-integrity.js .grugops/test-skips.md --skip-count 0 -> rc 0
 ```
 
 This sample has no separate linter or build step, so `lint` and `build` run the same
