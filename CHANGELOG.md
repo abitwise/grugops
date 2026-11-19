@@ -177,6 +177,30 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   notes, Tech Lead scoring and the rendered trace. Examples 01 and 03 are labeled as illustrative
   runs, not captured sessions, and link the commit that holds the original capture.
 - CLAUDE.md names the shipped `/grugops` commands in place of the retired `/grug` spellings.
+- Install now copies the skip-integrity checker to `tools/grugops/skip-integrity.js`. The old name,
+  `tools/grugops/test-skip-integrity.js`, matched Node's default `node --test` file pattern, so a
+  repository whose test script is plain `node --test` failed on a fresh install. Running install again,
+  or `install.js --migrate`, removes the old file when the install record shows install wrote it and
+  it is unchanged. A copy you edited, or one install did not record, is left in place and named.
+  Workflow 05 and example 03 name the new path.
+- `docs/GUARANTEES.md` now says it shows which safety claims hold in the grugops source checkout at
+  its default settings, not on your repository. The pointer lines in README.md, AGENTS.md and
+  `agent-factory/README.md`, and the pages that link it, say the same and add that your own floors
+  are set in `.grugops/factory.config.json`.
+- `npm run check:story-docs` also refuses a removed `grug-<name>` agent name in CLAUDE.md. Its dead-link
+  check now also reads a link target in angle brackets (spaces allowed), a target that holds one level
+  of balanced parentheses, and HTML `href` and `src` attributes.
+- The claim registry (`docs/audit/28-claim-registry.md`) now covers every absolute statement in
+  `docs/skills.md` and four parts of `install/README.md`: the kit-home bullet, the list of what the
+  installer touches, §5 (a) and the production checklist. They are rows C-28-075 to C-28-090, and
+  `check:claim-anchors` holds each row to its page. The rest of `install/README.md` is not registered,
+  and the registry says so.
+- The read-only git-host check's production list has a sixth item, `credentials_in_environment`,
+  which matches the new production checklist item in `install/README.md` §5. In `--json`,
+  `floor.environment` now has six entries. Like the other production items, the check does not read
+  it (33.1 D-31).
+- CI no longer runs the GAP-D1 flip-manifest gate, by decision 43.1 D-01. Its tests still run in the
+  suite, and `npm run check:flip-manifest` is kept.
 
 ### Fixed
 
@@ -191,6 +215,17 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   that already holds two, the refusal now says to run the gate again and name the new run.
 - `index.md` no longer opens with a command a host cannot run. Its banner now says the note writer
   renders it from the `notes/` folder.
+- The generated role pages under `docs/reference/agents/`: the Orchestrator's page links Workflow 17
+  (Task claim), and on each host with no spawn tool it says the session itself acts as the
+  Orchestrator. The Compliance Officer and Installer pages say that no workflow names the role, in
+  place of `UNKNOWN - verify`.
+- `agent-factory/packaging/adapters.md` no longer says grugops loads roles one at a time on every host.
+  On Claude Code the coordinator spawns role agents in the Full and Reduced tiers, and the hosts with
+  no spawn tool load roles in sequence, as the file's own table says.
+- `docs/how-it-works.md` says each shipped change leaves a trail from requirement to release, in place
+  of "accountable end to end".
+- CLAUDE.md names the shipped Orchestrator route, `claude --agent grugops-orchestrator`, in place of the
+  removed `grug-orchestrator` agent.
 
 ### Security
 
@@ -226,6 +261,18 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   written with `tools/grugops/note.js`, and on every other install, a standalone Claude Code install
   included, nothing binds a `human:<name>` stamp to a human (residual R-41-06). The install guide's
   list of programs no longer implies that a scripted install has a Claude Code hook.
+- The production environment is the hard floor for a deploy only when the deploy credentials live solely in that environment's secrets.
+  A deploy that runs with a credential kept anywhere else, such as a repository or organization
+  secret, a CI variable, a runner or a developer machine, does not pass the environment's required
+  reviewer. Workflow 12, `install/README.md` §5 (with a new production checklist item), the commit
+  convention, the config dial doc (`agent-factory/config/factory.config.md`), `docs/GUARANTEES.md`
+  and the docs now state this condition. This corrects the 2.2.0 entry, which called the production
+  environment with a required reviewer the hard floor without it.
+- Install's refusal of a kit home (`GRUGOPS_HOME`) that overlaps the target now compares device and
+  inode as well as the real path. A kit home spelled another way to the same directory, such as a
+  macOS firmlink under `/System/Volumes/Data`, is refused before any write instead of replacing the
+  repository's `agent-factory/`. It was tested on Linux with simulated identities; a run on macOS is
+  `UNKNOWN - verify`.
 
 ### Deprecated
 

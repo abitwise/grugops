@@ -950,6 +950,7 @@ Plans:
 **Deferred at:** 2026-10-26 during /gsd-verify-work 37 session completion
 **Follow-ups:**
 - [ ] Test 1: Unblock CI so a push reaches state-check.js . and the validator: re-point the 19 archive-path tests to .planning/milestones/v2.1-phases/; re-base or retire the GAP-D1 flip manifest (check-flip-manifest.ts:66 plus 6 stale derivations); human review of the 31 FROZEN diff-disposition clauses, then a recorded decision on the 690 others (write rows, move base 4d2b8f0, or retire the gate). (deferred 2026-10-24)
+  - Note (2026-11-19): phase 43.1 closed the first two clauses under decision 43.1 D-01. Plan 43.1-01 re-pointed the archive-path tests (D0-D4; commits `cba0b729`, `76cb009a`) and retired the flip manifest gate from CI (D6; commit `ce0025fa`). The diff-disposition clause stays open.
 
 ### Phase 999.13: Consultant and business-domain packs (BACKLOG)
 

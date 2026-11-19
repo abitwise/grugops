@@ -49,6 +49,9 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
 
 ## Reader-review follow-ups decided in the 43-13 UAT (source: 43-13 UAT decision, 2026-11-18, 43-UAT.md § Human decision)
 
+- **Status:** resolved
+- **Resolved by:** phase 43.1. F-09 in plan 43.1-07 (commit `5269f205`). F-10 in plan 43.1-08 (commits `b6a1154a`,
+  `dd2eb102`, `4c46b013`). F-12 in plan 43.1-03 (commits `78ab7792`, `8f4aa391`). F-07 was already done in `86e6c366`.
 - **F-07:** reword the two anchored `always` safety sentences, C-28-001 (docs/concepts.md) and C-28-023 (agent-factory/README.md), and re-measure both registry rows in the same commit. **Done 2026-11-18 in commit `86e6c366`:** both sentences reworded to the git-host floor (no `always`), both rows re-measured `true`, F-28-201 and F-28-208 closed, `docs/GUARANTEES.md` regenerated. Not reworded (outside the F-07 decision): the `always` copies in `.claude-plugin/plugin.json` (C-28-038), the generated adapter and skill text, `agent-factory/packaging/subagent.frontmatter.md` and `docs/dogfood-human-runbook.md`.
 - **F-09:** reword the first clause of C-28-033 in docs/how-it-works.md ("every shipped change is accountable end to end", for example toward "leaves a trail from requirement to release"); keep "exactly what it needs" (human decision 2026-11-04).
 - **F-10:** bring docs/skills.md and install/README.md into the claim registry's anchored set.
@@ -56,6 +59,10 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
 
 ## Code review follow-ups (source: 43-REVIEW.md, human decision option A on 2026-11-18; CR-01, WR-01, IN-01, IN-02 fixed, see 43-REVIEW-FIX.md)
 
+- **Status:** resolved
+- **Resolved by:** phase 43.1. WR-02 in plan 43.1-07 (commits `75642fba`, `5269f205`, `6f6bf0d5`, `a3c2bea1`).
+  WR-03 in plan 43.1-04 (commit `b7078183`). IN-03 in plan 43.1-03 (commit `78ab7792`). IN-04 in plan 43.1-04
+  (commit `6c145f75`). The test environment note below is not a code defect and needs no fix.
 - **WR-02:** the kit home gets the checkout's generated `docs/GUARANTEES.md` (all checkpoints at default), while agent-factory/README.md and docs/how-it-works.md present it as showing which safety claims hold "on this repository". A user who lowered a floor still reads every safety row as held. Needs a wording decision (or a per-repo regeneration path).
 - **WR-03:** `CLAUDE.md:134` names the removed `grug-orchestrator` agent (`{ "agent": "grug-orchestrator" }`). The section is generated from GSD `research/STACK.md`; fix it there (joins the known CLAUDE.md/STACK.md stack-block mismatch). check-story-docs' `/grug` check matches only a slash-prefixed `/grug`, so it misses this form.
 - **IN-03:** the reference-page generator links only workflow bullets shaped `- <Name> — `, so the Orchestrator page omits Workflow 17; Compliance Officer and Installer read `UNKNOWN - verify` for Workflows (overlaps F-12).
