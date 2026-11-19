@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
 status: executing
-stopped_at: Completed 43.1-07-PLAN.md
-last_updated: "2026-11-19T11:04:32.748Z"
+stopped_at: Completed 43.1-08-PLAN.md
+last_updated: "2026-11-19T11:22:23.145Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 43.1 execution started
-state_head: a3c2bea15d2e350f60b8ee8394dfa3413bca4398
+state_head: 4c46b0132cc2a09f60a1f2988078f455066c990e
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 174
-  completed_plans: 172
+  completed_plans: 173
   percent: 90
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 43.1 execution started
 
@@ -891,6 +891,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P05 | 15min | 3 tasks | 17 files |
 | Phase 43.1 P06 | 13 min | 2 tasks | 5 files |
 | Phase 43.1 P07 | 15 min | 3 tasks | 12 files |
+| Phase 43.1 P08 | 15min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2491,6 +2492,7 @@ Recent decisions affecting current work:
 - [Phase 43.1]: D739: a node list in which an existing node reports its parent's dev:ino is degenerate and takes no part in the identity test; the string test decides alone (plan 43.1-06)
 - [Phase 43.1]: 43.1-07: C-28-018's registered block extended to AGENTS.md line 106 (the Enforcement bullet) so the D-04 change is anchored; status stays overstated/accepted
 - [Phase 43.1]: 43.1-07: GUARANTEES pointer is one line, two sentences: which claims hold in the grugops source checkout at its default settings, and that a user's own floors are set in .grugops/factory.config.json; no command named as reporting them
+- [Phase 43.1]: 43.1-08: docs/skills.md (C-28-075..086) and a bounded install/README.md set (C-28-087..090) joined the claim registry; no new safety row; the 5 opening sentence stays unregistered
 
 ### Pending Todos
 
@@ -2833,8 +2835,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-19T11:04:30.844Z
-Stopped at: Completed 43.1-07-PLAN.md
+Last session: 2026-11-19T11:22:21.341Z
+Stopped at: Completed 43.1-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
