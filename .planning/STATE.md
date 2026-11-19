@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
 status: executing
-stopped_at: Completed 43.1-05-PLAN.md
-last_updated: "2026-11-19T10:31:24.585Z"
+stopped_at: Completed 43.1-06-PLAN.md
+last_updated: "2026-11-19T10:47:12.489Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 43.1 execution started
-state_head: ee4738d97d83a5aedcaa48d49ff0ccdab7c6a4b9
+state_head: 5899aab3239e5db091b5cf34fc9bac7f90b8afaa
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 174
-  completed_plans: 170
+  completed_plans: 171
   percent: 90
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 43.1 execution started
 
@@ -889,6 +889,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P03 | 3 min | 2 tasks | 6 files |
 | Phase 43.1 P04 | 5 min | 2 tasks | 4 files |
 | Phase 43.1 P05 | 15min | 3 tasks | 17 files |
+| Phase 43.1 P06 | 13 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2485,6 +2486,8 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-05: the production deployment environment is stated as the hard floor only when the deploy credentials live solely in its secrets, in the floor model, GUARANTEES, WF12, install/README.md §5, factory.config.md, _commit-convention.md and adapters.md
 - [Phase 43.1]: 43.1-05: the §5 production checklist's sixth item is mirrored as ENVIRONMENT_FLOOR row credentials_in_environment in host-protection (by-design unknown, 33.1 D-31); --json floor.environment now has 6 entries
 - [Phase 43.1]: 43.1-05: adapters.md's dispatch paragraph matches its table: Claude Code coordinator spawns role agents in Full and Reduced tiers; non-spawning CLIs and the Degraded tier use the sequential role-load (D692)
+- [Phase 43.1]: D739: the kit-home overlap refusal compares device and inode of the real spelling's existing part plus the missing names, beside the real-path string test; either refuses (plan 43.1-06)
+- [Phase 43.1]: D739: a node list in which an existing node reports its parent's dev:ino is degenerate and takes no part in the identity test; the string test decides alone (plan 43.1-06)
 
 ### Pending Todos
 
@@ -2827,8 +2830,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-19T10:31:22.771Z
-Stopped at: Completed 43.1-05-PLAN.md
+Last session: 2026-11-19T10:47:10.672Z
+Stopped at: Completed 43.1-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
