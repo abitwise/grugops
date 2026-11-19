@@ -177,8 +177,8 @@ export const POINTER_ANCHOR = "<!-- generated: guarantees-pointer -->";
 export function pointerLine(doc) {
     const depth = doc.split("/").length - 1;
     const target = `${"../".repeat(depth)}${OUT}`;
-    return (`Which safety claims still hold on this repository, joined to the live checkpoint matrix: ` +
-        `[\`${OUT}\`](${target}).`);
+    return (`Which safety claims hold in the grugops source checkout at its default settings: ` +
+        `[\`${OUT}\`](${target}). Your own floors are set in \`.grugops/factory.config.json\`.`);
 }
 /** The exact registry line that declares a safety row. The byte pass's whole grammar. */
 const SAFETY_KIND_LINE = "- kind: safety";
@@ -452,7 +452,7 @@ export function disclosureFor(row) {
     const clauses = lowered
         .map((f) => `\`${f.id}\` is held at \`${f.held}\` instead of \`${CHECKPOINT_DEFAULTS[f.id]}\``)
         .join("; ");
-    return (`**This guarantee is lowered on this repository.** ${clauses}. ` +
+    return (`**This guarantee is lowered in this checkout's configuration.** ${clauses}. ` +
         `The sentence that stood here is recorded as ${row.claimId} in \`${REGISTRY_PATH}\` — it is ` +
         `replaced rather than deleted, so the record shows what was claimed and what stopped holding ` +
         `it. See \`${OUT}\`.`);
@@ -774,10 +774,10 @@ export function renderGuarantees(root = DEFAULT_ROOT) {
         "",
         "## What this document answers",
         "",
-        "**Which public sentences stop being true on THIS repository, and why.** A claim registry row",
-        "records which sentence rests on which safety floor. The checkpoint matrix records where each",
-        "floor is actually held here. Neither answers the reader's real question on its own, so this",
-        "page is the join, and it is the only place in the tree that computes it.",
+        "**Which public sentences stop being true in the grugops source checkout at its default settings, and why.**",
+        "A claim registry row records which sentence rests on which safety floor. The checkpoint matrix",
+        "records where each floor is actually held in this checkout. Neither answers the reader's real",
+        "question on its own, so this page is the join, and it is the only place in the tree that computes it.",
         "",
         "It is not a promise. Every row below carries the status the registry measured it at, including",
         "the rows measured `overstated`, because a guarantees page that quietly dropped its own weakest",

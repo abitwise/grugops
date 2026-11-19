@@ -202,8 +202,8 @@ export function pointerLine(doc: string): string {
   const depth = doc.split("/").length - 1;
   const target = `${"../".repeat(depth)}${OUT}`;
   return (
-    `Which safety claims still hold on this repository, joined to the live checkpoint matrix: ` +
-    `[\`${OUT}\`](${target}).`
+    `Which safety claims hold in the grugops source checkout at its default settings: ` +
+    `[\`${OUT}\`](${target}). Your own floors are set in \`.grugops/factory.config.json\`.`
   );
 }
 
@@ -509,7 +509,7 @@ export function disclosureFor(row: GuaranteeRow): string {
     )
     .join("; ");
   return (
-    `**This guarantee is lowered on this repository.** ${clauses}. ` +
+    `**This guarantee is lowered in this checkout's configuration.** ${clauses}. ` +
     `The sentence that stood here is recorded as ${row.claimId} in \`${REGISTRY_PATH}\` — it is ` +
     `replaced rather than deleted, so the record shows what was claimed and what stopped holding ` +
     `it. See \`${OUT}\`.`
@@ -870,10 +870,10 @@ export function renderGuarantees(root: string = DEFAULT_ROOT): string {
     "",
     "## What this document answers",
     "",
-    "**Which public sentences stop being true on THIS repository, and why.** A claim registry row",
-    "records which sentence rests on which safety floor. The checkpoint matrix records where each",
-    "floor is actually held here. Neither answers the reader's real question on its own, so this",
-    "page is the join, and it is the only place in the tree that computes it.",
+    "**Which public sentences stop being true in the grugops source checkout at its default settings, and why.**",
+    "A claim registry row records which sentence rests on which safety floor. The checkpoint matrix",
+    "records where each floor is actually held in this checkout. Neither answers the reader's real",
+    "question on its own, so this page is the join, and it is the only place in the tree that computes it.",
     "",
     "It is not a promise. Every row below carries the status the registry measured it at, including",
     "the rows measured `overstated`, because a guarantees page that quietly dropped its own weakest",

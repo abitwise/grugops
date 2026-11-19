@@ -53,7 +53,7 @@ grugops version `2.2.0`.
 ## Safety guarantees
 
 <!-- generated: guarantees-pointer -->
-Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](docs/GUARANTEES.md).
+Which safety claims hold in the grugops source checkout at its default settings: [`docs/GUARANTEES.md`](docs/GUARANTEES.md). Your own floors are set in `.grugops/factory.config.json`.
 
 ## Changelog
 

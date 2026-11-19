@@ -14,8 +14,11 @@ The intelligence lives in the host coding agent; grugops only supplies
 <!-- claim: C-28-023 -->
 the role, the guardrail, the memory, the state, the dial, the proof, and the gates. Merge and
 deploy are human decisions. Your git host enforces them through branch protection and required
-reviewers, which you set up; on Claude Code, grugops's ask rules are a speed bump. See
-[`docs/GUARANTEES.md`](../docs/GUARANTEES.md) for which safety claims hold on this repository.
+reviewers, which you set up. A required reviewer gates a deploy only when the
+deploy credentials live solely in the production environment's secrets. On Claude Code,
+grugops's ask rules are a speed bump. [`docs/GUARANTEES.md`](../docs/GUARANTEES.md) shows which
+safety claims hold in the grugops source checkout at its default settings. Your own floors are
+set in `.grugops/factory.config.json`.
 
 ## Start here
 
@@ -65,7 +68,7 @@ falls back to these same documented defaults when the file is absent. Edit the d
 up to enterprise governance (scrum cadence, compliance regimes, release gates) on a single flag.
 
 <!-- generated: guarantees-pointer -->
-Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](../docs/GUARANTEES.md).
+Which safety claims hold in the grugops source checkout at its default settings: [`docs/GUARANTEES.md`](../docs/GUARANTEES.md). Your own floors are set in `.grugops/factory.config.json`.
 
 ## How work flows
 

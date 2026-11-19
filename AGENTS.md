@@ -106,7 +106,7 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 - Enforcement: the git host (branch protection, deployment environments) is the hard floor; the installer's Claude Code ask rules are a speed bump; see `install/README.md` §5.
 
 <!-- generated: guarantees-pointer -->
-Which safety claims still hold on this repository, joined to the live checkpoint matrix: [`docs/GUARANTEES.md`](docs/GUARANTEES.md).
+Which safety claims hold in the grugops source checkout at its default settings: [`docs/GUARANTEES.md`](docs/GUARANTEES.md). Your own floors are set in `.grugops/factory.config.json`.
 
 ## Coding rules (the 12)
 

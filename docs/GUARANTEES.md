@@ -12,10 +12,10 @@
 
 ## What this document answers
 
-**Which public sentences stop being true on THIS repository, and why.** A claim registry row
-records which sentence rests on which safety floor. The checkpoint matrix records where each
-floor is actually held here. Neither answers the reader's real question on its own, so this
-page is the join, and it is the only place in the tree that computes it.
+**Which public sentences stop being true in the grugops source checkout at its default settings, and why.**
+A claim registry row records which sentence rests on which safety floor. The checkpoint matrix
+records where each floor is actually held in this checkout. Neither answers the reader's real
+question on its own, so this page is the join, and it is the only place in the tree that computes it.
 
 It is not a promise. Every row below carries the status the registry measured it at, including
 the rows measured `overstated`, because a guarantees page that quietly dropped its own weakest
