@@ -1779,7 +1779,10 @@ Only the first one holds whatever command an agent types.
 
 Your git host's protection (branch protection or rulesets, and deployment environments) is the only
 tier that sees every push and merge, and every deployment that runs through its deployment
-environments, whatever command started it. It is the guarantee; the two tiers below sit in front of
+environments, whatever command started it. For a deploy, that holds only when the
+deploy credentials live solely in the production environment's secrets: a credential held anywhere
+else (a repository or organization secret, a CI variable, a runner, a developer machine) can deploy
+without that environment's reviewer. It is the guarantee; the two tiers below sit in front of
 it. **grugops never configures your git host for you.** You set it up with the checklist below, and
 grugops checks it read-only.
 
@@ -1844,6 +1847,7 @@ For production, keep a deployment environment that:
 
 - [ ] has the name your deploy jobs use;
 - [ ] requires at least one reviewer;
+- [ ] keeps the deploy credentials to itself: the deploy credentials live solely in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine;
 - [ ] prevents self-review;
 - [ ] does not let administrators bypass its protection rules;
 - [ ] allows deployments only from protected branches.
@@ -1856,6 +1860,11 @@ every branch can deploy
 ([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
 GitHub also documents that on the Free, Pro and Team plans required reviewers are available only for
 public repositories.
+
+GitHub documents that an environment's secrets reach only the jobs that reference the environment,
+and only after a required reviewer approves, so a deploy credential stored anywhere else is not gated
+by that reviewer
+([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
 
 **The check does not read the production environment (decision 33.1 D-31).** Its environment line
 always reads `UNKNOWN - verify`, by design, whatever the environment's settings are. Confirm each

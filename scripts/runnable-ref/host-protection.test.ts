@@ -1297,6 +1297,7 @@ describe("host-protection.js — the production environment is not read, by desi
     expect(block.floor.environment).toEqual([
       ENV_EXISTS,
       "requires at least one reviewer",
+      "keeps the deploy credentials to itself: the deploy credentials live solely in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine",
       "prevents self-review",
       "does not let administrators bypass its protection rules",
       "allows deployments only from protected branches",
@@ -1306,7 +1307,7 @@ describe("host-protection.js — the production environment is not read, by desi
     expect(t.verdict).toBe("UNKNOWN - verify");
     expect(t.reason).toContain("not checked by design");
     expect(t.facts!.map((f) => f.requirement)).toEqual(block.floor.environment);
-    expect(t.facts!.map((f) => f.id)).toEqual(["environment_exists", "required_reviewer", "no_self_review", "no_admin_bypass", "branch_policy"]);
+    expect(t.facts!.map((f) => f.id)).toEqual(["environment_exists", "required_reviewer", "credentials_in_environment", "no_self_review", "no_admin_bypass", "branch_policy"]);
     for (const f of t.facts!) {
       expect(f.state).toBe("unknown");
       expect(f.evidence).toBe(BY_DESIGN_EVIDENCE);

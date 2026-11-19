@@ -811,8 +811,8 @@ function applyMutation(fx: Fixture, p: WalkedPath, m: Mutation): void {
 }
 
 // ── The rows ─────────────────────────────────────────────────────────────────────────────────────
-// The rows evidence fields feed: the branch floor only. The five ENVIRONMENT_FLOOR rows are fed by no
-// host field since plan 33.1-41 (33.1 D-31 Q4).
+// The rows evidence fields feed: the branch floor only. The ENVIRONMENT_FLOOR rows (five, six since
+// plan 43.1-05) are fed by no host field since plan 33.1-41 (33.1 D-31 Q4).
 // In table order. Plan 33.1-42 (33.1 D-33 (d)) added stale_dismissal and last_push_approval after
 // approving_review: five rows before, seven after.
 const BRANCH_ROWS = [
