@@ -63,7 +63,7 @@ import {
   type Run,
 } from "./installer-paths.test-support.js";
 import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
-import { kitHomeOverlap, realTargetPath, type PathNode, type PlacedPath } from "./user-file.js";
+import { kitHomeOverlap, overlapBySpelling, pathNodes, realPathThroughExisting, realTargetPath, type IdentityStat, type PathNode, type PlacedPath } from "./user-file.js";
 import { STATE_ROOTS } from "./state-layout.js";
 // (Plan 43-02, D-11, D-27) The shipped user docs, declared once. Unit cases at the foot of this file.
 import { CHECKOUT_ONLY_DOCS, SHIPPED_DOCS_ROOTS, shippedDocs } from "./kit-source.js";
@@ -171,6 +171,11 @@ const MAC_IDS: ReadonlyMap<string, string> = new Map([
   ["/Users", "16777233:20"],
   ["/Users/u", "16777233:21"],
   ["/Users/u/repo", "16777233:22"],
+  ["/Users/u/kithome", "16777233:23"],
+  ["/Users/u/kithome/agent-factory", "16777233:24"],
+  ["/Users/u/kithome/agent-factory/sub", "16777233:25"],
+  ["/Users/u/code", "16777233:26"],
+  ["/Users/u/code/repo", "16777233:27"],
 ]);
 
 /**
@@ -218,6 +223,101 @@ describe("D739: one directory under two spellings is refused by identity (plan 4
     const hit = kitHomeOverlap(input);
     expect(hit, "the kit root lies inside the target by identity").not.toBeNull();
     expect(hit?.entry).toBe("agent-factory");
+  });
+
+  // The four REFUSAL_VARIANTS shapes, each with the kit home spelled through the firmlink and the target spelled
+  // without it. Each is also the mutation proof: overlapBySpelling (the string half alone, the rule install held
+  // before this plan) answers null on the same input, so only the identity half refuses it.
+  const FIRMLINK_SHAPES: readonly { readonly name: string; readonly home: string; readonly target: string; readonly entry: string }[] = [
+    { name: "kit-home-is-target", home: `${DATA_VOLUME}/Users/u/repo`, target: "/Users/u/repo", entry: "agent-factory" },
+    { name: "kit-root-is-target", home: `${DATA_VOLUME}/Users/u/kithome`, target: "/Users/u/kithome/agent-factory", entry: "agent-factory" },
+    { name: "target-in-kit-root", home: `${DATA_VOLUME}/Users/u/kithome`, target: "/Users/u/kithome/agent-factory/sub", entry: "agent-factory" },
+    { name: "kit-home-in-target", home: `${DATA_VOLUME}/Users/u/repo/.tools/grugops`, target: "/Users/u/repo", entry: "agent-factory" },
+  ];
+
+  it("the firmlink shapes are the four REFUSAL_VARIANTS shapes (names pinned)", () => {
+    expect(FIRMLINK_SHAPES.map((f) => f.name)).toEqual(REFUSAL_VARIANTS.map((v) => v.name));
+  });
+
+  for (const shape of FIRMLINK_SHAPES) {
+    it(`${shape.name}, the kit home spelled through the firmlink: refused by identity, and the string half alone misses it`, () => {
+      const input = modelLayout(shape.home, shape.target);
+      expect(overlapBySpelling(input), `${shape.name}: the string half must miss this spelling, or the case proves nothing`).toBeNull();
+      const hit = kitHomeOverlap(input);
+      expect(hit, `${shape.name}: one directory under two spellings must be refused`).not.toBeNull();
+      expect(hit?.entry).toBe(shape.entry);
+    });
+  }
+
+  it("distinct identities install: GRUGOPS_HOME=$HOME and target $HOME/code/repo, the home spelled either way", () => {
+    for (const home of ["/Users/u", `${DATA_VOLUME}/Users/u`]) {
+      expect(kitHomeOverlap(modelLayout(home, "/Users/u/code/repo")), `home ${home}`).toBeNull();
+    }
+    // A sibling of the target under its own identity is not the target either.
+    expect(kitHomeOverlap(modelLayout(`${DATA_VOLUME}/Users/u/kithome`, "/Users/u/repo"))).toBeNull();
+  });
+
+  it("a kit home that does not exist yet, whose deepest existing ancestor is the target, is refused as inside the target", () => {
+    const input = modelLayout(`${DATA_VOLUME}/Users/u/repo/grugops`, "/Users/u/repo");
+    expect(input.home.nodes.at(-1), "the model: the kit home itself is missing").toEqual({ name: "grugops", id: null });
+    expect(overlapBySpelling(input)).toBeNull();
+    expect(kitHomeOverlap(input)?.entry).toBe("agent-factory");
+  });
+
+  it("a kit home that does not exist yet, whose deepest existing ancestor is unrelated to the target, is accepted", () => {
+    const input = modelLayout(`${DATA_VOLUME}/Users/u/tools/grugops`, "/Users/u/repo");
+    expect(input.home.nodes.filter((n) => n.id === null).map((n) => n.name)).toEqual(["tools", "grugops"]);
+    expect(kitHomeOverlap(input)).toBeNull();
+  });
+
+  it("pathNodes on a real scratch directory: every existing component carries its dev:ino, the missing tail its name only", () => {
+    const dir = fresh("d739-nodes");
+    const real = realTargetPath(dir);
+    expect(real, "the scratch directory has a real path").not.toBeNull();
+    const nodes = pathNodes(join(dir, "missing-a", "missing-b"));
+    expect(nodes, "the scratch path's identity can be read").not.toBeNull();
+    const list = nodes as PathNode[];
+    const existing = list.filter((n) => n.id !== null);
+    // The root, then one node per component of the real spelling, then the two missing names.
+    expect(existing.length).toBe((real as string).split("/").filter((s) => s !== "").length + 1);
+    expect(list.slice(existing.length)).toEqual([
+      { name: "missing-a", id: null },
+      { name: "missing-b", id: null },
+    ]);
+    const st = statSync(dir, { bigint: true });
+    expect(existing.at(-1)?.id).toBe(`${String(st.dev)}:${String(st.ino)}`);
+    expect(new Set(existing.map((n) => n.id)).size, "no two existing components share an identity on this host").toBe(existing.length);
+  });
+
+  it("a stat that fails with EACCES on the existing part makes pathNodes answer null (fail closed)", () => {
+    const dir = fresh("d739-eacces");
+    const denied: IdentityStat = () => {
+      throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+    };
+    expect(pathNodes(dir, denied)).toBeNull();
+    expect(pathNodes(join(dir, "not-yet"), denied)).toBeNull();
+  });
+
+  it("a degenerate platform (every directory one dev:ino): the identity test does not apply, so distinct real paths install and equal ones are refused by the string test", () => {
+    const root = fresh("d739-degenerate");
+    const a = join(root, "home");
+    const b = join(root, "repo");
+    mkdirSync(a);
+    mkdirSync(b);
+    const oneIdentity: IdentityStat = () => ({ dev: 1n, ino: 1n });
+    const at = (p: string): PlacedPath => {
+      const realAt = realPathThroughExisting(p);
+      const nodes = pathNodes(p, oneIdentity);
+      if (realAt === null || nodes === null) throw new Error(`${p} could not be read`);
+      return { realAt, nodes };
+    };
+    const entries = (home: string) => ["agent-factory", "docs", "examples"].map((entry) => ({ entry, ...at(join(home, entry)) }));
+    // Distinct real paths, every node one identity: no overlap.
+    expect(kitHomeOverlap({ entries: entries(a), home: at(a), target: at(b) })?.entry ?? null, "distinct real paths on a degenerate platform").toBeNull();
+    // Equal real paths: still refused, by the string half.
+    const same = { entries: entries(b), home: at(b), target: at(b) };
+    expect(overlapBySpelling(same)?.entry).toBe("agent-factory");
+    expect(kitHomeOverlap(same)?.entry).toBe("agent-factory");
   });
 });
 
