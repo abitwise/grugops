@@ -12733,6 +12733,12 @@ describe("30-11 round 4 — every check gate is REACHED, and the runner set is d
       "scripts/check-uat-oracles.test.ts against mirrored inputs in a temp dir. Its reachability is " +
       "the test suite, which CI does run. Surfaced by this very case in round 4 — the derived runner " +
       "set found a SECOND gate nothing invoked, which is the finding the derivation exists to make.",
+    "scripts/check-flip-manifest.js":
+      "retired from the CI gate block by decision 43.1 D-01 (2026-11-19). The archived v2.1 flip " +
+      "manifest predates v3.0, so a run against it reports 10 derivation failures and says nothing " +
+      "about the v3 tree; the next GAP-D1 capture needs a fresh manifest. Still exercised: " +
+      "scripts/check-flip-manifest.test.ts spawns this committed module against planted " +
+      "repositories, and CI runs that suite.",
   });
 
   /**
