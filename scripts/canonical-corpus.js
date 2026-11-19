@@ -65,7 +65,8 @@ import { join } from "node:path";
 // ---------------------------------------------------------------------------
 // The cited artifacts
 // ---------------------------------------------------------------------------
-const PHASE = ".planning/phases/27-spawn-correctness-kit-set-authority";
+// The phase-27 records moved to the v2.1 milestone archive when v2.1 closed; that location is final (plan 43.1-01, D4).
+const PHASE = ".planning/milestones/v2.1-phases/27-spawn-correctness-kit-set-authority";
 const R01 = `${PHASE}/27-REVIEW-GAPS.md`;
 const R02 = `${PHASE}/27-REVIEW-GAPS-2.md`;
 const R03 = `${PHASE}/27-REVIEW-GAPS-3.md`;
