@@ -7081,7 +7081,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
       expect(linesNaming(r.stdout, "removed", OLD_REL), r.out).toEqual([]);
       const v = linesNaming(r.stdout, "verify", OLD_REL);
       expect(v, r.out).toHaveLength(1);
-      expect(v[0]).toContain("not install's");
+      expect(v[0]).toContain("so it is yours and was left in place");
     });
 
     it("[LAYOUT-03] no previous ledger: an old-name file in a target with no install marker is never removed; only the presence note names it", () => {

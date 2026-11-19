@@ -1101,11 +1101,19 @@ function staleRunnableText(s: StaleRunnable): string {
   }
   return (
     `${s.rel} is a runnable an earlier kit installed, and it no longer holds what the install ledger records install ` +
-    `wrote there (you have since edited or replaced it, or a link is on its way), so it is yours, not install's to ` +
-    `remove. It was left in place. This kit version no longer ships it, and a plain \`node --test\` in this repository ` +
-    `may run it; delete it by hand if you do not use it.`
+    `wrote there (you have since edited or replaced it, or a link is on its way), so it is yours and was left in ` +
+    `place. This kit version no longer ships it, and a plain \`node --test\` in this repository may run it; delete it ` +
+    `by hand if you do not use it.`
   );
 }
+// staleRunnableNotRemovedText: the one wording of a held stale runnable whose removal did not take (`what` says how).
+const staleRunnableNotRemovedText = (rel: string, what: string): string =>
+  `${rel} ${what}. It was left in place; remove it by hand, since a plain \`node --test\` in this repository may run it.`;
+// unrecordedStaleRunnableText: the one wording of a presence note (unrecordedStaleAdapterText's shape).
+const unrecordedStaleRunnableText = (rel: string, why: string): string =>
+  `${rel} — this kit version does not ship it, and the install ledger ${why}, so install cannot tell whether an ` +
+  `earlier install wrote it. A plain \`node --test\` in this repository may run it when its name matches Node's ` +
+  `default test globs. Check it by hand and delete it if you do not use it; install never deletes it.`;
 // retireStaleRunnables (plan 43.1-02, D-02): install's half of STALE RUNNABLES, called in the install run directly after
 // materializeRunnable(), so it covers a plain install and a --migrate that continues into the install run. Then, whatever
 // the ledger's state, the presence path: one uncounted note per unrecorded `.js` entry this kit does not ship.
@@ -1130,14 +1138,11 @@ function retireStaleRunnables(): void {
       try {
         unlinkSync(path);
       } catch (err) {
-        verify(
-          `${s.rel} could not be removed (${errCode(err)}). It was left in place; remove it by hand, since a plain ` +
-            `\`node --test\` in this repository may run it.`,
-        );
+        verify(staleRunnableNotRemovedText(s.rel, `could not be removed (${errCode(err)})`));
         continue;
       }
       if (!gone(path)) {
-        verify(`${s.rel} is still present after its removal. Remove it by hand, since a plain \`node --test\` in this repository may run it.`);
+        verify(staleRunnableNotRemovedText(s.rel, "is still present after its removal"));
         continue;
       }
       report("removed", staleRunnableText(s));
@@ -1152,14 +1157,7 @@ function retireStaleRunnables(): void {
     );
     return;
   }
-  for (const rel of unrecorded.paths) {
-    report(
-      "note",
-      `${rel} — this kit version does not ship it, and the install ledger ${ledgerSays(PREVIOUS_LEDGER)}, so install ` +
-        `cannot tell whether an earlier install wrote it. A plain \`node --test\` in this repository may run it when its ` +
-        `name matches Node's default test globs. Check it by hand and delete it if you do not use it; install never deletes it.`,
-    );
-  }
+  for (const rel of unrecorded.paths) report("note", unrecordedStaleRunnableText(rel, ledgerSays(PREVIOUS_LEDGER)));
 }
 // unrecordedStaleRunnables: the presence path (see STALE RUNNABLES). `paths` are repo-relative and sorted by byte order.
 // An absent `tools/grugops/` is an empty list. One that exists but cannot be listed is `unreadable` (its error code),

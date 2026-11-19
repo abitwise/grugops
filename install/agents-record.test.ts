@@ -2007,6 +2007,10 @@ const CENSUS_TABLE: readonly CensusRow[] = [
   // An unshipped adapter the install ledger cannot vouch for (plan 39-13, 2026-10-30, review WR-06): the ledger is
   // named only to say it has no record; the by-hand remedy is on the adapter file, never on the marker or its ledger.
   ["install.ts", "unrecordedStaleAdapterText", "either", "${rel} — this kit version does not ship it, and the install ledger ${why}, so install cannot tell whether an earlier install wrote it. Claude Code still loads every file in `.claude/agents/`. Check it by hand and delete it if you do not use it; install never deletes it.", "touches no record", "an unshipped adapter the install ledger has no record of; the user checks and deletes the adapter file by hand (plan 39-13, WR-06)"],
+  // A runnable this kit version no longer ships (plan 43.1-02, 2026-11-19, D-02, D66): the install ledger is named only as
+  // the reason; the by-hand remedy is on the runnable file in tools/grugops/, never on the marker or its ledger.
+  ["install.ts", "staleRunnableText", "either", "${s.rel} is a runnable an earlier kit installed, and it no longer holds what the install ledger records install wrote there (you have since edited or replaced it, or a link is on its way), so it is yours and was left in place. This kit version no longer ships it, and a plain `node --test` in this repository may run it; delete it by hand if you do not use it.", "touches no record", "a stale runnable the user edited or replaced; the user deletes the file by hand (plan 43.1-02, D-02)"],
+  ["install.ts", "unrecordedStaleRunnableText", "either", "${rel} — this kit version does not ship it, and the install ledger ${why}, so install cannot tell whether an earlier install wrote it. A plain `node --test` in this repository may run it when its name matches Node's default test globs. Check it by hand and delete it if you do not use it; install never deletes it.", "touches no record", "a .js file in tools/grugops/ this kit does not ship and the install ledger has no record of; the user checks and deletes it by hand (plan 43.1-02, D66)"],
   // not a printed alternative: this run's own (DRY_RUN) description of the rewrite it makes.
   ["uninstall.ts", "said", "either", "the entries this run would remove or reverse would be taken out of its install ledger: ${what}", "not a printed alternative", "updateKeptMarker's DRY_RUN wording of its own ledger rewrite"],
 ];
@@ -2047,7 +2051,7 @@ const CENSUS_CLASS_COUNTS: Readonly<Record<RemedyClass, number>> = {
   "per entry": 5,
   "per field": 1,
   fix: 3,
-  "touches no record": 10,
+  "touches no record": 12,
   "not a printed alternative": 1,
 };
 /** What every row of a class must say, so a row cannot be classed against its text. */
@@ -2332,8 +2336,10 @@ describe("D-32: printed alternatives that touch the marker or its ledger (CR-03)
     // 21 -> 22 (plan 34.1-54, 2026-10-14, D-40, DI-18): markerFixText's second never-remove reading, with the next step.
     // 22 -> 23 (plan 39-13, 2026-10-30, review WR-06): unrecordedStaleAdapterText, the presence note for an unshipped
     // adapter the install ledger has no record of (install.ts 1 -> 2; measured by this census).
-    expect(sites.length, "the census size moved").toBe(23);
-    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 2, "install.ts": 2, "uninstall.ts": 19 });
+    // 23 -> 25 (plan 43.1-02, 2026-11-19, D-02, D66): staleRunnableText's verify for a stale runnable the user edited and
+    // unrecordedStaleRunnableText's presence note (install.ts 2 -> 4; measured by this census).
+    expect(sites.length, "the census size moved").toBe(25);
+    expect(countBy(sites, (s) => s.module), "per-module counts (no other product module prints one)").toEqual({ "install-marker.ts": 2, "install.ts": 4, "uninstall.ts": 19 });
     expect(countBy(CENSUS_TABLE, (r) => r[4]), "per-class counts").toEqual(
       Object.fromEntries(Object.entries(CENSUS_CLASS_COUNTS).sort(([a], [b]) => a.localeCompare(b))),
     );
@@ -4788,6 +4794,11 @@ const REMOVAL_EXEMPT: readonly ExemptRow[] = [
   ["install.ts", "staleAdapterText", "deletes it, and uninstall leaves it", 1, "the user's edited adapter, negated: install never deletes it (plan 39-10)"],
   ["install.ts", "unrecordedStaleAdapterText", "delete it if you do not use it", 1, "an unshipped adapter the install ledger has no record of, removed by the user by hand (plan 39-13, WR-06)"],
   ["install.ts", "unrecordedStaleAdapterText", "deletes it", 1, "the same adapter, negated: install never deletes it (plan 39-13, WR-06)"],
+  ["install.ts", "staleRunnableText", "delete it by hand if you do not use it", 1, "a runnable this kit version no longer ships that the user edited or replaced, removed by the user by hand (plan 43.1-02, D-02)"],
+  ["install.ts", "staleRunnableNotRemovedText", "remove it by hand, since a plain `node --test` in this repository may run it", 1, "a held stale runnable install could not remove, or that is still present after its removal (plan 43.1-02, D-02)"],
+  ["install.ts", "unrecordedStaleRunnableText", "delete it if you do not use it", 1, "a .js file in tools/grugops/ the install ledger has no record of, removed by the user by hand (plan 43.1-02, D66)"],
+  ["install.ts", "unrecordedStaleRunnableText", "deletes it", 1, "the same file, negated: install never deletes it (plan 43.1-02, D66)"],
+  ["install.ts", "retireStaleRunnables", "remove", 1, "the `would-remove` dry-run label of a held stale runnable (a status word: the run changes nothing)"],
   ["uninstall.ts", "unlinkPath", "remove it by hand if it is grugops's", 2, "a path still present after its removal"],
   ["uninstall.ts", "<module>", "remove", 3, "the agents this run removes (the `agents to remove` heading)"],
   ["uninstall.ts", "removalDecision", "remove it by hand if it is grugops's", 3, "a path the uninstaller left (a link that is not install's, or a path it could not examine)"],
@@ -4903,12 +4914,16 @@ describe("D-37: the widened removal-matcher census, by search over every printed
     // 143 -> 145, table 96 -> 98, install.ts 56 -> 58 (plan 39-13, 2026-10-30, review WR-06): the presence note for an
     // unshipped adapter the install ledger has no record of tells the user to delete it by hand if unused and says
     // install never deletes it (measured: the census printed these two clauses).
-    expect(hits.length, "the hit count moved").toBe(145);
-    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(98);
+    // 145 -> 150, table 98 -> 103, install.ts 58 -> 63 (plan 43.1-02, 2026-11-19, D-02, D66): install removes a held stale
+    // runnable it recorded (the `would-remove` label), tells the user to remove one by hand when its removal did not take,
+    // and to delete an edited or unrecorded one by hand if unused; install never deletes an unrecorded one (measured: the
+    // census printed these five clauses).
+    expect(hits.length, "the hit count moved").toBe(150);
+    expect(REMOVAL_EXEMPT.length, "the exempt table size moved").toBe(103);
     expect(countBy(hits, (h) => h.module), "per-module hits").toEqual({
       "checkpoint-ask-rules.ts": 1,
       "install-marker.ts": 2,
-      "install.ts": 58,
+      "install.ts": 63,
       "state-migrate.ts": 2,
       "uninstall.ts": 82,
     });
