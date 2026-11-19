@@ -32,6 +32,10 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
 
 ## A host's `node --test` runs the installed `tools/grugops/test-skip-integrity.js` (found by plan 43-13, 2026-11-18)
 
+- **Status:** resolved
+- **Resolved by:** phase 43.1, plan 43.1-02 (commits `563518a6`, `16fed9a8`, `d865a456`, `65495441`): the checker
+  installs as `tools/grugops/skip-integrity.js`, and install and `--migrate` remove the old file while the ledger
+  holds it.
 - **What:** In a repository whose test script is plain `node --test`, Node's default test glob matches the
   installed `tools/grugops/test-skip-integrity.js` (its name starts with `test-`). Run with no arguments it exits
   with `Error: no registry file path was provided`, so the host's suite fails on a fresh install before any change.
