@@ -114,7 +114,7 @@ import { HIDE_CURSOR, decodeKeys, initialPicker, pickerRows, render, restoreTerm
 // it walks the path with lstat and answers `create`, `ok` (a regular file, never a link) or
 // `blocked` (a link, a special file, or a non-directory on the way). directoryComponent is the same
 // rule for the directories mkdirp creates, and unreadState is the one wording of an unread state.
-import { readUserFile, readForWrite, wayTo, kindAt, isRecordedAbsolute, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, TREE_MAX_ENTRIES, USER_FILE_MAX_BYTES, realTargetPath, realPathThroughExisting, sameRecordedPath, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
+import { readUserFile, readForWrite, wayTo, kindAt, isRecordedAbsolute, directoryComponent, unreadState, isOwnLink, gone, pathLimitProblem, writeAccessProblem, TREE_MAX_ENTRIES, USER_FILE_MAX_BYTES, realTargetPath, realPathThroughExisting, pathNodes, kitHomeOverlap, sameRecordedPath, treeRecord, canonicalPathSpelling, absoluteSpelling, } from "./user-file.js";
 // --- argument parsing (INSTALL-03), layered over the TARGET/INSTALL_MODE env overrides ---
 //   --check    run the non-mutating doctor (INSTALL-05): verify every referenced path resolves,
 //              name the FIRST failure with its referencing file, mutate nothing
@@ -3412,6 +3412,13 @@ if (!ALLOW_SELF) {
 // a target at `<GRUGOPS_HOME>/docs`, inside it, or holding it is refused the same way. Since review CR-01 of
 // phase 43 copyKit leaves an unowned docs entry as it is (it renames nothing there), but a recorded docs entry is
 // still replaced, so a repository at or around one would still have install write into, or replace, it.
+// Since plan 43.1-06 (2026-11-19, D739, red-team B1 of 33.1) the comparison is also by directory identity:
+// user-file.ts pathNodes gives each of the kit root, the kit home, the target and every kit entry the device
+// and inode of the existing part of its real path, plus the missing names after it, and kitHomeOverlap
+// refuses when either the real-path string test (the rule above, moved there unchanged) or the identity test
+// finds an overlap. A macOS firmlink keeps its spelling through realpath, so a kit home spelled under
+// /System/Volumes/Data passed the string test and a re-install replaced the in-repo agent-factory/. A path
+// whose identity cannot be read joins the could-not-be-read refusal below, with the same message.
 //
 // It does not run on --check, --update or --prune-old-kit, which branch off above. --check writes
 // nothing. --update has no target, and the kit-home record (copyKit) keeps it from deleting anything
@@ -3422,18 +3429,23 @@ if (!ALLOW_SELF) {
     const realKit = realPathThroughExisting(KIT_ROOT);
     const realHome = realPathThroughExisting(GRUGOPS_HOME);
     const realTarget = realPathThroughExisting(TARGET);
-    // Every kit entry (plan 43-06): the kit root and the shipped docs roots beside it, each with its real path.
+    // The identity of each (plan 43.1-06, D739): device and inode of the existing part of the real path, then
+    // the missing names; null when it cannot be read, which refuses as an unread real path does.
+    const homeNodes = pathNodes(GRUGOPS_HOME);
+    const targetNodes = pathNodes(TARGET);
+    // Every kit entry (plan 43-06): the kit root and the shipped docs roots beside it, each with its real path
+    // and (plan 43.1-06) its identity.
     const kitEntries = KIT_ENTRY_PATHS.map((e) => {
         const at = e === KIT_ENTRY_PATH ? KIT_ROOT : join(GRUGOPS_HOME, e);
-        return { entry: e, at, realAt: e === KIT_ENTRY_PATH ? realKit : realPathThroughExisting(at) };
+        return { entry: e, at, realAt: e === KIT_ENTRY_PATH ? realKit : realPathThroughExisting(at), nodes: pathNodes(at) };
     });
-    const within = (child, parent) => child.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
+    const unreadEntry = (k) => k.realAt === null || k.nodes === null;
     let overlap = null;
-    if (realHome === null || realTarget === null || kitEntries.some((k) => k.realAt === null)) {
+    if (realHome === null || homeNodes === null || realTarget === null || targetNodes === null || kitEntries.some(unreadEntry)) {
         const unread = [
-            ...kitEntries.filter((k) => k.realAt === null).map((k) => (k.entry === KIT_ENTRY_PATH ? `the kit root ${KIT_ROOT}` : `the kit entry ${k.at}`)),
-            ...(realHome === null ? [`the kit home ${GRUGOPS_HOME}`] : []),
-            ...(realTarget === null ? [`the target ${TARGET}`] : []),
+            ...kitEntries.filter(unreadEntry).map((k) => (k.entry === KIT_ENTRY_PATH ? `the kit root ${KIT_ROOT}` : `the kit entry ${k.at}`)),
+            ...(realHome === null || homeNodes === null ? [`the kit home ${GRUGOPS_HOME}`] : []),
+            ...(realTarget === null || targetNodes === null ? [`the target ${TARGET}`] : []),
         ];
         overlap =
             `install.js: the real path of ${unread.join(" and of ")} could not be read, so it cannot be shown that the kit ` +
@@ -3442,10 +3454,14 @@ if (!ALLOW_SELF) {
     }
     else {
         // The kit entry that is the target, lies inside it or holds it; else, when the kit home is the target or lies
-        // inside it, the kit root (every entry then lies inside the target).
-        const hit = kitEntries.find((k) => k.realAt === realTarget || within(k.realAt, realTarget) || within(realTarget, k.realAt)) ??
-            (realHome === realTarget || within(realHome, realTarget) ? kitEntries[0] : undefined);
-        if (hit !== undefined) {
+        // inside it, the kit root (every entry then lies inside the target). By real-path string or by identity
+        // (user-file.ts kitHomeOverlap, plan 43.1-06); a hit by either is refused.
+        const hit = kitHomeOverlap({
+            entries: kitEntries.map((k) => ({ ...k, realAt: k.realAt, nodes: k.nodes })),
+            home: { realAt: realHome, nodes: homeNodes },
+            target: { realAt: realTarget, nodes: targetNodes },
+        });
+        if (hit !== null) {
             overlap =
                 `install.js: the kit home ${hit.at} overlaps the target ${TARGET} (real paths ${hit.realAt} and ${realTarget}); ` +
                     `the kit would be written into, or replace, your repository. Set GRUGOPS_HOME to a directory outside the ` +

@@ -73,7 +73,7 @@
 // Clear professional voice: this is a safety surface (installer reads of user content).
 import { createHash } from "node:crypto";
 import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync, readlinkSync, realpathSync, statSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 /** The default size bound: no file the installer reads in a user repository is near this. */
 export const USER_FILE_MAX_BYTES = 8 * 1024 * 1024;
 function kindOf(st) {
@@ -355,6 +355,96 @@ export function realPathThroughExisting(p) {
     catch {
         return null;
     }
+}
+const statIdentity = (p) => statSync(p, { bigint: true });
+/** The identity of `p`, root to leaf over its real spelling, or null when it cannot be read (see above). */
+export function pathNodes(p, stat = statIdentity) {
+    const real = realPathThroughExisting(p);
+    if (real === null)
+        return null;
+    // The real spelling is canonical (forward slashes on every host), so its root is `/` on POSIX and
+    // `C:/` or `//server/share/` on Windows; the components below it are split on `/`.
+    const root = parse(real).root;
+    const names = real.slice(root.length).split("/").filter((s) => s !== "");
+    const out = [];
+    let missing = false;
+    for (let i = -1; i < names.length; i++) {
+        const name = i < 0 ? root : names[i];
+        if (!missing) {
+            const at = i < 0 ? root : root + names.slice(0, i + 1).join("/");
+            try {
+                const st = stat(at);
+                out.push({ name, id: `${String(st.dev)}:${String(st.ino)}` });
+                continue;
+            }
+            catch (e) {
+                if (codeOf(e) !== "ENOENT")
+                    return null;
+                missing = true;
+            }
+        }
+        out.push({ name, id: null });
+    }
+    // A root that does not exist has no anchor to compare from: fail closed.
+    if (out[0].id === null)
+        return null;
+    return out;
+}
+/** Whether real spelling `child` lies strictly inside `parent` (the string rule install.ts has used since plan 33.1-37). */
+const withinSpelling = (child, parent) => child.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
+/**
+ * THE STRING TEST, exported so a test can compare it alone with the full decision (the D739 mutation
+ * proof). The kit entry that is the target, lies inside it or holds it; else, when the kit home is the
+ * target or lies inside it, the kit root (every entry then lies inside the target); else null.
+ */
+export function kitHomeOverlapBySpelling(input) {
+    const t = input.target.realAt;
+    const hit = input.entries.find((k) => k.realAt === t || withinSpelling(k.realAt, t) || withinSpelling(t, k.realAt));
+    if (hit !== undefined)
+        return hit;
+    const h = input.home.realAt;
+    return h === t || withinSpelling(h, t) ? (input.entries[0] ?? null) : null;
+}
+/** Two nodes name the same component: by identity where both have one, else by name. */
+const sameNode = (a, b) => (a.id !== null && b.id !== null ? a.id === b.id : a.name === b.name);
+/**
+ * Where `parent`'s anchor (its deepest existing node and the missing names after it) ends in `child`'s
+ * list, or -1 when it does not occur there. An index equal to child's last index means one directory; a
+ * smaller one means child lies strictly inside parent.
+ */
+function anchorEnd(child, parent) {
+    let k = parent.length - 1;
+    while (k >= 0 && parent[k].id === null)
+        k--;
+    if (k < 0)
+        return -1;
+    const anchor = parent.slice(k);
+    for (let i = 0; i + anchor.length <= child.length; i++) {
+        if (child[i].id === null || child[i].id !== anchor[0].id)
+            continue;
+        if (anchor.every((n, j) => sameNode(n, child[i + j])))
+            return i + anchor.length - 1;
+    }
+    return -1;
+}
+/** The identity relation of `a` to `b`: one directory, `a` strictly inside `b`, or neither. */
+function identityRelation(a, b) {
+    const end = anchorEnd(a, b);
+    if (end < 0)
+        return null;
+    return end === a.length - 1 ? "same" : "inside";
+}
+/** THE IDENTITY TEST: the string test's shapes over node lists. */
+function kitHomeOverlapByIdentity(input) {
+    const t = input.target.nodes;
+    const hit = input.entries.find((k) => identityRelation(k.nodes, t) !== null || identityRelation(t, k.nodes) !== null);
+    if (hit !== undefined)
+        return hit;
+    return identityRelation(input.home.nodes, t) !== null ? (input.entries[0] ?? null) : null;
+}
+/** The overlap decision install.ts refuses on: the string test, then the identity test; a hit by either is a hit. */
+export function kitHomeOverlap(input) {
+    return kitHomeOverlapBySpelling(input) ?? kitHomeOverlapByIdentity(input);
 }
 // ── THE TREE RECORD (plan 33.1-37, D-33 (c)) ──────────────────────────────────────────────────────
 //

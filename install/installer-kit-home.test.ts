@@ -63,7 +63,7 @@ import {
   type Run,
 } from "./installer-paths.test-support.js";
 import { KIT_ENTRY_PATH, KIT_HOME_RECORD_REL } from "./install-marker.js";
-import { realTargetPath } from "./user-file.js";
+import { kitHomeOverlap, realTargetPath, type PathNode, type PlacedPath } from "./user-file.js";
 import { STATE_ROOTS } from "./state-layout.js";
 // (Plan 43-02, D-11, D-27) The shipped user docs, declared once. Unit cases at the foot of this file.
 import { CHECKOUT_ONLY_DOCS, SHIPPED_DOCS_ROOTS, shippedDocs } from "./kit-source.js";
@@ -144,6 +144,80 @@ describe("CR-01: install refuses a kit home that overlaps the target, before any
     const r = spawnBin(INSTALL_JS, ["--yes", ...ALL_AGENT_FLAGS], target, home, { home, timeoutMs: 180_000 });
     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
     expect(r.stderr).not.toMatch(/overlaps the target/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// D739 (plan 43.1-06, 2026-11-19, red-team B1 of 33.1): ONE DIRECTORY UNDER TWO SPELLINGS. On macOS a
+// firmlink keeps its spelling through realpath, so `/System/Volumes/Data/Users/u/repo` and `/Users/u/repo`
+// are one directory whose real spellings are not prefixes of each other. The string test passed such a kit
+// home and a re-install replaced the in-repo agent-factory/. install now also compares device and inode
+// (user-file.ts pathNodes and kitHomeOverlap). No firmlink and no unprivileged bind mount exists on the
+// Linux machines this runs on, and a symbolic link proves nothing (realpath already resolves it), so these
+// cases inject the identities: MAC_IDS models a Mac where the two spellings of one directory report one
+// `dev:ino`. Each pin is red on the string test alone and green on the identity test. A real macOS run
+// stays `UNKNOWN - verify`.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The firmlink prefix: on a Mac `/System/Volumes/Data<p>` and `<p>` are one directory. */
+const DATA_VOLUME = "/System/Volumes/Data";
+
+/** The directories that exist on the modelled Mac, keyed by their spelling without the firmlink prefix, each with its `dev:ino`. */
+const MAC_IDS: ReadonlyMap<string, string> = new Map([
+  ["/", "16777233:2"],
+  ["/System", "16777233:10"],
+  ["/System/Volumes", "16777233:11"],
+  ["/System/Volumes/Data", "16777233:12"],
+  ["/Users", "16777233:20"],
+  ["/Users/u", "16777233:21"],
+  ["/Users/u/repo", "16777233:22"],
+]);
+
+/**
+ * The node list pathNodes would build for real spelling `real` on a host whose directories are `ids`: one node
+ * per component, root to leaf, each existing component with its `dev:ino`, every component from the first
+ * missing one on with its name only. A spelling under DATA_VOLUME is looked up without the prefix, which is
+ * what makes it the firmlink's other spelling of one directory.
+ */
+function modelNodes(real: string, ids: ReadonlyMap<string, string> = MAC_IDS): PathNode[] {
+  const names = real.split("/").filter((s) => s !== "");
+  const out: PathNode[] = [{ name: "/", id: ids.get("/") ?? null }];
+  let missing = false;
+  for (let i = 0; i < names.length; i++) {
+    const spelled = `/${names.slice(0, i + 1).join("/")}`;
+    const behind = spelled.length > DATA_VOLUME.length && spelled.slice(0, DATA_VOLUME.length + 1) === `${DATA_VOLUME}/` ? spelled.slice(DATA_VOLUME.length) : spelled;
+    const id = missing ? undefined : ids.get(behind);
+    if (id === undefined) missing = true;
+    out.push({ name: names[i], id: id ?? null });
+  }
+  return out;
+}
+
+const placed = (realAt: string, ids?: ReadonlyMap<string, string>): PlacedPath => ({ realAt, nodes: modelNodes(realAt, ids) });
+
+interface ModelEntry extends PlacedPath {
+  readonly entry: string;
+}
+
+/** The overlap input for a kit home spelled `home` (its kit root `<home>/agent-factory` first, then docs and examples) and a target spelled `target`. */
+function modelLayout(home: string, target: string, ids?: ReadonlyMap<string, string>) {
+  const entries: ModelEntry[] = ["agent-factory", "docs", "examples"].map((entry) => ({ entry, ...placed(`${home}/${entry}`, ids) }));
+  return { entries, home: placed(home, ids), target: placed(target, ids) };
+}
+
+describe("D739: one directory under two spellings is refused by identity (plan 43.1-06)", () => {
+  it("kit root inside the target, the kit home spelled through the firmlink: the string test cannot see it, kitHomeOverlap refuses with the kit-root hit", () => {
+    // GRUGOPS_HOME=/System/Volumes/Data/Users/u/repo, target /Users/u/repo: the kit root is the repository's own agent-factory/.
+    const input = modelLayout(`${DATA_VOLUME}/Users/u/repo`, "/Users/u/repo");
+    const kitRoot = input.entries[0];
+    expect(kitRoot.nodes.find((n) => n.name === "repo")?.id, "the model: the firmlink spelling reaches the target's own dev:ino").toBe("16777233:22");
+    // No string relation either way between the two real spellings.
+    expect(kitRoot.realAt.startsWith(`${input.target.realAt}/`)).toBe(false);
+    expect(input.target.realAt.startsWith(`${kitRoot.realAt}/`)).toBe(false);
+    expect(input.home.realAt === input.target.realAt).toBe(false);
+    const hit = kitHomeOverlap(input);
+    expect(hit, "the kit root lies inside the target by identity").not.toBeNull();
+    expect(hit?.entry).toBe("agent-factory");
   });
 });
 

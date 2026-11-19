@@ -74,7 +74,7 @@
 
 import { createHash } from "node:crypto";
 import { accessSync, closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync, readlinkSync, realpathSync, statSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 
 export type UserFileRead =
   | { readonly state: "absent" }
@@ -421,6 +421,151 @@ export function realPathThroughExisting(p: string): string | null {
   } catch {
     return null;
   }
+}
+
+// ── ONE DIRECTORY UNDER TWO SPELLINGS (plan 43.1-06, 2026-11-19, D739, red-team B1 of 33.1) ─────────────
+//
+// WHY A REAL-PATH STRING IS NOT ENOUGH. install.ts refuses a kit home that overlaps the target by comparing
+// realPathThroughExisting strings. On macOS a firmlink is not a symbolic link, so realpath keeps the
+// spelling it was given: `/System/Volumes/Data/Users/u/repo` and `/Users/u/repo` are one directory with two
+// real spellings, neither a prefix of the other. Red-team B1 reproduced a kit home spelled under
+// `/System/Volumes/Data` passing the string test, and a re-install replacing the in-repo agent-factory/.
+// The two spellings reach one directory, so they report one device and inode; the identity test below
+// compares those, and install refuses when either test finds an overlap.
+//
+// pathNodes(p) is the identity of a path that may not exist yet: one node per component of its REAL
+// spelling (realPathThroughExisting), root to leaf. Each existing component carries its name and its
+// `dev:ino` (stat with bigint, since an inode number can exceed 2^53); after the first component that does
+// not exist, each carries its name only, so a kit home or kit root a first install has not made yet is
+// still compared, by its deepest existing ancestor and the missing names below it. The walk runs over the
+// real spelling, never the user's: a symbolic link in the user's spelling would put the link's own parent
+// in the chain and refuse a legitimate layout. It never calls realpathSync.native itself (the
+// path-spelling census allows that call only in realTargetPath and realPathThroughExisting).
+// null fails closed: the real path cannot be read, or a stat on the existing part fails with any code
+// other than ENOENT. The caller cannot rule out an overlap, and refuses. It reads no file content.
+// `stat` is a parameter so a test can inject identities (no unprivileged bind mount or firmlink exists
+// on the Linux machines this is tested on); production code omits it.
+//
+// kitHomeOverlap is the decision, a pure function over the real spellings and node lists of the kit
+// entries, the kit home and the target. The string test (kitHomeOverlapBySpelling) is the rule
+// install.ts held before this plan, moved here unchanged; the identity test is the same shapes over node
+// lists. A hit by either is a hit.
+//
+// MEASURED AND NOT. The node walk and the decision are measured on Linux (POSIX) with injected identities
+// and on real scratch directories. That the two spellings of a macOS firmlinked directory report one
+// device and inode is cited, not run: `UNKNOWN - verify` (a human run on a Mac with GRUGOPS_HOME spelled
+// under /System/Volumes/Data). Whether Windows reports reliable device and inode numbers for this walk is
+// `UNKNOWN - verify` too; where a platform answers one identity for a directory and its parent, the
+// identity test does not apply and the string test decides alone.
+
+/** One component of a real spelling: its name, and its `dev:ino` when it exists (null after the first missing component). */
+export interface PathNode {
+  readonly name: string;
+  readonly id: string | null;
+}
+
+/** The part of a bigint stat result pathNodes reads. Declared structurally, as StatShape is. */
+export type IdentityStat = (p: string) => { readonly dev: bigint; readonly ino: bigint };
+
+const statIdentity: IdentityStat = (p) => statSync(p, { bigint: true });
+
+/** The identity of `p`, root to leaf over its real spelling, or null when it cannot be read (see above). */
+export function pathNodes(p: string, stat: IdentityStat = statIdentity): PathNode[] | null {
+  const real = realPathThroughExisting(p);
+  if (real === null) return null;
+  // The real spelling is canonical (forward slashes on every host), so its root is `/` on POSIX and
+  // `C:/` or `//server/share/` on Windows; the components below it are split on `/`.
+  const root = parse(real).root;
+  const names = real.slice(root.length).split("/").filter((s) => s !== "");
+  const out: PathNode[] = [];
+  let missing = false;
+  for (let i = -1; i < names.length; i++) {
+    const name = i < 0 ? root : names[i];
+    if (!missing) {
+      const at = i < 0 ? root : root + names.slice(0, i + 1).join("/");
+      try {
+        const st = stat(at);
+        out.push({ name, id: `${String(st.dev)}:${String(st.ino)}` });
+        continue;
+      } catch (e) {
+        if (codeOf(e) !== "ENOENT") return null;
+        missing = true;
+      }
+    }
+    out.push({ name, id: null });
+  }
+  // A root that does not exist has no anchor to compare from: fail closed.
+  if (out[0].id === null) return null;
+  return out;
+}
+
+/** A path as kitHomeOverlap reads it: its real spelling and its node list. */
+export interface PlacedPath {
+  readonly realAt: string;
+  readonly nodes: readonly PathNode[];
+}
+
+export interface KitHomeOverlapInput<E extends PlacedPath> {
+  /** The kit entries; the first is the kit root. */
+  readonly entries: readonly E[];
+  readonly home: PlacedPath;
+  readonly target: PlacedPath;
+}
+
+/** Whether real spelling `child` lies strictly inside `parent` (the string rule install.ts has used since plan 33.1-37). */
+const withinSpelling = (child: string, parent: string): boolean => child.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
+
+/**
+ * THE STRING TEST, exported so a test can compare it alone with the full decision (the D739 mutation
+ * proof). The kit entry that is the target, lies inside it or holds it; else, when the kit home is the
+ * target or lies inside it, the kit root (every entry then lies inside the target); else null.
+ */
+export function kitHomeOverlapBySpelling<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
+  const t = input.target.realAt;
+  const hit = input.entries.find((k) => k.realAt === t || withinSpelling(k.realAt, t) || withinSpelling(t, k.realAt));
+  if (hit !== undefined) return hit;
+  const h = input.home.realAt;
+  return h === t || withinSpelling(h, t) ? (input.entries[0] ?? null) : null;
+}
+
+/** Two nodes name the same component: by identity where both have one, else by name. */
+const sameNode = (a: PathNode, b: PathNode): boolean => (a.id !== null && b.id !== null ? a.id === b.id : a.name === b.name);
+
+/**
+ * Where `parent`'s anchor (its deepest existing node and the missing names after it) ends in `child`'s
+ * list, or -1 when it does not occur there. An index equal to child's last index means one directory; a
+ * smaller one means child lies strictly inside parent.
+ */
+function anchorEnd(child: readonly PathNode[], parent: readonly PathNode[]): number {
+  let k = parent.length - 1;
+  while (k >= 0 && parent[k].id === null) k--;
+  if (k < 0) return -1;
+  const anchor = parent.slice(k);
+  for (let i = 0; i + anchor.length <= child.length; i++) {
+    if (child[i].id === null || child[i].id !== anchor[0].id) continue;
+    if (anchor.every((n, j) => sameNode(n, child[i + j]))) return i + anchor.length - 1;
+  }
+  return -1;
+}
+
+/** The identity relation of `a` to `b`: one directory, `a` strictly inside `b`, or neither. */
+function identityRelation(a: readonly PathNode[], b: readonly PathNode[]): "same" | "inside" | null {
+  const end = anchorEnd(a, b);
+  if (end < 0) return null;
+  return end === a.length - 1 ? "same" : "inside";
+}
+
+/** THE IDENTITY TEST: the string test's shapes over node lists. */
+function kitHomeOverlapByIdentity<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
+  const t = input.target.nodes;
+  const hit = input.entries.find((k) => identityRelation(k.nodes, t) !== null || identityRelation(t, k.nodes) !== null);
+  if (hit !== undefined) return hit;
+  return identityRelation(input.home.nodes, t) !== null ? (input.entries[0] ?? null) : null;
+}
+
+/** The overlap decision install.ts refuses on: the string test, then the identity test; a hit by either is a hit. */
+export function kitHomeOverlap<E extends PlacedPath>(input: KitHomeOverlapInput<E>): E | null {
+  return kitHomeOverlapBySpelling(input) ?? kitHomeOverlapByIdentity(input);
 }
 
 // ── THE TREE RECORD (plan 33.1-37, D-33 (c)) ──────────────────────────────────────────────────────
