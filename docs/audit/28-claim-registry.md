@@ -1207,6 +1207,19 @@ Why `--agent`: the Orchestrator is the main thread, and Claude Code enforces the
 `claude --agent grugops-orchestrator` needs an install that chose Claude Code (`--claude`, or Claude Code ticked in the checkbox list), because that install writes `.claude/agents/grugops-orchestrator.md`. The Claude Code plugin form ships no agents, so it gives the commands only. To start every session in a project this way, you can set `"agent": "grugops-orchestrator"` in your own `.claude/settings.json`. The installer never writes that key, and whether it enforces the same list is `UNKNOWN - verify` (`install/README.md` §6).
 ```
 
+### C-28-075
+
+- file: docs/skills.md
+- line: 8
+- kind: install
+- depends_on: —
+- status: true
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06; reader-review finding F-10 named this sentence). Measured 2026-11-19 by reading `install/install.ts` and `install/kit-source.ts`. (1) `you vet yourself`: the page says it; no grugops code reviews a skill's content, and the doctor reads no `SKILL.md` text (`install/install.ts` comment above `doctorDeclaredSkills`: `no file content is read`). (2) `grugops never vendors or installs a skill`: the sentence follows `Any skill you install is third-party code` under the title `Third-party skills`, and it is measured in that frame, as a skill that is not grugops's own. The skills the installer writes are its own command skills and no other: `buildKitPlan` takes them from `SRC_SKILLS`, which is `srcSkillNames(GRUGOPS_SRC)` in `install/kit-source.ts`, the folders under the kit source's own `.claude/skills/` that hold a `SKILL.md` (on 2026-11-19 `grugops`, `grugops-gate`, `grugops-map`, `grugops-plan`, `grugops-release`, `grugops-ticket` and `grugops-uat`), plus the shared `AGENT_SKILL_REL` (`.agents/skills/grugops/SKILL.md`, `install/host-tools.ts`) for Codex CLI and Antigravity CLI. No code path reads a skill from outside the kit source, and the repository carries no third-party skill folder. Read without that frame, the sentence would also deny grugops's own command skills, which the installer does write; this row records them so a reader can judge the frame. (3) `install.js --check only reports a declared skill it cannot find`: `doctorDeclaredSkills` prints every skill line through `docReport` with the label `ok` or `advisory`, never through `docFail` or `docWarn`, so a missing skill changes no counter and no exit code, and nothing in it writes, copies or downloads. A skill it does find gives an `ok` line, so `only reports` is read as `does nothing but report`, which holds.
+
+```
+Any skill you install is third-party code you vet yourself. grugops never vendors or installs a skill, and `install.js --check` only reports a declared skill it cannot find.
+```
+
 ## The unanchorable claim — `.claude-plugin/plugin.json`
 
 C-28-038 above is registered like every other row and is **excluded from the D-16 bijection by

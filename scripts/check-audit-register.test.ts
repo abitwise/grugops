@@ -79,8 +79,11 @@ import {
 // registering two answers on docs/faq.md. Moved BY HAND, in the same commit as the map.
 // 58 -> 60 (plan 43-12 task 3, 2026-11-18): `C-28-073` and `C-28-074` entered as `architecture` rows
 // registering two moved paragraphs of docs/usage.md. Moved BY HAND, in the same commit as the map.
+// 8 -> 9 install (plan 43.1-08, 2026-11-19): `C-28-075` entered as an `install` row registering the
+// docs/skills.md sentence on what the installer and its doctor do with a skill. Moved BY HAND, in the
+// same commit as the map.
 const MIRROR_ARCHITECTURE_CLAIMS = 60;
-const MIRROR_INSTALL_CLAIMS = 8;
+const MIRROR_INSTALL_CLAIMS = 9;
 
 /**
  * The SAFETY ARM, spelled out exactly as the live registry carries it. The gate pins this roster

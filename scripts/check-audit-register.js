@@ -277,7 +277,13 @@ export const CLAIM_KIND_CARDINALITY = [
     // until the number moved; the number was taken from that refusal's own text ("architecture declares
     // 58 but the registry carries 60").
     { kind: "architecture", count: 60 },
-    { kind: "install", count: 8 },
+    // 8 -> 9 (plan 43.1-08, 2026-11-19; D-06, reader-review finding F-10). ONE ROW ADDED, NONE
+    // RECLASSIFIED. `C-28-075` registers the docs/skills.md sentence that grugops never vendors or
+    // installs a skill and that `install.js --check` only reports a declared skill it cannot find. It is
+    // `install`: it states what the installer and its doctor do, and it rests on no safety floor. This
+    // gate refused until the number moved; the number was taken from that refusal's own text ("install
+    // declares 8 but the registry carries 9").
+    { kind: "install", count: 9 },
 ];
 /**
  * The registry arm's NON-MARKDOWN members, declared with their reason.

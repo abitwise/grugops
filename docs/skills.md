@@ -4,6 +4,7 @@ A skill is a folder with a `SKILL.md` file that a coding agent can load for a ta
 
 ## Read this first
 
+<!-- claim: C-28-075 -->
 Any skill you install is third-party code you vet yourself. grugops never vendors or installs a skill, and `install.js --check` only reports a declared skill it cannot find.
 
 A skill can pre-approve tools for itself. Whatever a skill pre-approves, branch protection on your git host stays the hard floor.
