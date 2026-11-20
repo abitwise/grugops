@@ -103,7 +103,7 @@ Real commands only, with flags, preferring fast single-file variants. If a comma
 - Do not run destructive commands.
 - Never merge a protected branch. Never deploy prod without human confirmation.
 - Do not change dependencies without reason. No unrelated refactors. No fake results.
-- Enforcement: the git host (branch protection, deployment environments when the deploy credentials live solely in them: a stored deploy secret lives only in their secrets and an OIDC trust policy accepts only tokens whose subject names the environment) is the hard floor; the installer's Claude Code ask rules are a speed bump; see `install/README.md` §5.
+- Enforcement: the git host (branch protection, deployment environments when every production deploy runs as a job that references them and the deploy credentials live solely in them: a stored deploy secret lives only in their secrets and an OIDC trust policy accepts only tokens whose subject names this repository and the environment) is the hard floor; the installer's Claude Code ask rules are a speed bump; see `install/README.md` §5.
 
 <!-- generated: guarantees-pointer -->
 Which safety claims hold in the grugops source checkout at its default settings: [`docs/GUARANTEES.md`](docs/GUARANTEES.md). Your own floors are set in `.grugops/factory.config.json`.
