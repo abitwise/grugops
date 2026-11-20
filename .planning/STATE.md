@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
 status: verifying
-stopped_at: Completed 43.1-13-PLAN.md
-last_updated: "2026-11-20T10:25:30.864Z"
+stopped_at: Completed 43.1-14-PLAN.md
+last_updated: "2026-11-20T10:33:24.254Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 43.1 execution started
-state_head: e45284eeb0472d522aa110352cb5c1daeae3c4b0
+state_head: 5a672dd5a445a2adc0be3bc2dc2125a5cca6b7e1
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 180
-  completed_plans: 178
+  completed_plans: 179
   percent: 90
 ---
 
@@ -897,6 +897,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P11 | 11 min | 3 tasks | 11 files |
 | Phase 43.1 P12 | 10 min | 3 tasks | 9 files |
 | Phase 43.1 P13 | 18 min | 3 tasks | 12 files |
+| Phase 43.1 P14 | 6min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2509,6 +2510,8 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-12: WINDOWS.md rows 335 and 336 record that the CI logs contradict the UAT note: the no-type-field case was red on windows before 43.1 under its earlier title, and the cell() case was red on windows in both runs
 - [Phase 43.1]: 43.1-13: the immutable environment subject repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:<name> is written in install/README.md as composed from two GitHub statements, because GitHub's OIDC page (read 2026-11-20) prints no immutable example with :environment:
 - [Phase 43.1]: 43.1-13: the production checklist gains deploys_through_environment between required_reviewer and credentials_in_environment; --json floor.environment has seven strings
+- [Phase 43.1]: 43.1-14: all six re-measured registry rows keep their status (C-28-018 stays overstated/accepted under F-28-205; the others stay true), so generate:guarantees left docs/GUARANTEES.md byte-identical
+- [Phase 43.1]: 43.1-14: C-28-059's mechanism still quotes Workflow 05 step 3's older OIDC phrase; Workflow 05 and C-28-059 are plan 43.1-15's scope
 
 ### Pending Todos
 
@@ -2851,8 +2854,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-20T10:25:28.766Z
-Stopped at: Completed 43.1-13-PLAN.md
+Last session: 2026-11-20T10:33:22.150Z
+Stopped at: Completed 43.1-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
