@@ -477,7 +477,9 @@ describe("docs/skills.md: no recommended skill, pinned to the declarations, the 
     const page = skillsDoc();
     const body = section(page, "Read this first");
     expect(body).toContain("Any skill you install is third-party code you vet yourself.");
-    expect(body).toContain("never vendors or installs a skill");
+    expect(body).toContain("installs only its own command skills");
+    expect(body).toContain("never vendors or installs a third-party skill");
+    expect(body).toContain("only reports on declared skills");
     expect(body).toContain("AGENTS.md");
     expect(page).not.toContain(PHRASE);
   });

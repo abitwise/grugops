@@ -228,6 +228,37 @@ the next run does not report a file that is gone. While the file still holds wha
 keeps its record in the ledger, so `uninstall.js` still removes it. A file you edited since is yours:
 install says so, does not record it, and uninstall leaves it.
 
+#### A runnable this kit version no longer ships
+
+A newer kit can stop shipping a program under `tools/grugops/`. This release installs the
+skip-integrity checker as `tools/grugops/skip-integrity.js`. Earlier releases installed it as
+`tools/grugops/test-skip-integrity.js`, a name that matches Node's default `node --test` file
+pattern, so a repository whose tests run with plain `node --test` also ran the kit's file.
+
+Install compares the files its install ledger records directly under `tools/grugops/` with the
+programs this kit ships. It does this on every run, and so does `--migrate`, which continues into
+the install run. The set is worked out from the ledger and the kit source; no list of retired names
+is kept.
+
+- **A recorded file that still holds what install wrote:** install removes it, prints a `removed`
+  line naming it, and the install ledger drops its record. Install removes it only while the file
+  holds exactly what the ledger records install wrote and no link is on the way to it, so it never
+  removes a file you wrote or changed. `--dry-run` prints `would-remove` instead and changes
+  nothing. If the removal fails, or the file is still there after it, install leaves the file,
+  prints a `verify` line, and the run ends INCOMPLETE with exit `3`.
+- **A recorded file you edited or replaced:** it is yours. Install leaves it byte for byte, names
+  it in a `verify` line, and the run ends INCOMPLETE with exit `3`. The install ledger drops its
+  record, so `uninstall.js` leaves it too. Delete it by hand if you do not use it.
+- **A `.js` file with no record:** a `.js` file directly in `tools/grugops/` that this kit does not
+  ship and the install ledger does not record gets a `note` on every run until it is gone. The exit
+  status does not change, and install never removes it. When `tools/grugops/` cannot be listed, one
+  note says the check was skipped.
+
+With no usable install ledger (no install marker, for example), install removes nothing, and only
+the note names such a file. `install.js --check` does not look for these files. `uninstall.js`
+removes a recorded copy only while it still holds what install wrote, and never removes a file the
+install ledger does not record.
+
 ### Command-line contract — choosing agents
 
 The agent flags and the choice they make are a published contract (34.1 D-25); a change to any of
@@ -481,6 +512,9 @@ are written only when that agent is chosen.
   modules whatever your own `package.json` says (npm 11's `npm init -y` writes `"type": "commonjs"`,
   which otherwise stops each program at its first import); like the license, it is recorded, removed
   with the programs, and never written over a file you already have at that path.
+  A re-install or `--migrate` also removes a program an earlier kit installed there that this kit
+  no longer ships, only while the install ledger records it and it still holds what install wrote
+  (see "A runnable this kit version no longer ships").
   Five of the programs work on the planning state and the queue:
   - `tools/grugops/state-check.js` checks the state budgets and indexes and changes no file
   - `tools/grugops/trace-render.js` renders the per-ticket trace files and the trace index
