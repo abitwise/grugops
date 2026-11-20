@@ -31,13 +31,16 @@ measured. A repository that configures nothing lands here: nothing is lowered by
 
 Each safety floor is held in up to three tiers. The **hard floor** is the git host: it is the
 only tier that sees every push and merge, and every deployment that runs through its deployment
-environments, whatever command spelled it. For a deploy, that holds only when the
-deploy credentials live solely in the production environment: a stored deploy secret lives only in
+environments, whatever command spelled it. For a deploy, that holds only when
+every production deploy runs as a job that references the production environment and the
+deploy credentials live solely in that environment: a stored deploy secret lives only in
 that environment's secrets, and an OIDC trust policy for the deploy
-accepts only tokens whose subject names that environment. A secret held anywhere else (a
-repository or organization secret, a CI variable, a runner, a developer machine), or a trust
-policy that also accepts a branch or the whole repository, can deploy without that environment's
-reviewer. `tools/grugops/host-protection.js`
+accepts only tokens whose subject names this repository and that environment. A secret held
+anywhere else (a repository or organization secret, a CI variable, a runner, a developer
+machine), or a trust policy that also accepts a branch, the whole repository, or
+a wildcard over repositories or owners, can deploy without that environment's reviewer. So can
+a deploy that no such job runs, such as a hosting platform's own Git integration or a
+pull-based GitOps controller. `tools/grugops/host-protection.js`
 reports read-only on the branch items; its production line reads `UNKNOWN - verify` by design
 (33.1 D-31). grugops never configures the git host. The **speed bump** is the Claude Code ask
 rules the standalone installer writes: they cover the usual command spellings and are not a
@@ -50,7 +53,7 @@ that tier.
 |---|---|---|---|
 | `open_pr` | none | none | The roles stop at a pull request instead of carrying the change further. No mechanism enforces it (33.1 D-26). |
 | `test_integrity` | none | none | The gate's test-integrity step surfaces weakened or skipped tests. No mechanism enforces it (33.1 D-26). |
-| `production_requires_human_confirmation` | The git host: a production deployment environment the human configures per the production items of the git-host setup checklist in `install/README.md` §5. It holds only when the deploy credentials live solely in that environment: a stored deploy secret lives only in that environment's secrets, and an OIDC trust policy for the deploy accepts only tokens whose subject names that environment. A secret held anywhere else (a repository or organization secret, a CI variable, a runner, a developer machine), or a trust policy that also accepts a branch or the whole repository, can deploy without its reviewer. `tools/grugops/host-protection.js` does not report on it: its production line reads `UNKNOWN - verify` by design (33.1 D-31), and workflow 12's named human confirms the deploy. | Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary). | Workflow 12 requires a named human to confirm the production action. |
+| `production_requires_human_confirmation` | The git host: a production deployment environment the human configures per the production items of the git-host setup checklist in `install/README.md` §5. It holds only when every production deploy runs as a job that references that environment and the deploy credentials live solely in that environment: a stored deploy secret lives only in that environment's secrets, and an OIDC trust policy for the deploy accepts only tokens whose subject names this repository and that environment. A secret held anywhere else (a repository or organization secret, a CI variable, a runner, a developer machine), or a trust policy that also accepts a branch, the whole repository, or a wildcard over repositories or owners, can deploy without its reviewer. So can a deploy that no such job runs, such as a hosting platform's own Git integration or a pull-based GitOps controller. `tools/grugops/host-protection.js` does not report on it: its production line reads `UNKNOWN - verify` by design (33.1 D-31), and workflow 12's named human confirms the deploy. | Claude Code ask rules for the deploy and publish tools, written by the installer (standalone install only; not a security boundary). | Workflow 12 requires a named human to confirm the production action. |
 | `protected_branch_merge` | The git host: branch protection or a ruleset on each protected branch meeting every branch item of the git-host setup checklist in `install/README.md` §5. Reported read-only by `tools/grugops/host-protection.js`. | Claude Code ask rules for `git push` and `gh pr merge`, written by the installer (standalone install only; not a security boundary). | The roles stop at the pull request; a human holds the merge. |
 
 ## Which public sentences rest on which floor
