@@ -236,9 +236,12 @@ skip-integrity checker as `tools/grugops/skip-integrity.js`. Earlier releases in
 pattern, so a repository whose tests run with plain `node --test` also ran the kit's file.
 
 Install compares the files its install ledger records directly under `tools/grugops/` with the
-programs this kit ships. It does this on every run, and so does `--migrate`, which continues into
-the install run. The set is worked out from the ledger and the kit source; no list of retired names
-is kept.
+programs this kit ships. It makes this comparison on every install run. A `--migrate`
+that has a layout to move (the old in-repo layout, or planning state on the pre-v3 layout)
+continues into the install run and does the same. A `--migrate` on a target already on the
+two-root layout, whose planning state is not on the pre-v3 layout, stops before the install run:
+it neither removes nor notes such a file, and a plain install run there does. The set is worked
+out from the ledger and the kit source; no list of retired names is kept.
 
 - **A recorded file that still holds what install wrote:** install removes it, prints a `removed`
   line naming it, and the install ledger drops its record. Install removes it only while the file
@@ -512,8 +515,9 @@ are written only when that agent is chosen.
   modules whatever your own `package.json` says (npm 11's `npm init -y` writes `"type": "commonjs"`,
   which otherwise stops each program at its first import); like the license, it is recorded, removed
   with the programs, and never written over a file you already have at that path.
-  A re-install or `--migrate` also removes a program an earlier kit installed there that this kit
-  no longer ships, only while the install ledger records it and it still holds what install wrote
+  A re-install, or a `--migrate` that has a layout to move, also removes a program an earlier kit
+  installed there that this kit no longer ships, only while the install ledger records it and it
+  still holds what install wrote
   (see "A runnable this kit version no longer ships").
   Five of the programs work on the planning state and the queue:
   - `tools/grugops/state-check.js` checks the state budgets and indexes and changes no file

@@ -180,8 +180,10 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - Install now copies the skip-integrity checker to `tools/grugops/skip-integrity.js`. The old name,
   `tools/grugops/test-skip-integrity.js`, matched Node's default `node --test` file pattern, so a
   repository whose test script is plain `node --test` failed on a fresh install. Running install again,
-  or `install.js --migrate`, removes the old file when the install record shows install wrote it and
-  it is unchanged. A copy you edited, or one install did not record, is left in place and named.
+  or an `install.js --migrate` that has a layout to move, removes the old file when the install record
+  shows install wrote it and it is unchanged. A `--migrate` on a target already on the two-root layout,
+  whose planning state is not on the pre-v3 layout, stops before this step; run install again there.
+  A copy you edited, or one install did not record, is left in place and named.
   Workflow 05 and example 03 name the new path.
 - `docs/GUARANTEES.md` now says it shows which safety claims hold in the grugops source checkout at
   its default settings, not on your repository. The pointer lines in README.md, AGENTS.md and
@@ -195,10 +197,13 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   installer touches, §5 (a) and the production checklist. They are rows C-28-075 to C-28-090, and
   `check:claim-anchors` holds each row to its page. The rest of `install/README.md` is not registered,
   and the registry says so.
-- The read-only git-host check's production list has a sixth item, `credentials_in_environment`,
-  which matches the new production checklist item in `install/README.md` §5. In `--json`,
-  `floor.environment` now has six entries. Like the other production items, the check does not read
-  it (33.1 D-31).
+- The read-only git-host check's production list has two new items, `deploys_through_environment` and
+  `credentials_in_environment`, which match the new production checklist items in `install/README.md`
+  §5. In `--json`, `floor.environment` now has seven entries. Like the other production items, the
+  check does not read them (33.1 D-31). Its environment line now names where each production line is
+  confirmed: the setting lines in the environment's settings, the deploy-path line in the workflow
+  files and deploy platforms, and the credential line in the secret stores, runners and cloud trust
+  policies.
 - CI no longer runs the GAP-D1 flip-manifest gate, by decision 43.1 D-01. Its tests still run in the
   suite, and `npm run check:flip-manifest` is kept.
 
@@ -261,15 +266,19 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   written with `tools/grugops/note.js`, and on every other install, a standalone Claude Code install
   included, nothing binds a `human:<name>` stamp to a human (residual R-41-06). The install guide's
   list of programs no longer implies that a scripted install has a Claude Code hook.
-- The production environment is the hard floor for a deploy only when the deploy credentials live solely in
-  the production environment: a stored deploy secret lives only in that environment's secrets, and an
-  OIDC trust policy for the deploy accepts only tokens whose subject names that environment. A deploy
-  that runs with a secret kept anywhere else, such as a repository or organization secret, a CI
-  variable, a runner or a developer machine, or under a trust policy that also accepts a branch or
-  the whole repository, does not pass the environment's required reviewer. Workflows 05 and 12,
-  `install/README.md` §5 (with a production checklist item that names both parts), the commit
-  convention, the config dial doc (`agent-factory/config/factory.config.md`), the dogfood runbook,
-  `docs/GUARANTEES.md` and the docs now state this condition, and
+- The production environment is the hard floor for a deploy only when
+  every production deploy runs as a job that references the production environment and the
+  deploy credentials live solely in that environment: a stored deploy secret lives only in that
+  environment's secrets, and an OIDC trust policy for the deploy
+  accepts only tokens whose subject names this repository and that environment. A deploy that runs
+  with a secret kept anywhere else, such as a repository or organization secret, a CI variable, a
+  runner or a developer machine, or under a trust policy that also accepts a branch, the whole
+  repository, or a wildcard over repositories or owners, does not pass the environment's required
+  reviewer, and neither does a deploy that no such job runs, such as a hosting platform's own Git
+  integration or a pull-based GitOps controller. Workflows 05 and 12, `install/README.md` §5 (whose
+  production checklist now names the deploy path, both credential parts and both OIDC subject
+  formats), the commit convention, the config dial doc (`agent-factory/config/factory.config.md`),
+  the dogfood runbook, `docs/GUARANTEES.md` and the docs now state this condition, and
   `tools/grugops/host-protection.js --json` publishes the widened item in `floor.environment`. This
   corrects the 2.2.0 entry, which called the production environment with a required reviewer the
   hard floor without it.
