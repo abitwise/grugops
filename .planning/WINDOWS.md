@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 255
+open_count: 260
 waived_count: 28
 fixed_count: 49
-total_count: 332
-last_updated: 2026-11-06T21:23:16.074Z
+total_count: 337
+last_updated: 2026-11-20T08:05:51.437Z
 ---
 
 # Broken Windows Ledger
@@ -347,6 +347,11 @@ last_updated: 2026-11-06T21:23:16.074Z
 | 330 | 41 | deviation | docs/audit/41-residuals.md |  | The plan's R-41-06 sentence on a refused high-severity finding was not written, because it is false under a lost dial; R-41-07 names the open dial loss, not accepted | open |  | 2026-11-05T14:50:25.486Z |  |
 | 331 | 41 | unrun-verify | docs/audit/41-residuals.md |  | Plan 41-16 Task 2 human check: a named human owes the read of R-41-09 against D-37 | open |  | 2026-11-06T21:23:15.985Z |  |
 | 332 | 41 | unrun-verify | docs/audit/29-style-dispositions/41-16.md |  | Plan 41-16 Task 1: the row for the sentence Olger directed stays pending a read against the diff | open |  | 2026-11-06T21:23:16.074Z |  |
+| 333 | 43.1 | unmet-truth | install/install.test.ts | 7040 | `--migrate: on a pre-v3 layout the held old-name runnable is removed and the next ledger drops its record`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `expected 3 to be +0` at install/install.test.ts:7046 (the install exit status); the run's output has one `verify` line, `state migrate (trace render): the kit-source trace renderer ...\\scripts\\runnable-ref\\trace-render.js exited 2 ... the path C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\grugops-hfW9h8/memory-bank/plans/traceability.md is not below the repository root`, and a `removed tools/grugops/test-skip-integrity.js` line. New in phase 43.1: the title is absent at run 44074559757's head (93a344c0, 2026-11-17); commit 733456ff (plan 43.1-02) added it. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1). | open |  | 2026-11-20T08:05:51.044Z |  |
+| 334 | 43.1 | unmet-truth | install/installer-kit-home.test.ts | 273 | `pathNodes on a real scratch directory: every existing component carries its dev:ino, the missing tail its name only`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `AssertionError: expected 8 to be 9` at install/installer-kit-home.test.ts:282 (the count of existing path components). New in phase 43.1: the title is absent at run 44074559757's head (93a344c0, 2026-11-17); commit 8d9c198c (plan 43.1-06) added it. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1). | open |  | 2026-11-20T08:05:51.146Z |  |
+| 335 | 43.1 | unmet-truth | install/install.test.ts | 6909 | `tools/grugops/package.json: on a host whose package.json has no type field, no program prints MODULE_TYPELESS_PACKAGE_JSON while the file is there, and the measured premise programs do without it`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `AssertionError: tools/grugops/state-check.js Error: the trace file C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\grugops-X5mC6d/memory-bank/plans/traceability.md is not below the repository root, so it was not read. The state check did not run.: expected 2 to be +0` at install/install.test.ts:6912. UAT test 1 and plan 43.1-12 called this a phase 43.1 regression on windows; the CI logs do not support that. Phase 43.1 commit 65495441 (plan 43.1-02) renamed the test from `... and each does without it`, and under that earlier title it was already red on windows-latest in run 44074559757 (head 93a344c0, 2026-11-17, job 134009145943) with the same printed message (`the trace file ... is not below the repository root ... expected 2 to be +0`, at :6897). So it is newly red by name only, not a phase 43.1 regression on windows. Five commits in 93a344c0..793d0371 changed the file (four from plan 43.1-02, one from plan 43-06). On ubuntu-latest it was red in run 44074559757 and passes in run 44537330283 (the phase 43.1 criterion-1 case). Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1). | open |  | 2026-11-20T08:05:51.253Z |  |
+| 336 | 43.1 | unmet-truth | scripts/claim.test.ts | 707 | `an unsafe name shows through cell(), and nothing under it is read`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `Error: EINVAL: invalid argument, mkdir` of a directory under `claimed` whose name is `a`, a pipe character and `b c`, at scripts/claim.test.ts:709 (the test's own setup). Not newly red: UAT test 1 listed it as green on 2026-11-17, but it is also red on windows-latest in run 44074559757 (head 93a344c0, job 134009145943) under the same title with the same EINVAL mkdir message, and no commit in 93a344c0..793d0371 changed scripts/claim.test.ts. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1). | open |  | 2026-11-20T08:05:51.340Z |  |
+| 337 | 43.1 | unmet-truth | scripts/check-role-rules.test.ts | 785 | `end to end on a shared clone: the merge-ban deletion turns check-diff-disposition red through the stand-in`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `Error: Test timed out in 120000ms.` at scripts/check-role-rules.test.ts:785. Green on 2026-11-17: the title is present at run 44074559757's head (93a344c0) and is not among that run's windows-latest failures; no commit in 93a344c0..793d0371 changed scripts/check-role-rules.test.ts. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1). | open |  | 2026-11-20T08:05:51.437Z |  |
 
 ````json
 [
@@ -4487,6 +4492,71 @@ last_updated: 2026-11-06T21:23:16.074Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-11-06T21:23:16.074Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 333,
+    "kind": "unmet-truth",
+    "phase": "43.1",
+    "file": "install/install.test.ts",
+    "line": 7040,
+    "description": "`--migrate: on a pre-v3 layout the held old-name runnable is removed and the next ledger drops its record`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `expected 3 to be +0` at install/install.test.ts:7046 (the install exit status); the run's output has one `verify` line, `state migrate (trace render): the kit-source trace renderer ...\\scripts\\runnable-ref\\trace-render.js exited 2 ... the path C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\grugops-hfW9h8/memory-bank/plans/traceability.md is not below the repository root`, and a `removed tools/grugops/test-skip-integrity.js` line. New in phase 43.1: the title is absent at run 44074559757's head (93a344c0, 2026-11-17); commit 733456ff (plan 43.1-02) added it. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-20T08:05:51.044Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 334,
+    "kind": "unmet-truth",
+    "phase": "43.1",
+    "file": "install/installer-kit-home.test.ts",
+    "line": 273,
+    "description": "`pathNodes on a real scratch directory: every existing component carries its dev:ino, the missing tail its name only`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `AssertionError: expected 8 to be 9` at install/installer-kit-home.test.ts:282 (the count of existing path components). New in phase 43.1: the title is absent at run 44074559757's head (93a344c0, 2026-11-17); commit 8d9c198c (plan 43.1-06) added it. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-20T08:05:51.146Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 335,
+    "kind": "unmet-truth",
+    "phase": "43.1",
+    "file": "install/install.test.ts",
+    "line": 6909,
+    "description": "`tools/grugops/package.json: on a host whose package.json has no type field, no program prints MODULE_TYPELESS_PACKAGE_JSON while the file is there, and the measured premise programs do without it`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `AssertionError: tools/grugops/state-check.js Error: the trace file C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\grugops-X5mC6d/memory-bank/plans/traceability.md is not below the repository root, so it was not read. The state check did not run.: expected 2 to be +0` at install/install.test.ts:6912. UAT test 1 and plan 43.1-12 called this a phase 43.1 regression on windows; the CI logs do not support that. Phase 43.1 commit 65495441 (plan 43.1-02) renamed the test from `... and each does without it`, and under that earlier title it was already red on windows-latest in run 44074559757 (head 93a344c0, 2026-11-17, job 134009145943) with the same printed message (`the trace file ... is not below the repository root ... expected 2 to be +0`, at :6897). So it is newly red by name only, not a phase 43.1 regression on windows. Five commits in 93a344c0..793d0371 changed the file (four from plan 43.1-02, one from plan 43-06). On ubuntu-latest it was red in run 44074559757 and passes in run 44537330283 (the phase 43.1 criterion-1 case). Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-20T08:05:51.253Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 336,
+    "kind": "unmet-truth",
+    "phase": "43.1",
+    "file": "scripts/claim.test.ts",
+    "line": 707,
+    "description": "`an unsafe name shows through cell(), and nothing under it is read`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `Error: EINVAL: invalid argument, mkdir` of a directory under `claimed` whose name is `a`, a pipe character and `b c`, at scripts/claim.test.ts:709 (the test's own setup). Not newly red: UAT test 1 listed it as green on 2026-11-17, but it is also red on windows-latest in run 44074559757 (head 93a344c0, job 134009145943) under the same title with the same EINVAL mkdir message, and no commit in 93a344c0..793d0371 changed scripts/claim.test.ts. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-20T08:05:51.340Z",
+    "resolved_at": null,
+    "milestone": "v3.0"
+  },
+  {
+    "id": 337,
+    "kind": "unmet-truth",
+    "phase": "43.1",
+    "file": "scripts/check-role-rules.test.ts",
+    "line": 785,
+    "description": "`end to end on a shared clone: the merge-ban deletion turns check-diff-disposition red through the stand-in`: windows-latest is red in CI run 44537330283 (head 793d0371, job 135606116888, step `Vitest (e2e lane excluded)`). Printed: `Error: Test timed out in 120000ms.` at scripts/check-role-rules.test.ts:785. Green on 2026-11-17: the title is present at run 44074559757's head (93a344c0) and is not among that run's windows-latest failures; no commit in 93a344c0..793d0371 changed scripts/check-role-rules.test.ts. Cause UNKNOWN - verify: not diagnosed; the windows job is out of scope for phase 43.1 (ROADMAP criterion 1).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-20T08:05:51.437Z",
     "resolved_at": null,
     "milestone": "v3.0"
   }
