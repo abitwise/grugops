@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
-status: executing
-stopped_at: Completed 43.1-16-PLAN.md
-last_updated: "2026-11-20T12:04:53.425Z"
+status: verifying
+stopped_at: Completed 43.1-17-PLAN.md
+last_updated: "2026-11-20T12:16:05.109Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 43.1 execution started
-state_head: 25e3fa70c90d85ed7348239f13d71bad7bd16df2
+state_head: 013ea1a2f8db2307c9e73bc5065914ad1de74b39
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 182
-  completed_plans: 181
+  completed_plans: 182
   percent: 90
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 
 Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
 Plan: 17 of 17
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-20 — Phase 43.1 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -900,6 +900,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P14 | 6min | 3 tasks | 10 files |
 | Phase 43.1 P15 | 8 min | 3 tasks | 8 files |
 | Phase 43.1 P16 | 5 min | 3 tasks | 11 files |
+| Phase 43.1 P17 | 9min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -2518,6 +2519,8 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-15: C-28-059 re-measured for Workflow 05 step 3 although check:diff-disposition named no companion
 - [Phase 43.1]: 43.1-16: IN-12 wording is 'the deploying repository' in the floor model and the guarantees page; pages addressing the reader's own repository keep 'this repository'
 - [Phase 43.1]: 43.1-16: Workflow 05 step 3 reuses Workflow 12's job sentence verbatim (IN-11); no split needed
+- [Phase 43.1]: 43.1-17: IN-14 docs name two --migrate stop cases read from install.ts (pre-check refusal :8911, already-migrated arm :8948/:8995); every other --migrate reaches retireStaleRunnables() at :10461, including a target with no install marker
+- [Phase 43.1]: 43.1-17: WR-10, IN-11, IN-12, IN-13, IN-14 recorded fixed with commits in 43.1-REVIEW-DISPOSITION.md (open: 0); no acceptance by anyone written
 
 ### Pending Todos
 
@@ -2862,8 +2865,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-20T12:04:51.501Z
-Stopped at: Completed 43.1-16-PLAN.md
+Last session: 2026-11-20T12:16:03.223Z
+Stopped at: Completed 43.1-17-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

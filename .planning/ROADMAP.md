@@ -796,7 +796,7 @@ Wave 9 *(human checkpoint)*
 | 41. Orchestrator flow guidance | v3.0 | 29/29 | Complete    | 2026-11-15 |
 | 42. Skills per role and evaluation | v3.0 | 8/8 | Complete    | 2026-11-17 |
 | 43. Story and layered docs | v3.0 | 15/15 | Complete    | 2026-11-18 |
-| 43.1. Close v3.0 P1 debt (INSERTED) | v3.0 | 16/17 | In Progress | - |
+| 43.1. Close v3.0 P1 debt (INSERTED) | v3.0 | 17/17 | In Progress | - |
 
 ## Backlog
 
@@ -813,7 +813,7 @@ Wave 9 *(human checkpoint)*
   5. The kit-home overlap check refuses a kit home and target that are the same directory under another spelling, including a macOS firmlink (`/System/Volumes/Data…`), by comparing device and inode rather than path strings. A test pins the refusal (D739; backlog 999.1, B1).
   6. The 12 P1 items are marked resolved in their `deferred-items.md` sources and in `.planning/v3.0-DEFERRED-TRIAGE.md`.
 
-**Plans:** 16/17 plans executed, 15/17 executed: 9/9 executed in 4 waves (wave 1: 01-05; wave 2: 06, 07; wave 3: 08; wave 4: 09); 3 gap-closure plans from the 2026-11-19 UAT (gaps G-43.1-2, G-43.1-3, G-43.1-6), run in order: 10, then 11, then 12; 3 gap-closure plans from the 2026-11-20 UAT test 8 (gap G-43.1-8), run in order: 13, then 14, then 15; 2 gap-closure plans from the 2026-11-20 re-verification (WR-10) and the human's choice to fix IN-11..IN-14, run in order: 16, then 17
+**Plans:** 17/17 plans executed, 15/17 executed: 9/9 executed in 4 waves (wave 1: 01-05; wave 2: 06, 07; wave 3: 08; wave 4: 09); 3 gap-closure plans from the 2026-11-19 UAT (gaps G-43.1-2, G-43.1-3, G-43.1-6), run in order: 10, then 11, then 12; 3 gap-closure plans from the 2026-11-20 UAT test 8 (gap G-43.1-8), run in order: 13, then 14, then 15; 2 gap-closure plans from the 2026-11-20 re-verification (WR-10) and the human's choice to fix IN-11..IN-14, run in order: 16, then 17
 
 Plans:
 **Wave 1**
@@ -845,7 +845,7 @@ Plans:
 
 **Gap closure (re-verification 2026-11-20: WR-10; the human's choice to fix IN-11..IN-14)** *(gap waves 1-2, run in order)*
 - [x] 43.1-16-PLAN.md — the runbook's Check 2 bullet carries the §5 pointer and the widened guard holds (WR-10); Workflow 05 states the job condition as its own (IN-11); the floor model and GUARANTEES name the deploying repository (IN-12)
-- [ ] 43.1-17-PLAN.md — the environment line, install guide §5 and the CHANGELOG name the lines confirmed in the environment's settings (IN-13); the install guide and CHANGELOG state which --migrate runs stop before the install run (IN-14); WR-10 and IN-11..IN-14 recorded fixed (G-43.1-8)
+- [x] 43.1-17-PLAN.md — the environment line, install guide §5 and the CHANGELOG name the lines confirmed in the environment's settings (IN-13); the install guide and CHANGELOG state which --migrate runs stop before the install run (IN-14); WR-10 and IN-11..IN-14 recorded fixed (G-43.1-8)
 
 ### Phase 999.1: Installer adversarial e2e lane — turn the per-plan red-team into a bounded, repeatable test flow (BACKLOG)
 
