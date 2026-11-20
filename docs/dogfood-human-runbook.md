@@ -48,14 +48,15 @@ This dogfood runs at `autonomy=pr`. It NEVER deploys to production.
   production target. The agent opens a branch and a pull request and never merges.
 - **The git host is the hard floor.** Branch protection on the protected branches and a production
   deployment environment with a required reviewer are what stop an unapproved merge or deploy.
-  The environment stops a deploy only when the deploy credentials live solely in it:
-  a stored deploy secret lives only in its secrets, and an OIDC trust policy
-  accepts only tokens whose subject names it.
+  The environment stops a deploy only when every production deploy runs as a job that references it
+  and the deploy credentials live solely in it: a stored deploy secret lives only in its secrets,
+  and an OIDC trust policy accepts only tokens whose subject names this repository and that
+  environment.
   Check the branches read-only with `node tools/grugops/host-protection.js`, which prints
   `protected`, `unprotected` or `UNKNOWN - verify` for each branch. Its production environment line
   always reads `UNKNOWN - verify`, by design (33.1 D-31): the check does not read the environment,
-  so confirm the environment's settings yourself on the git host. The setup checklist is in
-  `install/README.md` §5.
+  so confirm each production line yourself where `install/README.md` §5 says it can be seen, not
+  only in the environment's settings. The setup checklist is in `install/README.md` §5.
 - **The Claude Code ask rules are a speed bump, not a security boundary.** The standalone installer
   writes them into `.claude/settings.json`, so Claude Code asks before a matched push, merge,
   deploy or publish command. They do not stop a command that is not matched, and the plugin form
