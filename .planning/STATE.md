@@ -4,17 +4,17 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
-status: executing
-stopped_at: Completed 43.1-11-PLAN.md
-last_updated: "2026-11-20T07:55:15.699Z"
+status: verifying
+stopped_at: Completed 43.1-12-PLAN.md
+last_updated: "2026-11-20T08:08:32.032Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 43.1 execution started
-state_head: 9bb7d8f57847c584cbf991bc00d11f65448c3c15
+state_head: d623ae2bfaa6dc66a3e68dba4881742a8b298baf
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 177
-  completed_plans: 176
+  completed_plans: 177
   percent: 90
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 
 Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
 Plan: 12 of 12
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-20 — Phase 43.1 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -895,6 +895,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P09 | 12 min | 3 tasks | 8 files |
 | Phase 43.1 P10 | 11 min | 3 tasks | 15 files |
 | Phase 43.1 P11 | 11 min | 3 tasks | 11 files |
+| Phase 43.1 P12 | 10 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -2503,6 +2504,8 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-11: WR-04 carried to every public page and workflow that restates the deploy hard floor; the condition names a stored deploy secret and an OIDC trust policy
 - [Phase 43.1]: 43.1-11: In Workflows 05 and 12 the condition is split into short sentences to meet WP-02/WP-03; the three phrases stay whole on one line
 - [Phase 43.1]: 43.1-11: C-28-059 (measured against Workflow 05 step 3) re-measured as the same-commit registry companion check:diff-disposition requires
+- [Phase 43.1]: 43.1-12: the install guide documents stale-runnable removal but not as 'the only file install deletes' (install also unlinks its own symlink adapters, prunes unchanged backups and removes staging files)
+- [Phase 43.1]: 43.1-12: WINDOWS.md rows 335 and 336 record that the CI logs contradict the UAT note: the no-type-field case was red on windows before 43.1 under its earlier title, and the cell() case was red on windows in both runs
 
 ### Pending Todos
 
@@ -2845,8 +2848,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-20T07:55:13.688Z
-Stopped at: Completed 43.1-11-PLAN.md
+Last session: 2026-11-20T08:08:29.968Z
+Stopped at: Completed 43.1-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
