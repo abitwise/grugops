@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
 status: verifying
-stopped_at: Completed 43.1-14-PLAN.md
-last_updated: "2026-11-20T10:33:24.254Z"
+stopped_at: Completed 43.1-15-PLAN.md
+last_updated: "2026-11-20T10:43:26.674Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 43.1 execution started
-state_head: 5a672dd5a445a2adc0be3bc2dc2125a5cca6b7e1
+state_head: 81542db1e620f7720a198062c19ecb95f9ebdd15
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 180
-  completed_plans: 179
+  completed_plans: 180
   percent: 90
 ---
 
@@ -898,6 +898,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P12 | 10 min | 3 tasks | 9 files |
 | Phase 43.1 P13 | 18 min | 3 tasks | 12 files |
 | Phase 43.1 P14 | 6min | 3 tasks | 10 files |
+| Phase 43.1 P15 | 8 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -2512,6 +2513,8 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-13: the production checklist gains deploys_through_environment between required_reviewer and credentials_in_environment; --json floor.environment has seven strings
 - [Phase 43.1]: 43.1-14: all six re-measured registry rows keep their status (C-28-018 stays overstated/accepted under F-28-205; the others stay true), so generate:guarantees left docs/GUARANTEES.md byte-identical
 - [Phase 43.1]: 43.1-14: C-28-059's mechanism still quotes Workflow 05 step 3's older OIDC phrase; Workflow 05 and C-28-059 are plan 43.1-15's scope
+- [Phase 43.1]: 43.1-15: IN-09 is fixed in the docs; the README and CHANGELOG say a --migrate that has a layout to move continues into the install run and one on a two-root target whose planning state is not pre-v3 stops before it, without claiming 'only' (a --migrate on a target with no marker also falls through and removes nothing)
+- [Phase 43.1]: 43.1-15: C-28-059 re-measured for Workflow 05 step 3 although check:diff-disposition named no companion
 
 ### Pending Todos
 
@@ -2854,8 +2857,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-20T10:33:22.150Z
-Stopped at: Completed 43.1-14-PLAN.md
+Last session: 2026-11-20T10:43:24.538Z
+Stopped at: Completed 43.1-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
