@@ -29,9 +29,10 @@ A: It has the parts a regulated team asks for. The config dial's `enterprise` mo
    to leave merge and deploy to people. Those are written rules, and they hold only as well as an
    agent follows them. The hard floor is your git host: branch protection or rulesets on protected
    branches, and deployment environments with required reviewers for production. For a deploy,
-   that floor holds only when the deploy credentials live solely in the production environment:
+   that floor holds only when every production deploy runs as a job that references the production
+   environment and the deploy credentials live solely in that environment:
    a stored deploy secret lives only in its secrets, and an OIDC trust policy
-   accepts only tokens whose subject names it.
+   accepts only tokens whose subject names this repository and that environment.
    grugops never configures your git host; you set those protections yourself.
    [GUARANTEES.md](GUARANTEES.md) shows which safety claims hold in the grugops source checkout at
    its default settings. Your own floors are set in `.grugops/factory.config.json`.
