@@ -15,7 +15,9 @@ The intelligence lives in the host coding agent; grugops only supplies
 the role, the guardrail, the memory, the state, the dial, the proof, and the gates. Merge and
 deploy are human decisions. Your git host enforces them through branch protection and required
 reviewers, which you set up. A required reviewer gates a deploy only when the
-deploy credentials live solely in the production environment's secrets. On Claude Code,
+deploy credentials live solely in the production environment:
+a stored deploy secret lives only in its secrets, and an OIDC trust policy
+accepts only tokens whose subject names it. On Claude Code,
 grugops's ask rules are a speed bump. [`docs/GUARANTEES.md`](../docs/GUARANTEES.md) shows which
 safety claims hold in the grugops source checkout at its default settings. Your own floors are
 set in `.grugops/factory.config.json`.
