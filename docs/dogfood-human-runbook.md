@@ -127,8 +127,8 @@ Where the two remaining safety tiers are evidenced instead:
 - **Hard floor (git host).** Run `node tools/grugops/host-protection.js` in the sample repo. It is
   read-only and reports `protected`, `unprotected` or `UNKNOWN - verify` for each protected branch.
   You will also see one `environment <name>: UNKNOWN - verify — not checked by design …` line: the
-  check does not read the production environment (33.1 D-31), so confirm its settings yourself on
-  the git host.
+  check does not read the production environment (33.1 D-31), so confirm each production line
+  yourself where `install/README.md` §5 says it can be seen, not only in the environment's settings.
 
 **Record:** none. This check is retired.
 
