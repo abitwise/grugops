@@ -261,13 +261,18 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   written with `tools/grugops/note.js`, and on every other install, a standalone Claude Code install
   included, nothing binds a `human:<name>` stamp to a human (residual R-41-06). The install guide's
   list of programs no longer implies that a scripted install has a Claude Code hook.
-- The production environment is the hard floor for a deploy only when the deploy credentials live solely in that environment's secrets.
-  A deploy that runs with a credential kept anywhere else, such as a repository or organization
-  secret, a CI variable, a runner or a developer machine, does not pass the environment's required
-  reviewer. Workflow 12, `install/README.md` §5 (with a new production checklist item), the commit
-  convention, the config dial doc (`agent-factory/config/factory.config.md`), `docs/GUARANTEES.md`
-  and the docs now state this condition. This corrects the 2.2.0 entry, which called the production
-  environment with a required reviewer the hard floor without it.
+- The production environment is the hard floor for a deploy only when the deploy credentials live solely in
+  the production environment: a stored deploy secret lives only in that environment's secrets, and an
+  OIDC trust policy for the deploy accepts only tokens whose subject names that environment. A deploy
+  that runs with a secret kept anywhere else, such as a repository or organization secret, a CI
+  variable, a runner or a developer machine, or under a trust policy that also accepts a branch or
+  the whole repository, does not pass the environment's required reviewer. Workflows 05 and 12,
+  `install/README.md` §5 (with a production checklist item that names both parts), the commit
+  convention, the config dial doc (`agent-factory/config/factory.config.md`), the dogfood runbook,
+  `docs/GUARANTEES.md` and the docs now state this condition, and
+  `tools/grugops/host-protection.js --json` publishes the widened item in `floor.environment`. This
+  corrects the 2.2.0 entry, which called the production environment with a required reviewer the
+  hard floor without it.
 - Install's refusal of a kit home (`GRUGOPS_HOME`) that overlaps the target now compares device and
   inode as well as the real path. A kit home spelled another way to the same directory, such as a
   macOS firmlink under `/System/Volumes/Data`, is refused before any write instead of replacing the

@@ -48,6 +48,9 @@ This dogfood runs at `autonomy=pr`. It NEVER deploys to production.
   production target. The agent opens a branch and a pull request and never merges.
 - **The git host is the hard floor.** Branch protection on the protected branches and a production
   deployment environment with a required reviewer are what stop an unapproved merge or deploy.
+  The environment stops a deploy only when the deploy credentials live solely in it:
+  a stored deploy secret lives only in its secrets, and an OIDC trust policy
+  accepts only tokens whose subject names it.
   Check the branches read-only with `node tools/grugops/host-protection.js`, which prints
   `protected`, `unprotected` or `UNKNOWN - verify` for each branch. Its production environment line
   always reads `UNKNOWN - verify`, by design (33.1 D-31): the check does not read the environment,
