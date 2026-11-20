@@ -159,8 +159,11 @@ it, and it does not ask for approval before every tool call (source:
 2026-10-06). On Pi, the git host is therefore the only hard control on merge and deploy: branch
 protection or rulesets on protected branches, and a production deployment environment with required
 reviewers (`install/README.md` §5). The environment holds a deploy only when the
-deploy credentials live solely in its secrets; a credential held anywhere else (a repository or
-organization secret, a CI variable, a runner, a developer machine) can deploy without its reviewer.
+deploy credentials live solely in it: a stored deploy secret lives only in its secrets, and an
+OIDC trust policy for the deploy accepts only tokens whose subject names it. A secret held
+anywhere else (a repository or organization secret, a CI variable, a runner, a developer
+machine), or a trust policy that also accepts a branch or the whole repository, can deploy
+without its reviewer.
 A Pi extension can block a tool call, but grugops ships none.
 
 ## Safety enforcement — where each rule is held
@@ -174,9 +177,12 @@ tool. There are three tiers:
   `install/README.md` §5. It is the only tier that sees every
   push and merge, and every deployment that runs through its environments, whatever command
   started it. For a deploy, that holds only when the
-  deploy credentials live solely in the production environment's secrets; a credential held
-  anywhere else (a repository or organization secret, a CI variable, a runner, a developer
-  machine) can deploy without its reviewer. grugops never configures it. `tools/grugops/host-protection.js` reports read-only on
+  deploy credentials live solely in the production environment: a stored deploy secret lives only in
+  that environment's secrets, and an OIDC trust policy for the deploy
+  accepts only tokens whose subject names that environment. A secret held anywhere else (a
+  repository or organization secret, a CI variable, a runner, a developer machine), or a trust
+  policy that also accepts a branch or the whole repository, can deploy without that environment's
+  reviewer. grugops never configures it. `tools/grugops/host-protection.js` reports read-only on
   the branch items; its production line reads `UNKNOWN - verify` by design (33.1 D-31), so the
   human confirms the production environment's settings on the host.
 - **Speed bump — host CLI approval prompts.** They cover the usual command spellings and are

@@ -74,7 +74,8 @@ This is enforced by two complementary layers:
   Neither can redirect a commit onto a safe branch; both can only stop it.
 
 For a deploy, the hard floor is the production deployment environment, and only while the
-deploy credentials live solely in that environment's secrets.
+deploy credentials live solely in it: a stored deploy secret lives only in its secrets, and an
+OIDC trust policy for the deploy accepts only tokens whose subject names it.
 
 **Hook decision (why `git commit` is governed by this convention alone):** grugops ships no
 Bash hook at all; the Bash command guard earlier releases shipped was retired by 33.1 D-17. So
