@@ -344,6 +344,15 @@ describe("check 3 — shipped docs links resolve in a kit home (D-11)", () => {
         "1:gone_(2).md",
       ]);
     });
+
+    // WR-07 (plan 43.1-12): each line is read on its own, so an attribute at column 0 of a
+    // continuation line has no whitespace before it on that line; it must still be read.
+    it("WR-07: an href or src at column 0 of a continuation line is read; a name glued to a word is not", () => {
+      expect(found('<a\nhref="missing.md">x</a>\n')).toEqual(["2:missing.md"]);
+      expect(found("<img\nsrc='missing.png'>\n")).toEqual(["2:missing.png"]);
+      expect(found('<a\nhref="other.md">x</a>\n')).toEqual([]);
+      expect(found('xhref="missing.md"\n')).toEqual([]);
+    });
   });
 
   it("the live tree: every shipped docs link resolves in a kit home", () => {
