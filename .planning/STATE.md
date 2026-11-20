@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
 status: executing
-stopped_at: Completed 43.1-10-PLAN.md
-last_updated: "2026-11-20T07:42:21.318Z"
+stopped_at: Completed 43.1-11-PLAN.md
+last_updated: "2026-11-20T07:55:15.699Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 43.1 execution started
-state_head: 2ef18e0664cce73e770f36ac56e51e422aa920bf
+state_head: 9bb7d8f57847c584cbf991bc00d11f65448c3c15
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 177
-  completed_plans: 175
+  completed_plans: 176
   percent: 90
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 ## Current Position
 
 Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
-Plan: 11 of 12
+Plan: 12 of 12
 Status: Ready to execute
 Last activity: 2026-11-20 — Phase 43.1 execution started
 
@@ -894,6 +894,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P08 | 15min | 3 tasks | 6 files |
 | Phase 43.1 P09 | 12 min | 3 tasks | 8 files |
 | Phase 43.1 P10 | 11 min | 3 tasks | 15 files |
+| Phase 43.1 P11 | 11 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -2499,6 +2500,9 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-09: the 12 P1 items are resolved in their sources, the triage and the JSONL; audit-open lists 756 (768 minus the 12), D5 open; C-28-076 stays an open human decision
 - [Phase 43.1]: WR-04 closed at source (43.1-10): the production environment is the deploy hard floor only when a stored deploy secret lives only in its secrets and an OIDC trust policy accepts only tokens whose subject names it
 - [Phase 43.1]: 43.1-10: install/README.md §5 also names GitHub's immutable OIDC subject format (repos created, renamed or transferred after 2026-07-15, or opted in), read 2026-11-20; checklist row C keeps the older-format example as decided
+- [Phase 43.1]: 43.1-11: WR-04 carried to every public page and workflow that restates the deploy hard floor; the condition names a stored deploy secret and an OIDC trust policy
+- [Phase 43.1]: 43.1-11: In Workflows 05 and 12 the condition is split into short sentences to meet WP-02/WP-03; the three phrases stay whole on one line
+- [Phase 43.1]: 43.1-11: C-28-059 (measured against Workflow 05 step 3) re-measured as the same-commit registry companion check:diff-disposition requires
 
 ### Pending Todos
 
@@ -2841,8 +2845,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-20T07:42:19.325Z
-Stopped at: Completed 43.1-10-PLAN.md
+Last session: 2026-11-20T07:55:13.688Z
+Stopped at: Completed 43.1-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
