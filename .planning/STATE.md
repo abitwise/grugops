@@ -4,16 +4,16 @@ milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
-status: verifying
+status: executing
 stopped_at: Completed 43.1-15-PLAN.md
-last_updated: "2026-11-20T10:43:26.674Z"
+last_updated: "2026-11-20T11:54:27.093Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 43.1 execution started
-state_head: 81542db1e620f7720a198062c19ecb95f9ebdd15
+state_head: f93ca3e538f82801dbb3589fa32fb7010b746d12
 progress:
   total_phases: 10
   completed_phases: 9
-  total_plans: 180
+  total_plans: 182
   completed_plans: 180
   percent: 90
 ---
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-11-17 after Phase 42)
 
 ## Current Position
 
-Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — EXECUTING
+Phase: 43.1 (Close v3.0 P1 debt (INSERTED)) — READY TO EXECUTE
 Plan: 12 of 12
-Status: Phase complete — ready for verification
+Status: Ready to execute
 Last activity: 2026-11-20 — Phase 43.1 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -2523,6 +2523,8 @@ Recent decisions affecting current work:
 None yet.
 
 ### Blockers/Concerns
+
+- ⚠️ [Phase 43.1] Decision-coverage gate overridden at gap-closure planning (plans 16-17, 2026-11-20): D-04a and D-06a are not cited by ID in any plan. Both were confirmed on 2026-11-19 after the original planning and done by plans 07-09 (43.1-07-SUMMARY cites D-04a; verifier SC3/SC4 VERIFIED). Override chosen by Olger in plan-phase on 2026-11-20 ("Proceed anyway"). Re-check at verify-phase.
 
 - ⚠️ [Phase 29.2] Windows delivery path UNOBSERVED: mirror spawn / `process.execPath` launch / `rmSync` retry cleanup (WINDOWS.md rows 105-107) and the destination-hazard guard's symlink + junction shapes (row 115; 5 of 7 write-bound cases skip on win32) were passed in UAT by user override, not by a Windows run. Owner: Phase 33 `windows-latest` leg.
 - ⚠️ [Phase 30] `scripts/frontmatter.test.ts` D-49 corpus control had been RED since 7d52ee0 (2026-08-21) on a 29.1 verification doc's escaped scalars, unnoticed through all of Phase 30's "full suite green" claims; fixed 2026-09-07 by rewriting the doc. The authority refused `\"\\n\"` as `\n`, which hints at a double resolution — probe RED-first in the next frontmatter round.
