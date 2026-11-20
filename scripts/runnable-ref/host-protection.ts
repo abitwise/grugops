@@ -1647,7 +1647,9 @@ const ENVIRONMENT_FLOOR: readonly ChecklistRow[] = [
   { id: "required_reviewer", requirement: "requires at least one reviewer" },
   // Plan 43.1-05 (D693, decision D-04): the reviewer gates a deploy only when the deploy credentials
   // are reachable solely through this environment, so the production checklist names that condition.
-  { id: "credentials_in_environment", requirement: "keeps the deploy credentials to itself: the deploy credentials live solely in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine" },
+  // Plan 43.1-10 (review finding WR-04): an OIDC deploy holds no stored secret, so the trust
+  // policy's subject is the second part.
+  { id: "credentials_in_environment", requirement: "keeps the deploy credentials to itself: a stored deploy secret lives only in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine, and an OIDC trust policy for the deploy accepts only tokens whose subject names this environment (`repo:<owner>/<repo>:environment:<name>`), not a branch or the whole repository" },
   { id: "no_self_review", requirement: "prevents self-review" },
   { id: "no_admin_bypass", requirement: "does not let administrators bypass its protection rules" },
   { id: "branch_policy", requirement: "allows deployments only from protected branches" },

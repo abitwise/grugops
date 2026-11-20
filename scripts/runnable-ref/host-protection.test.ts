@@ -1297,7 +1297,7 @@ describe("host-protection.js — the production environment is not read, by desi
     expect(block.floor.environment).toEqual([
       ENV_EXISTS,
       "requires at least one reviewer",
-      "keeps the deploy credentials to itself: the deploy credentials live solely in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine",
+      "keeps the deploy credentials to itself: a stored deploy secret lives only in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine, and an OIDC trust policy for the deploy accepts only tokens whose subject names this environment (`repo:<owner>/<repo>:environment:<name>`), not a branch or the whole repository",
       "prevents self-review",
       "does not let administrators bypass its protection rules",
       "allows deployments only from protected branches",

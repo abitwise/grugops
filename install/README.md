@@ -1783,9 +1783,12 @@ Only the first one holds whatever command an agent types.
 Your git host's protection (branch protection or rulesets, and deployment environments) is the only
 tier that sees every push and merge, and every deployment that runs through its deployment
 environments, whatever command started it. For a deploy, that holds only when the
-deploy credentials live solely in the production environment's secrets: a credential held anywhere
-else (a repository or organization secret, a CI variable, a runner, a developer machine) can deploy
-without that environment's reviewer. It is the guarantee; the two tiers below sit in front of
+deploy credentials live solely in the production environment: a stored deploy secret lives only in
+that environment's secrets, and an OIDC trust policy for the deploy
+accepts only tokens whose subject names that environment. A secret held anywhere else (a repository
+or organization secret, a CI variable, a runner, a developer machine), or a trust policy that also
+accepts a branch or the whole repository, can deploy without that environment's reviewer. It is the
+guarantee; the two tiers below sit in front of
 it. **grugops never configures your git host for you.** You set it up with the checklist below, and
 grugops checks it read-only.
 
@@ -1851,7 +1854,7 @@ For production, keep a deployment environment that:
 
 - [ ] has the name your deploy jobs use;
 - [ ] requires at least one reviewer;
-- [ ] keeps the deploy credentials to itself: the deploy credentials live solely in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine;
+- [ ] keeps the deploy credentials to itself: a stored deploy secret lives only in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine, and an OIDC trust policy for the deploy accepts only tokens whose subject names this environment (`repo:<owner>/<repo>:environment:<name>`), not a branch or the whole repository;
 - [ ] prevents self-review;
 - [ ] does not let administrators bypass its protection rules;
 - [ ] allows deployments only from protected branches.
@@ -1869,6 +1872,20 @@ GitHub documents that an environment's secrets reach only the jobs that referenc
 and only after a required reviewer approves, so a deploy credential stored anywhere else is not gated
 by that reviewer
 ([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
+
+GitHub documents that a job's OIDC token names the environment in its subject when the job references
+an environment, in the form `repo:<owner>/<repo>:environment:<name>`, and names the branch only when
+the job does not reference an environment
+([OpenID Connect](https://docs.github.com/en/actions/reference/security/oidc)). It also documents
+that deployment protection rules must pass before a job referencing the environment can proceed
+([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
+So a cloud trust policy that accepts only that subject gives a deploy token only to a job that waits
+for the environment's reviewer, while one that also accepts a branch or the whole repository does
+not. GitHub also documents that repositories created, renamed or transferred after July 15, 2026,
+and older ones that opt in, use an immutable subject format whose repository part adds the owner and
+repository IDs (`repo:<owner>@<owner-id>/<repo>@<repo-id>`), so write the trust policy in the format
+your repository uses. A repository or organization that customizes the subject claim must name the
+environment in the subject format it uses.
 
 **The check does not read the production environment (decision 33.1 D-31).** Its environment line
 always reads `UNKNOWN - verify`, by design, whatever the environment's settings are. Confirm each

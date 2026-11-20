@@ -1406,19 +1406,22 @@ The record `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md`
 ### C-28-089
 
 - file: install/README.md
-- line: 1783-1790
+- line: 1783-1793
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). A hard-floor statement, so `architecture` with `depends_on: —`, as C-28-054, C-28-060 and C-28-072 are: it says where enforcement lives and how far it reaches, and asserts no merge or deploy outcome. Measured 2026-11-19. The git host as the tier that sees every push, merge and deployment through its environments: docs/GUARANTEES.md § Where each floor is enforced, and the `protected_branch_merge` and `production_requires_human_confirmation` `enforcement.hardFloor` text in `scripts/audit-model.ts`. The deploy condition, `only when the deploy credentials live solely in the production environment's secrets`, is the D-04 wording plan 43.1-05 wrote (phase 43.1 decision D-04, deferred item D693), and it rests on GitHub's statement that an environment's secrets reach only the jobs that reference the environment and only after a required reviewer approves (`docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments`, cited in 43.1-RESEARCH.md Item 6; this plan did not re-read the page, so its current wording is `UNKNOWN - verify`). `grugops never configures your git host`: the host check, `scripts/runnable-ref/host-protection.ts` (installed as `tools/grugops/host-protection.js`), calls the host only through `runGh(["api", "--method", "GET", "-i", path])` and `gh auth status`, and no install code path calls the host (`grep -n "gh api" install/*.ts`, tests excluded, printed nothing on 2026-11-19). `grugops checks it read-only`: the same script. Holds.
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). A hard-floor statement, so `architecture` with `depends_on: —`, as C-28-054, C-28-060 and C-28-072 are: it says where enforcement lives and how far it reaches, and asserts no merge or deploy outcome. Measured 2026-11-19. The git host as the tier that sees every push, merge and deployment through its environments: docs/GUARANTEES.md § Where each floor is enforced, and the `protected_branch_merge` and `production_requires_human_confirmation` `enforcement.hardFloor` text in `scripts/audit-model.ts`. The deploy condition, `only when the deploy credentials live solely in the production environment's secrets`, is the D-04 wording plan 43.1-05 wrote (phase 43.1 decision D-04, deferred item D693), and it rests on GitHub's statement that an environment's secrets reach only the jobs that reference the environment and only after a required reviewer approves (`docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments`, cited in 43.1-RESEARCH.md Item 6; this plan did not re-read the page, so its current wording is `UNKNOWN - verify`). `grugops never configures your git host`: the host check, `scripts/runnable-ref/host-protection.ts` (installed as `tools/grugops/host-protection.js`), calls the host only through `runGh(["api", "--method", "GET", "-i", path])` and `gh auth status`, and no install code path calls the host (`grep -n "gh api" install/*.ts`, tests excluded, printed nothing on 2026-11-19). `grugops checks it read-only`: the same script. Holds. RE-MEASURED 2026-11-20 by plan 43.1-10 (review finding WR-04, fixed in this phase by the human's decision of 2026-11-19 in UAT test 3, gap G-43.1-3). The deploy condition now names two parts under `deploy credentials live solely in the production environment`: `a stored deploy secret lives only in that environment's secrets`, and `an OIDC trust policy for the deploy accepts only tokens whose subject names that environment`; a secret held anywhere else, or a trust policy that also accepts a branch or the whole repository, can deploy without that environment's reviewer. Both GitHub pages were read on 2026-11-20 with `curl -sS -L` (HTTP 200, no redirect). The stored-secret part rests on `docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments`, § Environment secrets: "Secrets stored in an environment are only available to workflow jobs that reference the environment. If the environment requires approval, a job cannot access environment secrets until one of the required reviewers approves it." The OIDC part rests on `docs.github.com/en/actions/reference/security/oidc`: "The subject claim includes the environment name when the job references an environment." and "The subject claim includes the branch name of the workflow, but only if the job doesn't reference an environment, and if the workflow is not triggered by a pull request event.", together with the deployments page's "Deployment protection rules require specific conditions to pass before a job referencing the environment can proceed." The deployments page was re-read in UAT test 5 on 2026-11-19 and again by this plan, which supersedes the earlier `UNKNOWN - verify` for its wording. Holds.
 
 ```
 Your git host's protection (branch protection or rulesets, and deployment environments) is the only
 tier that sees every push and merge, and every deployment that runs through its deployment
 environments, whatever command started it. For a deploy, that holds only when the
-deploy credentials live solely in the production environment's secrets: a credential held anywhere
-else (a repository or organization secret, a CI variable, a runner, a developer machine) can deploy
-without that environment's reviewer. It is the guarantee; the two tiers below sit in front of
+deploy credentials live solely in the production environment: a stored deploy secret lives only in
+that environment's secrets, and an OIDC trust policy for the deploy
+accepts only tokens whose subject names that environment. A secret held anywhere else (a repository
+or organization secret, a CI variable, a runner, a developer machine), or a trust policy that also
+accepts a branch or the whole repository, can deploy without that environment's reviewer. It is the
+guarantee; the two tiers below sit in front of
 it. **grugops never configures your git host for you.** You set it up with the checklist below, and
 grugops checks it read-only.
 ```
@@ -1426,18 +1429,18 @@ grugops checks it read-only.
 ### C-28-090
 
 - file: install/README.md
-- line: 1850-1871
+- line: 1853-1888
 - kind: architecture
 - depends_on: —
 - status: true
-- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). The production checklist with its credential item, the GitHub settings paragraph and the GitHub citation paragraph after it. A hard-floor statement, so `architecture` with `depends_on: —`, the C-28-054 precedent. Measured 2026-11-19. (1) The six checklist items are the `ENVIRONMENT_FLOOR` rows of `scripts/runnable-ref/host-protection.ts` (installed as `tools/grugops/host-protection.js`), byte for byte: `scripts/runnable-ref/host-protection.test.ts` (`README drift: the second checklist list under #### Git-host setup checklist equals --json floor.environment, both ways`) holds it; the credential item, `keeps the deploy credentials to itself`, is the D-04 wording plan 43.1-05 added (phase 43.1 decision D-04). (2) The GitHub settings paragraph (`Required reviewers`, `Prevent self-review`, the administrator bypass setting, `Protected branches only`, and required reviewers on the Free, Pro and Team plans only for public repositories) was read from GitHub's Deployments and environments reference through Context7 in plan 33.1-20 (`.planning/milestones/v2.1-phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-20-SUMMARY.md`). (3) The citation paragraph, that an environment's secrets reach only the jobs that reference it and only after a required reviewer approves, is cited in 43.1-RESEARCH.md Item 6 from `docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments`. This plan did not re-read GitHub's page, so its current wording is `UNKNOWN - verify`; the rows here record the text as those two plans cited it. Holds as cited.
+- mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). The production checklist with its credential item, the GitHub settings paragraph and the GitHub citation paragraph after it. A hard-floor statement, so `architecture` with `depends_on: —`, the C-28-054 precedent. Measured 2026-11-19. (1) The six checklist items are the `ENVIRONMENT_FLOOR` rows of `scripts/runnable-ref/host-protection.ts` (installed as `tools/grugops/host-protection.js`), byte for byte: `scripts/runnable-ref/host-protection.test.ts` (`README drift: the second checklist list under #### Git-host setup checklist equals --json floor.environment, both ways`) holds it; the credential item, `keeps the deploy credentials to itself`, is the D-04 wording plan 43.1-05 added (phase 43.1 decision D-04). (2) The GitHub settings paragraph (`Required reviewers`, `Prevent self-review`, the administrator bypass setting, `Protected branches only`, and required reviewers on the Free, Pro and Team plans only for public repositories) was read from GitHub's Deployments and environments reference through Context7 in plan 33.1-20 (`.planning/milestones/v2.1-phases/33.1-phase-33-leftovers-guard-bypasses-first/33.1-20-SUMMARY.md`). (3) The citation paragraph, that an environment's secrets reach only the jobs that reference it and only after a required reviewer approves, is cited in 43.1-RESEARCH.md Item 6 from `docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments`. This plan did not re-read GitHub's page, so its current wording is `UNKNOWN - verify`; the rows here record the text as those two plans cited it. Holds as cited. RE-MEASURED 2026-11-20 by plan 43.1-10 (review finding WR-04, the human's decision of 2026-11-19 in UAT test 3, gap G-43.1-3). (1) The credential item now names both parts, `a stored deploy secret lives only in this environment's secrets` and `an OIDC trust policy for the deploy accepts only tokens whose subject names this environment`, followed by the subject format and `not a branch or the whole repository`, and is still byte-equal to the `credentials_in_environment` row of `ENVIRONMENT_FLOOR`: `scripts/runnable-ref/host-protection.test.ts` (`README drift: the second checklist list under #### Git-host setup checklist equals --json floor.environment, both ways`) holds it. (2) The region now takes in the OIDC citation paragraph after the two GitHub paragraphs. Read on 2026-11-20 with `curl -sS -L` (HTTP 200, no redirect): `docs.github.com/en/actions/reference/security/oidc` says "The subject claim includes the environment name when the job references an environment.", gives "Syntax: repo:ORG-NAME/REPO-NAME:environment:ENVIRONMENT-NAME" (written in the guide as `repo:<owner>/<repo>:environment:<name>`), says "The subject claim includes the branch name of the workflow, but only if the job doesn't reference an environment, and if the workflow is not triggered by a pull request event.", says "repositories created after July 15, 2026 now use an immutable default subject format that includes both the owner ID and repository ID." with "Syntax: repo:OWNER@OWNER-ID/REPO@REPO-ID:ref:refs/heads/BRANCH", "Repositories created before July 15, 2026 keep the previous format unless you opt in to immutable subject claims.", "Repository renames and transfers after July 15, 2026 also move to the immutable subject format." and "Update your trust policies to match the format your repository uses.", and under § Customizing the subject claims for an organization or repository opens "To help improve security, compliance, and standardization, you can customize the standard claims to suit your required access conditions." and says "Customizing the claims results in a new format for the entire sub claim, which replaces the default predefined sub format in the token described in Example subject claims."; the deployments page says "Deployment protection rules require specific conditions to pass before a job referencing the environment can proceed." and, re-read for (3), "Secrets stored in an environment are only available to workflow jobs that reference the environment." Each quote supports the sentence of the OIDC paragraph that restates it; the paragraph's closing sentence on a customized subject is guidance drawn from the customizing quotes, not a GitHub statement. The immutable-format sentence was added by this plan beyond its scripted wording, because the page read today names a second default format the checklist's parenthesized example does not show. Holds.
 
 ```
 For production, keep a deployment environment that:
 
 - [ ] has the name your deploy jobs use;
 - [ ] requires at least one reviewer;
-- [ ] keeps the deploy credentials to itself: the deploy credentials live solely in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine;
+- [ ] keeps the deploy credentials to itself: a stored deploy secret lives only in this environment's secrets, not in a repository or organization secret, a CI variable, a runner or a developer machine, and an OIDC trust policy for the deploy accepts only tokens whose subject names this environment (`repo:<owner>/<repo>:environment:<name>`), not a branch or the whole repository;
 - [ ] prevents self-review;
 - [ ] does not let administrators bypass its protection rules;
 - [ ] allows deployments only from protected branches.
@@ -1455,6 +1458,20 @@ GitHub documents that an environment's secrets reach only the jobs that referenc
 and only after a required reviewer approves, so a deploy credential stored anywhere else is not gated
 by that reviewer
 ([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
+
+GitHub documents that a job's OIDC token names the environment in its subject when the job references
+an environment, in the form `repo:<owner>/<repo>:environment:<name>`, and names the branch only when
+the job does not reference an environment
+([OpenID Connect](https://docs.github.com/en/actions/reference/security/oidc)). It also documents
+that deployment protection rules must pass before a job referencing the environment can proceed
+([Deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)).
+So a cloud trust policy that accepts only that subject gives a deploy token only to a job that waits
+for the environment's reviewer, while one that also accepts a branch or the whole repository does
+not. GitHub also documents that repositories created, renamed or transferred after July 15, 2026,
+and older ones that opt in, use an immutable subject format whose repository part adds the owner and
+repository IDs (`repo:<owner>@<owner-id>/<repo>@<repo-id>`), so write the trust policy in the format
+your repository uses. A repository or organization that customizes the subject claim must name the
+environment in the subject format it uses.
 ```
 
 ## The unanchorable claim — `.claude-plugin/plugin.json`
@@ -1714,6 +1731,10 @@ then need a disposition row for every clause changed in the guide since its base
 rest of the guide is deferred (`.planning/phases/43.1-close-v3-0-p1-debt/43.1-CONTEXT.md` § Deferred
 Ideas). Until then the gate proves nothing about an unanchored sentence of install/README.md, the
 limit the first paragraph of this section states for every page.
+
+**Annotation, plan 43.1-10 (2026-11-20, review finding WR-04) — ADDED, the plan 43.1-08 annotation
+above stands.** Plan 43.1-10 extends `C-28-090`'s region to take in the OIDC citation paragraph
+after the two GitHub paragraphs, so the region now ends at that paragraph's last line.
 
 ## Adjudicated as NOT a claim
 
