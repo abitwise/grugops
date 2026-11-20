@@ -180,10 +180,11 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 - Install now copies the skip-integrity checker to `tools/grugops/skip-integrity.js`. The old name,
   `tools/grugops/test-skip-integrity.js`, matched Node's default `node --test` file pattern, so a
   repository whose test script is plain `node --test` failed on a fresh install. Running install again,
-  or an `install.js --migrate` that has a layout to move, removes the old file when the install record
-  shows install wrote it and it is unchanged. A `--migrate` on a target already on the two-root layout,
-  whose planning state is not on the pre-v3 layout, stops before this step; run install again there.
-  A copy you edited, or one install did not record, is left in place and named.
+  or an `install.js --migrate`, removes the old file when the install record shows install wrote it and
+  it is unchanged. Two `--migrate` cases stop before this step: one refused by its pre-check, and one
+  on a target already on the two-root layout whose planning state is not on the pre-v3 layout; on that
+  target, run install again. A copy you edited, or one install did not record, is left in place and
+  named.
   Workflow 05 and example 03 name the new path.
 - `docs/GUARANTEES.md` now says it shows which safety claims hold in the grugops source checkout at
   its default settings, not on your repository. The pointer lines in README.md, AGENTS.md and
