@@ -5,16 +5,16 @@ milestone_name: Specialist agents. Shared context. Coordinated work.
 current_phase: "43.1"
 current_phase_name: Close v3.0 P1 debt (INSERTED)
 status: verifying
-stopped_at: Completed 43.1-12-PLAN.md
-last_updated: "2026-11-20T08:08:32.032Z"
+stopped_at: Completed 43.1-13-PLAN.md
+last_updated: "2026-11-20T10:25:30.864Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 43.1 execution started
-state_head: d623ae2bfaa6dc66a3e68dba4881742a8b298baf
+state_head: e45284eeb0472d522aa110352cb5c1daeae3c4b0
 progress:
   total_phases: 10
   completed_phases: 9
-  total_plans: 177
-  completed_plans: 177
+  total_plans: 180
+  completed_plans: 178
   percent: 90
 ---
 
@@ -896,6 +896,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P10 | 11 min | 3 tasks | 15 files |
 | Phase 43.1 P11 | 11 min | 3 tasks | 11 files |
 | Phase 43.1 P12 | 10 min | 3 tasks | 9 files |
+| Phase 43.1 P13 | 18 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -2506,6 +2507,8 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-11: C-28-059 (measured against Workflow 05 step 3) re-measured as the same-commit registry companion check:diff-disposition requires
 - [Phase 43.1]: 43.1-12: the install guide documents stale-runnable removal but not as 'the only file install deletes' (install also unlinks its own symlink adapters, prunes unchanged backups and removes staging files)
 - [Phase 43.1]: 43.1-12: WINDOWS.md rows 335 and 336 record that the CI logs contradict the UAT note: the no-type-field case was red on windows before 43.1 under its earlier title, and the cell() case was red on windows in both runs
+- [Phase 43.1]: 43.1-13: the immutable environment subject repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:<name> is written in install/README.md as composed from two GitHub statements, because GitHub's OIDC page (read 2026-11-20) prints no immutable example with :environment:
+- [Phase 43.1]: 43.1-13: the production checklist gains deploys_through_environment between required_reviewer and credentials_in_environment; --json floor.environment has seven strings
 
 ### Pending Todos
 
@@ -2848,8 +2851,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-20T08:08:29.968Z
-Stopped at: Completed 43.1-12-PLAN.md
+Last session: 2026-11-20T10:25:28.766Z
+Stopped at: Completed 43.1-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
