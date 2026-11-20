@@ -73,9 +73,10 @@ This is enforced by two complementary layers:
   a speed bump in front of it: it covers the usual spellings and is not a security boundary.
   Neither can redirect a commit onto a safe branch; both can only stop it.
 
-For a deploy, the hard floor is the production deployment environment, and only while the
-deploy credentials live solely in it: a stored deploy secret lives only in its secrets, and an
-OIDC trust policy for the deploy accepts only tokens whose subject names it.
+For a deploy, the hard floor is the production deployment environment, and only while
+every production deploy runs as a job that references it and the deploy credentials live solely in
+it: a stored deploy secret lives only in its secrets, and an OIDC trust policy for the deploy
+accepts only tokens whose subject names this repository and that environment.
 
 **Hook decision (why `git commit` is governed by this convention alone):** grugops ships no
 Bash hook at all; the Bash command guard earlier releases shipped was retired by 33.1 D-17. So

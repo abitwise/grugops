@@ -158,12 +158,16 @@ it, and it does not ask for approval before every tool call (source:
 `github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md`, retrieved
 2026-10-06). On Pi, the git host is therefore the only hard control on merge and deploy: branch
 protection or rulesets on protected branches, and a production deployment environment with required
-reviewers (`install/README.md` §5). The environment holds a deploy only when the
-deploy credentials live solely in it: a stored deploy secret lives only in its secrets, and an
-OIDC trust policy for the deploy accepts only tokens whose subject names it. A secret held
+reviewers (`install/README.md` §5). The environment holds a deploy only when
+every production deploy runs as a job that references it and the
+deploy credentials live solely in it: a stored deploy secret lives only in
+that environment's secrets, and an OIDC trust policy for the deploy
+accepts only tokens whose subject names this repository and that environment. A secret held
 anywhere else (a repository or organization secret, a CI variable, a runner, a developer
-machine), or a trust policy that also accepts a branch or the whole repository, can deploy
-without its reviewer.
+machine), or a trust policy that also accepts a branch, the whole repository, or
+a wildcard over repositories or owners, can deploy without its reviewer. So can a deploy that
+no such job runs, such as a hosting platform's own Git integration or a
+pull-based GitOps controller.
 A Pi extension can block a tool call, but grugops ships none.
 
 ## Safety enforcement — where each rule is held
@@ -176,15 +180,19 @@ tool. There are three tiers:
   production deployment environment, each meeting every item of the git-host setup checklist in
   `install/README.md` §5. It is the only tier that sees every
   push and merge, and every deployment that runs through its environments, whatever command
-  started it. For a deploy, that holds only when the
-  deploy credentials live solely in the production environment: a stored deploy secret lives only in
+  started it. For a deploy, that holds only when
+  every production deploy runs as a job that references the production environment and the
+  deploy credentials live solely in that environment: a stored deploy secret lives only in
   that environment's secrets, and an OIDC trust policy for the deploy
-  accepts only tokens whose subject names that environment. A secret held anywhere else (a
-  repository or organization secret, a CI variable, a runner, a developer machine), or a trust
-  policy that also accepts a branch or the whole repository, can deploy without that environment's
-  reviewer. grugops never configures it. `tools/grugops/host-protection.js` reports read-only on
-  the branch items; its production line reads `UNKNOWN - verify` by design (33.1 D-31), so the
-  human confirms the production environment's settings on the host.
+  accepts only tokens whose subject names this repository and that environment. A secret held
+  anywhere else (a repository or organization secret, a CI variable, a runner, a developer
+  machine), or a trust policy that also accepts a branch, the whole repository, or
+  a wildcard over repositories or owners, can deploy without that environment's reviewer. So
+  can a deploy that no such job runs, such as a hosting platform's own Git integration or a
+  pull-based GitOps controller. grugops never configures it. `tools/grugops/host-protection.js`
+  reports read-only on the branch items; its production line reads `UNKNOWN - verify` by design
+  (33.1 D-31), so the human confirms each production line where `install/README.md` §5 says it
+  can be seen, not only in the environment's settings.
 - **Speed bump — host CLI approval prompts.** They cover the usual command spellings and are
   not a security boundary.
 - **Prose — the role and workflow rules.** The Orchestrator and Release Manager stop at a pull
