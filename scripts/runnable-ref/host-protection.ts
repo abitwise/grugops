@@ -154,8 +154,9 @@
 // (brief 33.1-GAP-PLANNING-BRIEF.md DC-1). The named human chose to narrow the check: it answers
 // `protected` only for the branch checklist. The environment line (environmentByDesign) always reads
 // `UNKNOWN - verify`, by design. It names the environment and where the name came from, says the
-// check does not read it, and points at the production checklist in install/README.md §5, which the
-// human confirms in the environment's settings. No gh call asks about environments or the
+// check does not read it, and points at the production checklist in install/README.md §5, whose
+// lines the human confirms where §5 says each can be seen, not only in the environment's settings
+// (plan 43.1-13, review finding WR-09). No gh call asks about environments or the
 // protected-branch list. `ENVIRONMENT_FLOOR` keeps the production checklist's requirement strings
 // only, for `--json` `floor.environment` and one `unknown` fact per row.
 // The name is `--env <name>`,
@@ -1668,7 +1669,7 @@ const NOT_READ_BY_DESIGN = "not read by design (33.1 D-31)";
 function environmentByDesign(name: string, source: string): Target {
   const reason =
     "not checked by design: this check does not read the production environment (decision 33.1 D-31); " +
-    "confirm each production line of the git-host setup checklist in install/README.md §5 in the environment's settings yourself; " +
+    "confirm each production line of the git-host setup checklist in install/README.md §5 yourself, where it can be seen: the setting lines in the environment's settings, the deploy-path line in your workflow files and in any hosting platform or GitOps controller that can deploy, and the credential line in repository and organization secrets and variables, your runners and each cloud role's trust policy; " +
     "a release still needs the named human's confirmation, whatever this line says" +
     `; environment name from ${source}`;
   return {
