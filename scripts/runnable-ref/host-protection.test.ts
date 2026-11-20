@@ -1309,7 +1309,10 @@ describe("host-protection.js — the production environment is not read, by desi
     expect(t.reason).toContain("not checked by design");
     // Plan 43.1-13 (review finding WR-09): the line sends the human to where each production line
     // can be seen, not to the environment's settings for every line.
-    expect(t.reason).toContain("the setting lines in the environment's settings");
+    // Plan 43.1-17 (review finding IN-13): it names the four lines confirmed in the environment's
+    // settings, and sends the name line to the workflow files too.
+    expect(t.reason).toContain("the reviewer, self-review, administrator-bypass and deployment-branch lines in the environment's settings");
+    expect(t.reason).toContain("the name line in the environment's settings and your workflow files");
     expect(t.reason).toContain("the deploy-path line in your workflow files and in any hosting platform or GitOps controller that can deploy");
     expect(t.reason).toContain("the credential line in repository and organization secrets and variables, your runners and each cloud role's trust policy");
     expect(t.facts!.map((f) => f.requirement)).toEqual(block.floor.environment);
