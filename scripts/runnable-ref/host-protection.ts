@@ -1669,7 +1669,7 @@ const NOT_READ_BY_DESIGN = "not read by design (33.1 D-31)";
 function environmentByDesign(name: string, source: string): Target {
   const reason =
     "not checked by design: this check does not read the production environment (decision 33.1 D-31); " +
-    "confirm each production line of the git-host setup checklist in install/README.md §5 yourself, where it can be seen: the setting lines in the environment's settings, the deploy-path line in your workflow files and in any hosting platform or GitOps controller that can deploy, and the credential line in repository and organization secrets and variables, your runners and each cloud role's trust policy; " +
+    "confirm each production line of the git-host setup checklist in install/README.md §5 yourself, where it can be seen: the reviewer, self-review, administrator-bypass and deployment-branch lines in the environment's settings, the name line in the environment's settings and your workflow files, the deploy-path line in your workflow files and in any hosting platform or GitOps controller that can deploy, and the credential line in repository and organization secrets and variables, your runners and each cloud role's trust policy; " +
     "a release still needs the named human's confirmation, whatever this line says" +
     `; environment name from ${source}`;
   return {

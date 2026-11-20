@@ -201,9 +201,10 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
   `credentials_in_environment`, which match the new production checklist items in `install/README.md`
   §5. In `--json`, `floor.environment` now has seven entries. Like the other production items, the
   check does not read them (33.1 D-31). Its environment line now names where each production line is
-  confirmed: the setting lines in the environment's settings, the deploy-path line in the workflow
-  files and deploy platforms, and the credential line in the secret stores, runners and cloud trust
-  policies.
+  confirmed: the reviewer, self-review, administrator-bypass and deployment-branch lines in the
+  environment's settings, the name line in the environment's settings and the workflow files, the
+  deploy-path line in the workflow files and deploy platforms, and the credential line in the secret
+  stores, runners and cloud trust policies.
 - CI no longer runs the GAP-D1 flip-manifest gate, by decision 43.1 D-01. Its tests still run in the
   suite, and `npm run check:flip-manifest` is kept.
 

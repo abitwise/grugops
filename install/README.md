@@ -1940,15 +1940,16 @@ customizes the subject claim must name the environment in the subject format it 
 
 **The check does not read the production environment (decision 33.1 D-31).** Its environment line
 always reads `UNKNOWN - verify`, by design, whatever the environment's settings are. Confirm each
-line of the production list above yourself, where it can be seen. Confirm the name, reviewer,
-self-review, administrator-bypass and deployment-branch lines in the environment's settings on your
-git host. The deploy-path line and the credential line cannot be confirmed there alone. Confirm the
-deploy-path line in your workflow files and in the settings of any hosting platform or GitOps
-controller that can deploy to production. Confirm the credential line in the repository and
-organization secrets and variables, on your runners, and in the
-trust policy of each cloud role the deploy assumes. The release record (workflow 12) states that
-only the named human's confirmation vouches for the deploy floor, and that confirmation stays
-mandatory.
+line of the production list above yourself, where it can be seen. Confirm
+the reviewer, self-review, administrator-bypass and deployment-branch lines in the environment's
+settings on your git host. Confirm the name line there and in your workflow files, which show the
+environment name your deploy jobs use. The deploy-path line and the credential line cannot be
+confirmed in the environment's settings alone. Confirm the deploy-path line in your workflow files
+and in the settings of any hosting platform or GitOps controller that can deploy to production.
+Confirm the credential line in the repository and organization secrets and variables, on your
+runners, and in the trust policy of each cloud role the deploy assumes. The release record
+(workflow 12) states that only the named human's confirmation vouches for the deploy floor, and
+that confirmation stays mandatory.
 
 The environment line still names the environment it is about, although the check does not read that
 environment (33.1 D-31). The check finds the name in this order: the `--env <name>` flag; else the
