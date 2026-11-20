@@ -173,9 +173,10 @@ function runGapD1Check() {
 // repetition cannot overlap the outer one.
 const INLINE_LINK = /\]\(\s*(?:<([^<>\n]+)>|((?:[^()\s<>]|\([^()\s<>]*\))+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
 // An HTML `href=` or `src=` attribute with a single- or double-quoted value, such as
-// `<a href="page.md">` or `<img src='art.png'>`. The attribute name follows whitespace, so a tag
-// whose attributes run onto the next line is still read.
-const HTML_LINK_ATTR = /(?<=\s)(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+// `<a href="page.md">` or `<img src='art.png'>`. The attribute name follows whitespace or starts the
+// line (WR-07, plan 43.1-12). Each line is read on its own, so a tag whose attributes run onto the
+// next line is read whether or not that line is indented.
+const HTML_LINK_ATTR = /(?<=^|\s)(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
 // A reference definition: `[label]: target`, up to three spaces of indent.
 const REFERENCE_DEF = /^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?/;
 // An inline code span; a link written inside one is text, not a link.
