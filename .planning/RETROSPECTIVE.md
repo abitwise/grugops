@@ -2,6 +2,50 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v3.0 — Specialist agents. Shared context. Coordinated work.
+
+**Shipped:** 2026-11-21 (tech debt accepted, `override_closeout`)
+**Phases:** 10 (35–43.1, one inserted) | **Plans:** 182 | **Commits:** 1,396 (`v2.2..0a2d0496`)
+
+### What Was Built
+- Graph memory evaluated and decided against, with a recorded revisit trigger (35).
+- One constants-only state-path authority, with planning state under `memory-bank/plans/` and protected from prune and uninstall (36).
+- An overview board, one file per NFR and per trace record, nine byte budgets with one owner, and host runnables (`state-check.js`, `trace-render.js`, `state-roll.js`) generated from the authority modules (37).
+- A data-conserving `install --migrate` to the v3 layout that keeps every original and is a byte-identical no-op on re-run (38).
+- A Tech Lead, junior/mid/senior engineer adapters with live-confirmed model and effort pins, and a Designer (39).
+- All 19 roles rewritten in plain English inside a byte budget, with the caveman constraint retired (40); Workflow 17 as the Orchestrator's one flow home (41); skills per role with a ratify-none evaluation (42); the new story and layered docs (43).
+- Phase 43.1 closed the audit's 12 P1 items and turned ubuntu CI green for the first time since 2026-09-28.
+
+### What Worked
+- Triaging all 768 open deferred items against HEAD at the audit, with a verdict and priority per item, turned an unreadable pile into 12 P1s that fit one inserted phase.
+- Putting the data-loss surface (migrate) in its own phase, with line conservation proven and rollback on failure, gave a migration that never lost a line on the dogfood copy.
+- Generating host runnables from the authority modules with a freshness gate kept one source for the budget and trace rules across grugops and host repos.
+- Live probes settled questions a suite could not: the engineer level pins were read from real sub-agent transcripts, and the kit-home overlap refusal was confirmed on a real Mac firmlink.
+
+### What Was Inefficient
+- CI on main was red for the whole milestone. The v2.1 close moved phase directories that tests still read, and nothing stopped the red from becoming normal until the audit.
+- Verification went stale silently: later phases edited files that phases 36–42 had verified, and no step re-ran them, so the milestone closed on stale reports.
+- Gap closure still dominated plan count (37: 42 plans, 41: 29, 40: 25). Phase 43.1 needed three UAT rounds on one wording class (the production-floor OIDC condition) before it settled.
+- Deferred items piled up to 768 across two milestones before anyone read them, and 696 of them sit in table rows the GSD writer cannot acknowledge.
+
+### Patterns Established
+- A deferred-item triage at every milestone audit: a verdict, category, priority and root-cause theme per item, in a JSONL plus a summary page.
+- An inserted closure phase for P1 audit items before the close, instead of accepting them as debt.
+- Byte budgets with one owner module, warn on an unmigrated tree and error on a migrated one.
+- Typed-name human acceptance for deferring review findings.
+
+### Key Lessons
+1. Tests must not read `.planning/phases/` paths that the milestone archive moves; archive moves are routine, so such tests will break at every close.
+2. Treat red CI on main as a stop, not as background. Seven weeks of red hid which failures were new.
+3. Check verification staleness before the audit and re-run what a later phase touched; a `passed` report is only as current as the files it read.
+4. Write deferred items as bullets, not table rows, so the acknowledge writer can anchor them; triage them every milestone, not every second one.
+
+### Cost Observations
+- Model mix: mostly opus for orchestration, planning and execution, sonnet for checkers and the integration check; exact split not measured.
+- Notable: three phases (37, 41, 40) took 96 of 182 plans; Phase 43.1 took 17 plans for 12 P1 items, 8 of them gap closure.
+
+---
+
 ## Milestone: v2.1 — Autonomous Factory: Real Spawning, Controlled Language & Live Board
 
 **Shipped:** 2026-10-18 (gaps accepted)
@@ -225,6 +269,7 @@
 | v1.2 | 263 | 10 | 38 | Foundation-first guards + config-dial; token-economy persona overhaul; TypeScript tooling pivot (committed-`.js` + freshness); converged single-source §14 gate; honest Tier-1/2 auto-UAT |
 | v2.0 | 339 | 7 | 44 | Architecture pivot to a decentralized shared verified context; handoffs deleted grep-to-zero; parallel agents + lock-free queue; **adversarial closure doctrine** (structural fix + ≥2 independent red-teams + self-repro) after 13 green-suite-insufficient catches |
 | v2.1 | 2912 | 13 | 453 | Derived kit sets + generated adapters; controlled-language gates; dials; guard retired for git-host floor + ask rules; per-agent installer; **four-round gap-closure cap with recorded human closes** (7 of 13 phases) |
+| v3.0 | 1396 | 10 | 182 | One state-path authority, per-record files and byte budgets; data-conserving migrate; Tech Lead + three engineer levels; plain-English roles; **deferred-item triage at the audit and an inserted P1 closure phase before the close** |
 
 ### Cumulative Quality
 
@@ -235,6 +280,7 @@
 | v1.2 | Vitest suite 144+ green (install, validator, ASVS, guards, UAT oracles, catalog, freshness) + foundation-guards aggregator | `tech_debt` (34/35 reqs, 7/7 integration seams, no blockers) | TS tooling → committed-`.js` + freshness (zero host runtime deps); test-integrity checker; catalog generator + freshness gate; Tier-1 UAT oracles |
 | v2.0 | Vitest 794 passed / 1 skipped (30 files) + foundation-guards, kit-refs, uat-oracles, freshness ×3, typecheck — all exit 0; `windows-latest` leg red on 3 files (harness/fixture, **zero in the v2.0 substrate**) | `tech_debt` (28/28 reqs, 8/8 integration boundaries, 7/7 Nyquist, no blockers) — closed `override_closeout` | `context-io` / `claim` / `compactor` substrate; admission guard + stdio MCP server; dual-path equivalence oracle; `freshness:context` + `freshness:traceability` gates — all zero host runtime deps |
 | v2.1 | Vitest (e2e excluded) + foundation guards, freshness, kit-refs, banned-claims, claim-anchors, catalog, uat-oracles — all exit 0 at close; windows-latest red (out of scope, D-25); live e2e capture lane `fail` | `gaps_found` (52/64 reqs, 6/6 integration, 0 broken) — closed `override_closeout`, gaps accepted | board projector + dashboard, model/effort resolver, host registry, per-agent installer, checkpoint ask-rule writer — zero host runtime deps |
+| v3.0 | Vitest (e2e excluded) + foundation guards, freshness gates, state-paths, story-docs, claim registry — ubuntu CI green at close (run 44882392482); windows-latest red (260 ledger rows, deferred) | `tech_debt` (51/51 reqs, 11/12 integration links, 3/4 flows; verification 36–43 stale) | `state-check.js`, `trace-render.js`, `state-roll.js`, `note.js` host runnables (builtins only) |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -245,3 +291,4 @@
 5. **A green suite is a precondition, never proof, for a safety invariant** (v2.0, learned 13 times) — closure requires a structural fix, ≥2 *independent* red-teams, and reproduction of the bypass. Corollary: price those rounds into the phase estimate, or the phase will look like a 4× overrun when it was correctly-costed work all along.
 6. **Prefer the honest negative** — v2.0's best result was an evidence gate refusing to retire a waiver, and its headline cost claim staying `UNKNOWN - verify`. A mechanism that declines to do the convenient thing is the one worth trusting; a number borrowed from someone else's benchmark is the fabrication the trace exists to prevent.
 7. **Move enforcement to the system of record** (v2.1) — the shell-command guard could not be closed by parsing; the git host sees every merge and deploy. Cap gap-closure at four rounds and close by recorded human decision rather than looping.
+8. **Keep main green and reports fresh** (v3.0) — a red CI that becomes normal and a `passed` report that later phases outdate both hide regressions. Re-run what a later phase touched before the audit, and never let tests depend on paths the archive moves.
