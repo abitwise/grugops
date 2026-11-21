@@ -11,6 +11,7 @@
   reads these quotes. Plan 40-10 owns the registry; refresh the quotes there or in a later audit pass.
 - `docs/audit/28-disposition-register.md` F-28-008 names orchestrator.md § Hard limits; re-read it against the
   rewritten section when the register is next revisited.
+  status: acknowledged
 
 ## From plan 40-09
 
@@ -22,6 +23,7 @@
   test name with the recorded `~/` environmental case, which hides it in a by-name comparison: removing `~/`
   would not turn it green. Fix in check-role-rules.ts (index the heading list another way) or record the two
   sites in FLOOR_ITEM_2_SITES with a reason; out of scope for 40-09, which does not touch check-role-rules.
+  status: acknowledged
 
 ## From plan 40-13
 
@@ -33,6 +35,7 @@
     moved out of `.planning/phases/`. Repoint the tests at the archive path or record the archive as their source.
   - `install/installer-fs-census.test.ts` (1): the local Node v26.12.1 exports `openAsBlobSync`, which the census
     has not classified. Classify it in CONTENT_READER or NOT_CONTENT_READER.
+  status: acknowledged
 
 ## From the gap round (plans 40-11 to 40-16)
 
@@ -52,7 +55,7 @@
   - `frontend-ui.md:47`: return the ticket to the Orchestrator for the Designer. This is Phase 39 wording pinned by
     `scripts/tier-kit-text.test.ts` (the D-10 Frontend/UI case). Line 48 (hand the ticket to BA/PM) has the same
     shape but no pin.
-  status: open
+  status: acknowledged
 - IN-03, optional part: drop the retired caveman heading from the `good` validator fixture. Plan 40-15 closed the
   required part (the typed section count, pinned in `scripts/validate.test.ts`) and left this as optional.
   status: open
@@ -68,7 +71,7 @@
   start: `GO-READINESS: not-ready — pushed sha ... HEAD c9e9187b747a is 14 commit(s) ahead of origin/main`. They
   are environmental (an unpushed local HEAD) and read no file 40-19 changed; the earlier runs excluded
   `scripts/e2e/**`. They clear when the phase is pushed, or with the e2e lane excluded.
-  status: open
+  status: acknowledged
 
 ## From gap round 2 (plans 40-17 to 40-21)
 
@@ -77,7 +80,7 @@
   `architect-design.md`, `factory-coach.md`, `greenfield-mapper.md`, `incident-responder.md` and `installer.md`, and
   the human-merge-deploy fact in `orchestrator.md`, have no baseline entry, so deleting one of those sentences still
   passes every gate. Candidate for when the D-30 stand-in ends: a floor taken at the end of Phase 40.
-  status: open
+  status: acknowledged
 - (b) `uat-planner.md` lines 38, 45, 49 and 50 state the human sign-off at the `block` default. Whether they should
   follow `sign_off_acceptance` like the lean close is a human decision. Lines 45 and 49 are frozen safety-fact
   sentences, and the file has about 3 B of growth room (plan 40-17). Candidate wording from plan 40-17's flagged
@@ -106,7 +109,7 @@
   named-human row, because the removed clause carries the fact, so the looser floor cannot hide that reword. Splitting
   the pattern table would change the derivation the committed baseline and the 40-20 rows were measured with.
   Candidate: when the D-30 stand-in ends, together with item (a) of gap round 2.
-  status: open
+  status: acknowledged
 - IN-07: the admission hook's verified closure now includes the inventory gate. Deferred: moving SAFETY_RULE_FACTS and
   carriesSafetyFact into a module with no imports touches the hook manifest, CLOSURE_BASELINES and the seven scratch
   kits plan 40-21 updated. `npm run freshness:hook-manifest` already fails closed in CI on a forgotten regeneration, so
@@ -124,7 +127,7 @@
   stand-in by Olger on 2026-11-04 ("accept CR-05 and CR-06"); override in 40-VERIFICATION.md. Candidate fix: a
   region-aware `rowMatches` (a removed frozen clause matches only when its row's `after` is still inside a frozen
   region), plus a red mirror case. Candidate: when the D-30 stand-in ends, or the next tooling round.
-  status: open
+  status: acknowledged
 - CR-06 (round-3 review): a `# ` heading inside `## Hard limits` ends the frozen region, so a permission below it is
   admitted with no row. Accepted with CR-05 by Olger on 2026-11-04. Candidate fix: `checkHeadingOrder` refuses any
   `# ` heading but the one `# Role: ` heading, plus a red `# Notes` case.

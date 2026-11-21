@@ -1257,6 +1257,7 @@ AssertionError: NEVER EXEMPTIBLE — the silent no-grant arm: the module reports
 harness reason and not a code reason — vitest resolves the test file's `./frontmatter.js` import to
 the **committed `.js`**, so mutating only the `.ts` mutated nothing the suite could see. Assert the
 harness's own premise: the mutation was only real after `npm run build`.
+  status: acknowledged
 
 ### Adversarial pass (a) — *what is this predicate's INPUT assembled from?*
 

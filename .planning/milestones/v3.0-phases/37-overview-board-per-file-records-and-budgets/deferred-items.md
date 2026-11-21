@@ -3,20 +3,20 @@
 ## Deferred Items
 
 - checkTickets in scripts/validate-agent-factory.ts opens every ticket `.md` with readFileSync, so a FIFO at a ticket path hangs the validator
-  status: open
+  status: acknowledged
   **Found during:** plan 37-02, Task 2 (writing the FIFO case for checkBudgets)
   **What:** checkTickets lists `TICKETS_REL` and calls `stateRead` (readFileSync) on every name ending `.md`, with no regular-file check first. A FIFO there blocks the read forever. checkBudgets itself never opens a ticket (it takes the size from lstat), so the plan 37-02 FIFO case was placed in the NFR directory, which checkTickets does not read. The same pre-existing pattern applies to the board and the trace index when tickets exist.
   **Why deferred:** pre-existing behaviour of a check this plan does not own (scope boundary). A fix is a regular-file check before each read, the same `statSync(...).isFile()` guard checkBudgets uses.
   **37-27 round-close note (2026-10-23):** still open. Plan 37-26 (READ-1) routed every validator read through its primitives, so checkTickets now reads each ticket through `stateRead` and `textAt`, which still calls `readFileSync` with no regular-file check first. A read that fails is now an ERROR by path, but a FIFO at a ticket path still blocks the read before any failure exists. Not in D-17's scope.
 
 - The progress roll (plan 37-11) needs each dated entry's extent, and LANG-07 allows that question exactly one owner
-  status: resolved (D-16, plan 37-11, 2026-10-22: the generated copy of sectionEndIndex in state-roll.ts is admitted only inside a fresh region of an EMBED_SPECS target; the planner takes the extent function as a parameter)
+  status: acknowledged
   **Found during:** plan 37-05, Task 2 (the first GREEN run of the related censuses)
   **What:** plan 37-05 asked `progressEntries` to return each dated entry's span, "from its heading to the line before the next `##` heading". That is the section-extent question. `scripts/check-foundation-guards.test.ts` (LANG-07, SECTION_EXTENT_OWNERS) allows one owner for it, `scripts/frontmatter.ts` (`sectionEndIndex`), and says a second owner "is escalated, never added to this list". The span version made two new owners: `scripts/state-rules.ts` and its generated copy in `scripts/runnable-ref/state-check.ts`. Plan 37-05 therefore shipped `progressEntries` as classification only, `{ date, heading, line }` per dated entry and `{ heading, line }` per standing section. That is all state-check needs.
   **Why deferred:** plan 37-11's `planProgressRoll` must move whole entries, so it needs the extent. A host runnable can only get it by embedding `sectionEndIndex`'s closure from frontmatter.ts. The census reads every file in the tree, so that embedded copy would make `state-roll.ts` an owner too. Before 37-11 lands, a human has to decide one of two things: that a generated region, which the freshness gate proves is a verbatim copy, is not a second owner, or that the census should exclude generated regions. There is a precedent: the 37-03 decision lets some censuses admit a copy only inside a fresh region of an EMBED_SPECS target, but the LANG-07 census does not do that yet. Note also that frontmatter's `sectionEndIndex(text, from, 2)` is fence-aware and closes on level-1 headings as well, so it is not byte-for-byte the plan's "next `##` heading" rule.
 
 - `node scripts/check-diff-disposition.js` exits 1 on the live tree with 707 findings over 40 watched files
-  status: open
+  status: acknowledged
   **Found during:** plan 37-18, Task 1 (an extra gate run beyond the plan's gate list)
   **What:** the gate reads every clause changed in its watched corpus since base `4d2b8f0` and wants a row for each under `docs/audit/29-style-dispositions/`. Phase 37's role, workflow, README and AGENTS.md rewrites (plans 37-14 to 37-18) and earlier phases' edits have no disposition rows, so 707 clauses are undispositioned. Plan 37-18's AGENTS.md lines 21, 93 and 95 are among them. `scripts/check-diff-disposition.test.ts` passes: it drives planted repositories, not the live tree.
   **Why deferred:** pre-existing and phase-wide. No phase-37 plan lists this gate, and writing 707 disposition rows, or moving the base, is a decision for the phase gate (37-19) or a human.
@@ -27,20 +27,20 @@
   **37-42 round-4 note (2026-10-27):** still 721 findings over 40 elements (`node scripts/check-diff-disposition.js`, exit 1, run after plan 37-42 Task 2). Round 4 (plans 37-40 to 37-42) added no finding: install/README.md and CHANGELOG.md text changed, and the count did not move. The decision stays with a human.
 
 - The ubuntu-block reader census in scripts/check-foundation-guards.test.ts (UBUNTU_BLOCK_READER_COUNT, the class negative) lists only top-level `scripts/*.test.ts`
-  status: open
+  status: acknowledged
   **Found during:** plan 37-19, Task 2 (wiring the own-tree state-check case)
   **What:** the census uses a non-recursive `readdirSync(scripts)`. A test file under `scripts/runnable-ref/` that spelled its own copy of the ubuntu step name would not be refused, and one that imports `scripts/ci-workflow.testkit.ts` is not counted. Plan 37-19's case in `scripts/runnable-ref/state-check.test.ts` imports the authority, so it obeys the class rule, but the pin stays at 6 because the census does not see the file.
   **Why deferred:** changing the census's scope changes a guard outside this plan's files. The fix is to derive the member set from a recursive listing of tracked `scripts/**/*.test.ts` and move the pin by listing (6 -> 7).
 
 - EXIT-1 siblings outside phase 37
-  status: open
+  status: acknowledged
   **Found during:** plan 37-20, Task 2 (the EXIT-1 class search, re-run before writing this entry)
   **What:** each of these programs' headers promises exit 2 for could-not-run, and none has a test that forces a throw past its inner catches, so none is proven to keep an unexpected throw off exit 1: `scripts/runnable-ref/reference-check.ts`, `scripts/runnable-ref/test-skip-integrity.ts`, `scripts/runnable-ref/uat-spec-integrity.ts`, `scripts/board-dashboard.ts`, `scripts/runnable-ref/host-protection.ts`, and `scripts/check-state-paths.ts` with `scripts/state-path-scan.ts` (the module that states its 0/1/2 convention). Seen without running a test: host-protection.ts already registers a process-level uncaughtException handler (line 220 at d9fa837c) that prints its could-not-run line and exits 2; check-state-paths.ts runs its body inside a try whose catch exits 2, and the output tail after that try is not covered. The re-run search (headers' first 80 lines holding `exit 2`, `exits 2` or `could not run`, over tracked non-test `.ts` under scripts/, install/ and hooks/) found no program beyond plan 37-20's class table; board-dashboard.ts states its exit-2 rule below line 80 (line 167) and is kept on the list. The phase-37 runnables (trace-render, state-check, state-roll) are covered by `scripts/runnable-ref/runnable-exit-contract.test.ts`.
   **Why deferred:** not phase-37 code and no 37-REVIEW finding, so out of gap round 1 scope (D-17). The harness `scripts/fault-inject.test-support.ts` (`runFaulted` with a `stdout-throw` spec) can drive the same table over these programs. For human triage.
   **37-42 round-4 note (2026-10-27):** plan 37-40 (G-37-2, D-21) removed one load-time cause of exit 1: a host whose package.json says `"type": "commonjs"` now gets `tools/grugops/package.json` with `"type": "module"`, and all seven programs run their own code there (reproduced by plan 37-42 on the committed install.js). Every other failure before a program's first line still exits 1, Node's uncaught-error code, which is the finding code WF05 and WF09 read: an older Node that cannot parse the programs, and a preload that throws. Re-run at a115bf38: `NODE_OPTIONS="--require <a file that throws>" node tools/grugops/state-check.js <repo>` exits 1 in a scratch install. No top-level try can map a throw that happens before the program's code runs. See the separate round-4 entries below for the other residuals of plan 37-40.
 
 - The progress classifier asks the section-extent owner once per `##` line, and the owner rescans the whole file each time, so state-check's progress read is quadratic in `##` lines
-  status: open
+  status: acknowledged
   **Found during:** plan 37-23, after Task 2 (a timing probe of the committed state-rules.js and frontmatter.js)
   **What:** plan 37-23 (WR-02) made `progressEntries(text, sectionEnd)` classify line `i` only when `sectionEnd(text, i, 2) === i`. `sectionEndIndex` calls `blockContextFlags(text)` over the whole text on every call, so the classification costs about (number of `##` lines) x (number of lines). Measured with every line a dated heading: 1,000 headings (23 KiB) 56 ms, 4,000 (97 KiB) 0.9 s, 16,000 (395 KiB) 14 s. state-check reads the progress file only when it is over BUDGETS.progressBytes (16,384 bytes), and its reader ceiling is 16 MiB, so a file several hundred KiB of `##` lines makes the daily sweep's state-check take minutes or longer. state-roll's planner already had the same shape before this plan (it asks the owner for each moved entry). A realistic progress file (a few hundred headings) takes well under 100 ms.
   **Why deferred:** a linear fix means changing the one LANG-07 owner (for example a one-entry memo of `blockContextFlags` per text inside `sectionEndIndex`) or the `SectionEndFn` contract shared with every caller. Both are outside plan 37-23's files and touch an owner many gates use. For human triage; no plan is assigned.
@@ -55,130 +55,130 @@
   **43-12 note (2026-11-18):** resolved. Plans 43-07 (examples 01-03) and 43-08 (examples 04 and 05) rewrote all five walkthroughs to v3: each shows the trace as rendered output from published note refs, and none keeps a hand-kept matrix. Plan 43-12 added examples/ to the hand-trace scan set in scripts/trace-instructions.test.ts (in `scanSet()` and in the per-directory second listing) and moved `SCAN_SET_SIZE` from 80 to 85, the size the case measured. The scan reports zero line hits and zero paragraph hits over the 85 files.
 
 - The validator's read primitives follow links and read a dangling link as absent
-  status: open
+  status: acknowledged
   **Found during:** plan 37-32, Task 3 (the round-2 close; the search was re-run at 54263121 before this entry was written)
   **What:** in `scripts/validate-agent-factory.ts`, `failure()` (line 179) maps ENOENT to `absent`. `statAt` (line 190, statSync), `textAt` (line 208, readFileSync) and `namesAt` (line 217, readdirSync) all follow a link, so a dangling link at a state path reads as absent. `lstatAt` (line 199) checks only the last path component. `canonicalBase` (line 579) falls back to `resolve(base)` when realpathSync gives ENOENT, so it never reports a dangling base or a dangling ancestor. This is the same class as CR-03 (READ-1: absence decided from a followed read), one program over.
   **Why deferred:** D-18 names the renderer, state-check and the embedded walk, so the validator is outside gap round 2 scope (plan 37-28 class table). The fix would route the validator's absence decisions through `entryPresence` in scripts/context-io.ts, the one absence owner, so that only an lstat ENOENT on the entry itself counts as absent. For human triage.
   **37-39 note (2026-10-24):** still open, re-searched at 1a05ebad: `failure()` at line 179, `statAt` 190, `lstatAt` 199, `textAt` 208, `namesAt` 217 and `canonicalBase` 579 are unchanged. It is the same class as CR-05 one program over: round 3 moved the three runnables onto the root-chain owner (a symbolic link anywhere on the path to a state path is refused), and the validator still follows a link on that path and reads what lies beyond it. Outside D-19.
 
 - Kit-side callers of readRegularFileOrNull read a dangling link's ENOENT as nothing there
-  status: open
+  status: acknowledged
   **Found during:** plan 37-32, Task 3 (`git grep -n readRegularFileOrNull -- '*.ts' ':!*.test.ts'`, re-run at 54263121)
   **What:** `readRegularFileOrNull` (scripts/context-io.ts:1380) returns null for an ENOENT from open(2). open(2) follows a link, so a dangling link gives the same null as a missing file. Since plan 37-30, the reader's comment says so: a caller must ask `entryPresence` first. These kit-side callers do not: the note destination and the note temp file in the write path (lines 1047 and 1048), the note destination in the promote route (line 1659), the GOV-02 audit ledger look (line 4465), the governance config read (line 6137), and the note file named on the command line (line 6617). The walk's own caller (line 2317) is not part of this entry: since plan 37-28 the walk asks `entryPresence` about the notes directory first (line 2280), and a null for one note file is the walk's `vanished` arm, which plan 37-21 counts as a read failure, not as no data. This is the WR-04 family (37-REVIEW-DISPOSITION.md).
   **Why deferred:** these callers are outside D-18 (the three host runnables and the embedded walk), so they are out of gap round 2 scope. For human triage.
   **37-39 note (2026-10-24):** still open, re-searched at 1a05ebad (`git grep -n readRegularFileOrNull -- '*.ts' ':!*.test.ts'`). The line numbers moved with round 3's context-io additions: the write path's note destination and temp file (1048, 1049), the promote route's destination (1660), the GOV-02 audit ledger (4632), the governance config read (6304), the note file named on the command line (6784); the walk's own note read is at 2451. Flagged at round 3 planning: below a context root, a note file that is a symbolic link is still opened through the link by readRegularFileOrNull with no boundary check (WR-04). That is the one position below a context root where D-20's premise (no link is followed on the way to a state path) does not hold, because D-20 covers the chain down to the context root, the notes directory and the task, not each note file. Outside D-19.
 
 - Pattern 4 of HAND_TRACE_PATTERNS still misses some ways of telling an agent to write the trace by hand
-  status: resolved (plan 37-39, D-19, WR-11, 2026-10-24: the four sentences are KNOWN_VIOLATIONS rows and each matches; the note and ref stop is narrowed to the route wording, a word ending in `'s` and a ticket id before the trace are caught, and copy and paste are verb groups. The shapes still let through are a new entry below)
+  status: acknowledged
   **Found during:** plan 37-32, Task 3 (probing the committed scripts/trace-model.js after Task 1)
   **What:** each of these sentences tells an agent to write the trace by hand, and none matches any pattern. (1) The note and ref stop applies to any use of those words between the verb and the trace, not just the sanctioned route: "Add a note to the trace file by hand." and "Update the release refs in the trace file." both pass. (2) The determiner list has no ticket id: "Write the PR link into ABC-1's trace." and "Update the ticket ABC-1 trace file." both pass. (3) The verb list is closed: "Copy the PR link into the trace." and "Paste the release id into the trace file." both pass. No live kit sentence has any of these shapes today: the scan set has 0 line hits and 0 paragraph hits.
   **Why deferred:** plan 37-32 says new adversarial findings go here for triage, with no fix beyond D-18's scope. A fix narrows the note and ref stop to the route wording (for example "as typed notes", "as refs on a note"), allows a ticket id before the trace, and adds verbs to HAND_TRACE_WRITE_VERBS. Each change needs a negative row and a control positive in EXCLUSION_CONTROLS or KNOWN_VIOLATIONS, as the current corpus has. For human triage.
 
 - Kit-side copies of the repository boundary predicate
-  status: open
+  status: acknowledged
   **Found during:** plan 37-39, Task 3 (search re-run at 1a05ebad before this entry: `git grep -n -E "insideRoot|startsWith\(...root...sep" -- '*.ts' ':!*.test.ts'`, outside the three runnables, plus a read of each installer hit)
   **What:** round 3 deleted the hand-written `insideRoot` copies from trace-render, state-check and state-roll, which now call the embedded `isWithin` from scripts/context-io.ts (IN-13). Other programs still decide "inside the repository" with their own test: `insideRoot` in scripts/board-read.ts:732 (called at :792 and :1068, and through scripts/board-dashboard.ts:969); the root-prefix tests in install/install.ts:1228 (`resolvedDir.startsWith(resolvedTarget + sep)`), :2975 (`within`), :3328 and :918/:1046 (relative-path forms), and install/uninstall.ts:405; and scripts/runnable-ref/uat-spec-integrity.ts:2112-2114 (`candidate.startsWith(resolvedRoot + sep)` and the realpath twin). This is the IN-13 class outside the three runnables.
   **Why deferred:** D-19 names the three runnables only; these programs are out of round 3 scope. A fix routes each through one owner (context-io's `isWithin`, or a shared module the installer can import) with a test for a root that ends in a separator. For human triage.
 
 - Hand-trace shapes pattern 4 still lets through
-  status: open
+  status: acknowledged
   **Found during:** plan 37-39, Task 1 (the planning trial's residual list, re-probed on the committed scripts/trace-model.js at b41bb2ee)
   **What:** each of these sentences tells an agent to write the trace by hand, and none matches any HAND_TRACE_PATTERNS member: the passive voice ("The trace file is edited by hand."), a comma-separated list of objects ("Append the PR link, the release id and the test path to the trace.", stopped by the comma-and-determiner list-item rule), `rendered trace files` as a determiner-less object ("Edit rendered trace files by hand.", the `rendered` exclusion), and verbs outside HAND_TRACE_VERB_GROUPS ("Duplicate the PR link into the trace.", "Type the release id into the trace file.", "Fix the trace file by hand."). No live kit sentence has any of these shapes: the 77-file scan set has 0 line hits and 0 paragraph hits.
   **Why deferred:** outside D-19's list (the 24 WR-11 sentences). A fix is a passive-voice pattern, a list-aware object rule, and more verb groups, each with a negative row and a control positive. For human triage.
   **37-42 note (2026-10-27):** re-probed on the committed scripts/trace-model.js at a115bf38. The comma list of objects ("Append the PR link, the release id and the test path to the trace.") is caught again: plan 37-42 removed the comma-and-determiner rule (WR-12). Still let through: the passive voice, "Edit rendered trace files by hand.", "Duplicate the PR link into the trace.", "Type the release id into the trace file." and "Fix the trace file by hand.". The round-4 entries below list the rest, including one shape the WR-12 fix newly lets through.
 
 - A link at .grugops/queue is refused as the parent of the queue-done folder
-  status: open
+  status: acknowledged
   **Found during:** plan 37-35, Task 1 (flagged row; carried here by plan 37-39)
   **What:** with `.grugops/queue` an in-root link to the moved queue directory, state-check prints `FINDING .grugops/queue/done: the directory was not listed: .grugops/queue is a symbolic link, and no symbolic link below the repository root is followed on the way to a state path (move-only-unlisted)` and exits 1. Before plan 37-35 the link was followed and the folder listed. `.grugops/queue` is not on D-20's list of root-chain positions (context roots, the trace directory, the state-roll directories); the refusal comes from locate asking the root-chain owner about every state path's parent chain.
   **Why deferred:** a rule change past D-20's list. For the human to keep or reverse.
 
 - A link at a folder state-check lists is refused as the folder, and no file beneath it is read
-  status: open
+  status: acknowledged
   **Found during:** plan 37-35, Task 1 (flagged row; reproduced by plan 37-39 Task 3 on the committed state-check.js)
   **What:** for the tickets, NFR, queue-done and decisions folders and their archives, a symbolic link at the folder (even one to an in-root folder) is now one finding for the folder: `memory-bank/plans/tickets: not measured, budget 65,536 bytes (BUDGETS.ticketBytes) — the directory was not listed: memory-bank/plans/tickets is a symbolic link, ...`. Round 2 listed through an in-root link and measured each file, so an over-budget ticket beneath a linked folder (65,537 bytes in the reproduction) is no longer reported by name until the link is replaced with the folder. The folder finding says why.
   **Why deferred:** a leaf-rule change made by plan 37-35 under D-20, flagged there. For the human to keep or reverse.
 
 - State-check stops at the layout marker for a link at memory-bank or memory-bank/plans
-  status: open
+  status: acknowledged
   **Found during:** plans 37-33, 37-35 and 37-38 (carried here by plan 37-39; reproduced in Task 3)
   **What:** a symbolic link at `memory-bank` or `memory-bank/plans` (any target, resolving or not) makes state-check exit 2 at the layout marker: `cannot use the layout marker memory-bank/plans/.layout: memory-bank is a symbolic link, ... The state check did not run.` That is not the trace-not-compared finding D-20 names for a link on the root chain, but it is never a pass and never WARN mode: the marker read comes first, and a marker that cannot be read is a could-not-run (STATE_CHECK_MARKER_POSITIONS in read-sites.test.ts pins it).
   **Why deferred:** the outcome differs from D-20's wording. For the human to confirm.
 
 - A backslash in a state-path file name is refused by name (trace-render and state-check)
-  status: open
+  status: acknowledged
   **Found during:** plan 37-34, Task 1 (Deviation 1) and plan 37-35, Task 1 (Deviation 2)
   **What:** a trace-directory file whose name holds a backslash (`memory-bank/plans/traceability/a\b.md`) now makes trace-render exit 2 (since plan 37-34) and state-check exit 2 (since plan 37-35), both naming the file: `cannot resolve the trace file ...: context-io: the state path ... it holds a backslash.` Before, trace-render `--check` gave exit 1 `EXTRA`, the write mode removed the file, and state-check gave exit 1 trace-stale `extra`. A record in a listed folder (tickets, NFR, trace directory) whose name holds a backslash is now one unmeasured finding naming it, where it used to be measured. The two runnables agree. Both rows are skipped on win32, where a backslash is a separator (Windows is out of scope).
   **Why deferred:** the refusal follows the state-layout ENCODING rule, which rootChainOf enforces, but it changes an outcome outside D-19's list. For the human to confirm keeping the refusal.
 
 - A regular file at a context root or the trace directory stops state-check (exit 2), not only the trace comparison
-  status: open
+  status: acknowledged
   **Found during:** plan 37-38, Task 1 (Deviation 2, coverage D5)
   **What:** a regular file at `.grugops/context`, `.grugops/archive/context` or `memory-bank/plans/traceability` makes state-check exit 2 with `the context root <p> is present and is not a directory` (or `the trace directory <p> ...`), `The state check did not run.` Plan 37-38 derived exit 1 with a trace-not-compared finding there. The committed outcome follows plan 37-33's rule ("refused at the trace directory stays could-not-run"), and the read-sites table pins exit 2. Separately, the file, listing and file-follow kinds still accept plan 37-31's either-or for state-check (exit 2 by name, or exit 1 with trace-not-compared); round 3 did not change those outcomes, so they are not pinned to one.
   **Why deferred:** human decision: should a non-directory context root stop state-check entirely (exit 2, current) or only stop the trace comparison (exit 1)? And should the either-or kinds be pinned?
 
 - The ticket-reader census in validate.test.ts counts test titles that name a ticket key, and a tracer verify can skip check-state-paths
-  status: open
+  status: acknowledged
   **Found during:** plan 37-36 (Deviations 2 and 3, and its handover)
   **What:** (1) the census in scripts/validate.test.ts counts a test file as a ticket-reader carrier when a test title names a ticket key, so a runnable test file that already says "column" trips it the next time a title says "status"; plan 37-36 reworded two titles to stay green. (2) Plan 37-36's Task 1 `<verify>` did not run `check-state-paths`, so commit 8f4b1352 went in with that gate failing (fixed in 7a990c31). Plan 37-39 ran check-state-paths and validate.test.ts before each commit, since its new KNOWN_VIOLATIONS titles name ABC-1.
   **Why deferred:** a census scope question and a plan-template question, both outside D-19. For human triage.
 
 - IN-09: a badly named task directory gets the "until they can be read" wording, and a mode-0444 context root names the task's notes
-  status: open
+  status: acknowledged
   **Found during:** plan 37-37 (its handover)
   **What:** (1) a task directory whose name the context-io rule refuses (`my task`) still blocks every render, and the state-check note says `the render refuses to run until they can be read`. The fix the human needs is a rename, which the wording does not name (37-REVIEW-DISPOSITION.md IN-09). (2) For an entry whose own lstat fails (a context root at mode 0444), state-check says "this task's notes could not be read", though the entry itself is what could not be inspected. Plan 37-37 kept that wording on purpose (`link` false: it may be a task).
   **Why deferred:** IN-09 is outside D-19's list; the second wording is a triage call. For human triage.
 
 - Round 4 (plan 37-40 residual): a host workspace glob such as `tools/*` reads `tools/grugops/package.json`, a package file with no `name`
-  status: open
+  status: acknowledged
   **Found during:** plan 37-40 (its residuals for the round gate), re-checked by plan 37-42 Task 3
   **What:** the package file install writes beside the programs holds only `{"type":"module"}`. A host whose own package.json declares npm or pnpm workspaces with a glob such as `tools/*` would see `tools/grugops/` as a workspace package. Checked by plan 37-42 in a scratch directory, npm 11.20.0 only, offline: `npm install` with `"workspaces": ["tools/*"]` exits 0, names the workspace after its folder, and links `node_modules/grugops` to `tools/grugops`. pnpm and yarn are `UNKNOWN - verify`. Whether a link named `grugops` in a host's node_modules does any harm is `UNKNOWN - verify` too.
   **Why deferred:** outside D-21 (G-37-2 is the commonjs-host load failure only). For human triage: options include giving the file a `name` and `"private": true`, or documenting the interaction.
 
 - Round 4 (plan 37-40 residual): uninstall keeps a program the user edited but removes `tools/grugops/package.json`
-  status: open
+  status: acknowledged
   **Found during:** plan 37-40 (its residuals for the round gate)
   **What:** uninstall removes each file by its record and keeps a file that no longer holds what install wrote. A program under `tools/grugops/` that the user edited is kept, and the package file beside it (unedited) is removed. On a host whose package.json says `"type": "commonjs"`, the kept program then stops at its first import with exit 1 (the G-37-2 failure again, for that one program).
   **Why deferred:** outside D-21. A fix would keep the package file while any program beside it is kept. For human triage.
 
 - Round 4 (plan 37-40 residual): a repository installed before plan 37-40 gets `tools/grugops/package.json` only when install is run again, and no `--check` line names the file
-  status: open
+  status: acknowledged
   **Found during:** plan 37-40 (its residuals for the round gate)
   **What:** an install made before the fix has no package file, so on a commonjs host its programs still exit 1 on load until install runs again. `install --check` has no line for the file: the human dropped that line on 2026-10-26 (D-21 as amended). The CHANGELOG `## [Unreleased]` `### Fixed` entry written by plan 37-42 tells such a repository to run install again.
   **Why deferred:** the human's decision (D-21 as amended). It is listed here so the open gap stays visible; the human can close it as accepted.
 
 - Round 4 (plan 37-41 residual): state-check reads the layout marker through an in-root link at its own path
-  status: open
+  status: acknowledged
   **Found during:** plan 37-41 (its round-gate list), source re-read by plan 37-42 at a115bf38
   **What:** State-check reads the layout marker through an in-root link at its own path (plan 37-04's file-follow rule, kept by D-21; the only state file any runnable reads through a leaf link). It is the one member of `LEAF_LINK_READ_THROUGH` in scripts/runnable-ref/state-check.ts (line 2110 at a115bf38). Since plan 37-41, the board, the trace index and the NFR catalog are refused with exit 2 at the same position.
   **Why deferred:** D-21 kept the rule and asked for it to be flagged. For the human to keep or reverse.
 
 - Round 4 (plan 37-41 residual): a board or index link that points outside the repository gives exit 1 in state-check but exit 2 in state-roll and trace-render
-  status: open
+  status: acknowledged
   **Found during:** plan 37-41 (an observation outside D-21), reproduced by plan 37-42 Task 3 on copies of the committed runnables
   **What:** with `memory-bank/plans/board.md` a link to a regular file outside the root (a board with 25 Done rows), state-check exits 1 with `FINDING memory-bank/plans/board.md: not measured, budget 24,576 bytes (BUDGETS.boardBytes) — it resolves outside the repository root, so it was not read`, and prints no ROLLABLE line. `state-roll --dry-run` exits 2 with `memory-bank/plans/board.md resolves outside the repository root, so it was not read. Nothing was rolled.`. Plan 37-41 recorded trace-render's exit 2 for the trace index in the same shape. Nothing is read through, and state-check is never a pass. Still, the runnables answer the same path with two exit codes, which is the IN-14 class with an outside target.
   **Why deferred:** outside D-21 (IN-14 named the in-root link). For human triage: one answer would be exit 2 in state-check too, as for the in-root link.
 
 - Round 4 (plan 37-41 residual): scripts/claim.ts holds a second copy of the task-name rule
-  status: open
+  status: acknowledged
   **Found during:** plan 37-41 (sibling table 1), search re-run by plan 37-42 (`git grep -n "TASK_NAME_RE\b\|function assertSafeTask" -- scripts/claim.ts scripts/context-io.ts`)
   **What:** scripts/claim.ts declares its own `TASK_NAME_RE = /^[A-Za-z0-9._-]+$/` (line 68) and `assertSafeTask` (line 69), and tests the regex again at lines 188 and 284. scripts/context-io.ts declares the same pair at lines 127-128. The two copies agree today and no test holds them equal (AUTH-1: one authority per rule).
   **Why deferred:** outside D-21. A fix imports the rule from one owner, or adds a test that holds the two equal. For human triage.
 
 - Round 4 (plan 37-41 residual): scripts/nonblocking-reader-parity.test.ts needs the gitignored `.temp/` directory to exist
-  status: open
+  status: acknowledged
   **Found during:** plan 37-41 (its mid-run failures), re-read by plan 37-42
   **What:** the test calls `mkdtempSync(join(ROOT, ".temp", ...))` (lines 469, 487, 525, 551 and 578 at a115bf38) and never creates `.temp/` first. `.temp/` is in .gitignore, so a fresh clone, or a run after another task removed the directory, fails 18 of its cases with ENOENT; a run passes only when the directory exists or an earlier test in the same run created it.
   **Why deferred:** a test-premise fix outside D-21 (one `mkdirSync(join(ROOT, ".temp"), { recursive: true })` before the first mkdtemp). For human triage.
 
 - Round 4 (plan 37-42, SCAN-1 siblings): the exclusions left in pattern 4 each let some hand-write sentences through (the WR-13 family, accepted by the human)
-  status: open
+  status: acknowledged
   **Found during:** plan 37-42, Task 1 step 6 (each sentence probed on the committed scripts/trace-model.js at a115bf38; each matches none of the four HAND_TRACE_PATTERNS)
   **What:** inside pattern 4's run between the verb and the trace, three lookaheads remain, each checked at every step of the run: the route wording `as (typed|published) notes|refs` ("Add the PR link as refs to the trace file by hand." passes), the route wording `on a|the|each <word> note` ("Write the release on a note and in the trace file by hand." passes), and `because` ("Append, because the render is late, the PR link to the trace." passes). The run's clause bound (a newline, a semicolon, a sentence-ending dot, a colon before a space) lets a colon clause through ("Record the release: the trace file gets the PR link."). Outside the run: the negation lookbehinds ("Whether or not edit the trace file by hand, the board moves."), the `render` subject ("After the render update the trace file by hand."), the hyphen tail ("Re-edit the trace file by hand."), `nothing` after the verb ("Add nothing but the PR link to the trace file."), the copula ("Append the PR link to what is the trace."), the conjunction in the word run ("Append the link to the board and trace."), `trace render` after the noun ("Update the trace render output by hand."), and `trace back` or `trace forward` ("Append the PR link to the trace forward of the release."). The live 77-file scan set has 0 line hits and 0 paragraph hits.
   **Why deferred:** WR-13 (a hand-enumerated verb and noun list over an open set) is accepted by the human (37-REVIEW-DISPOSITION.md), and D-21 limits round 4 to WR-12's fix. No exclusion was added or widened for these. For human triage, with WR-13.
 
 - Round 4 (plan 37-42, new finding): the WR-12 fix's `rendered` rule newly lets "Edit the rendered trace files by hand." through
-  status: open
+  status: acknowledged
   **Found during:** plan 37-42, Task 1 step 6 (probed on scripts/trace-model.js at 1a21b119, before the fix, and at a115bf38, after it)
   **What:** the reviewer's fix (37-REVIEW.md WR-12) puts `(?<!\brendered )` before `traces?` in the determiner alternative, as the determiner-less alternative already had. Pattern 4 no longer sees a trace named `rendered` in either alternative. At 1a21b119, "Edit the rendered trace files by hand." and "Update the rendered trace index by hand." matched pattern 4; at a115bf38 neither matches any pattern. The determiner-less "Edit rendered trace files by hand." already passed before (the entry "Hand-trace shapes pattern 4 still lets through"). This is the "created by the previous fix" shape again, one word over: the rule removes the commit-convention lines `... and the rendered trace files.` and admits every instruction aimed at the rendered trace. scripts/trace-model.ts's docblock states this admission. No live kit sentence has this shape (0 line hits, 0 paragraph hits).
   **Why deferred:** round 4 is the last on the cap. D-21 prescribes the reviewer's fix, and a narrower `rendered` rule (for example one that keeps a write verb aimed at `the rendered trace` a hit) widens the scan past WR-12, which the plan forbids. For the human, with WR-13.

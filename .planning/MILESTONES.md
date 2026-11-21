@@ -1,5 +1,38 @@
 # Milestones
 
+## v3.0 Specialist agents. Shared context. Coordinated work. (Shipped: 2026-11-21)
+
+**Phases completed:** 10 phases (35, 36, 37, 38, 39, 40, 41, 42, 43, 43.1), 182 plans, 423 tasks
+**Git:** `v2.2..0a2d0496`: 1,396 commits, 785 files changed outside `.planning/` (+115,947 / −8,241) · 2026-10-20 → 2026-11-21
+**Audit:** `tech_debt`: 51/51 requirements satisfied, 11/12 cross-phase links wired, 3/4 E2E flows complete (the old-layout upgrade flow ends in `state-check` exit 1 by design until the board is trimmed); Nyquist 7 compliant, 2 not validated (35, 36). Audited 2026-11-18, before Phase 43.1 closed its 12 P1 items. Archived: `milestones/v3.0-MILESTONE-AUDIT.md`
+**Closeout type:** `override_closeout`, accepted by the human at close (2026-11-21). Phases 35 and 43.1 project as verified. Phases 36–43 read `passed`, but their reports are stale: later phases changed files they covered, and none was re-run.
+**Known verification overrides:** 60 newly acknowledged, 191 carried forward from a prior close (see STATE.md Deferred Items). A further **696 deferred items** could not be acknowledged by the CLI writer, because each sits in a GFM table row (v2.1 phase 27: 544, 33.1: 58, 30: 30, 32: 20, 34.1: 18, 29.2: 17, 29.1: 8; v3.0 phase 36: 1). They stay open and resurface in later audits. Every item open at the audit has a verdict in `.planning/v3.0-DEFERRED-TRIAGE.md`.
+**CI at close:** ubuntu green on main (run 44882392482, head `0a2d0496`), for the first time since 2026-09-28; windows-latest red (`.planning/WINDOWS.md`, 260 open rows, deferred by the human).
+**Artifact version:** unchanged at `2.2.0`. The v3.0 changes sit under CHANGELOG `[Unreleased]`; the `v3.0` tag marks the milestone, not a published SemVer release.
+
+**Delivered:** The milestone that made grugops easier to read and kept its state files small. The dogfood repo's state had grown to a 718 KB board, 1.9 MB of traceability and a 369 KB NFR catalog, because agents used the board as their in-flight log and hand-appended to generated files. v3.0 moved planning state under `memory-bank/plans/` behind one path authority, split it into one file per record with small indexes and byte budgets, and migrates existing repos without deleting anything. It added a Tech Lead that sizes work for three engineer levels and a Designer, rewrote every role in plain English, gave the Orchestrator one flow home that keeps capacity full, let roles declare skills, and retold the story with layered docs. Graph memory was decided against, not built.
+
+**Key accomplishments:**
+
+- **Graph memory decided against (Phase 35)** — five graph and code-index tools were evaluated; every one needs Python, SQLite or a graph database, so nothing is built or reserved. `35-DECISION.md` records what a user may do with such a tool themselves and the event-based trigger that reopens the question.
+- **State layout and per-record files (Phases 36–37)** — `install/state-layout.ts` is the one constants-only spelling of every state path, and prune and uninstall loop over its `STATE_ROOTS`. The board is a one-line-per-ticket overview with detail in the ticket body. NFRs and traceability are one file per record with one-line indexes, and trace files are rendered from published note refs. Nine byte budgets have one owner (`scripts/state-rules.ts`) and are checked by the validator and, in host repos, by the installed `tools/grugops/state-check.js` from the PR gate. `state-roll.js` moves old Done rows and progress entries to an archive and never deletes.
+- **`install --migrate` to v3 (Phase 38)** — one command moves an old-layout repo: `--dry-run` lists every move and split with byte counts, originals stay unchanged in `memory-bank/plans/archive/pre-v3/`, line conservation is proven and rolled back on failure, and a second run is a byte-identical no-op. Dogfooded on a scratch copy of the real pre-v3 repo.
+- **Tech Lead, three engineer levels and a Designer (Phase 39)** — the Tech Lead scores each ticket and names the level; one `software-engineer.md` yields junior, mid and senior Claude Code adapters (haiku/xhigh, sonnet/high, opus/medium, confirmed live on 2026-10-31). A Designer role sets product-wide design guidelines. Workflow 04's blocked-ticket loop sends a ticket to the role that can fix the cause and asks a named human only for fundamental changes or unsettled disputes.
+- **Plain-language roles (Phase 40)** — the caveman voice constraint was retired in one atomic change, and all 19 roles plus the role-switch protocol were rewritten in clear, compact English: 59,793 bytes of a 67,383-byte corpus budget, with per-role ceilings, every load-bearing rule kept, and "do less" rules adapted from ponytail (MIT).
+- **Orchestrator flow and skills (Phases 41–42)** — Workflow 17 is the one flow home: `now-running.md`, rendered from `claimed/`, is the only in-flight log, and the Orchestrator refills from `claim.js free` and knows when to start a fresh session. Roles write with `tools/grugops/note.js`. A role may declare a skill with a built-in fallback, and `install --check` warns on one no host holds; the written evaluation of six third-party skills ratified none.
+- **Story, layered docs and P1 debt (Phases 43, 43.1)** — the README tells the new story, the main docs explain how grugops works with worked examples, and every agent and skill has a generated, freshness-gated reference page. Phase 43.1 closed the audit's 12 P1 items: CI's archived-path readers were fixed, the installed checker no longer matches `node --test`, the production floor states its credential and OIDC conditions everywhere, and the kit-home overlap check compares device and inode (confirmed on a real Mac firmlink).
+
+### Known Gaps
+
+- **Stale verification, phases 36–43** — reports read `passed`; none was re-run after later edits.
+- **RUN-04** — Workflow 17 ran live on Claude Code only; the other five hosts and the Windows run of `note.js` are unrun (`UNKNOWN - verify`).
+- **Migrate → PR gate** — a freshly migrated repo fails `state-check` until trimmed (29 budget findings on the chess fixture, 219 on the full example), by design; the public docs never mention `install --migrate`.
+- **SKILL-05** — no role declares `skills:`, so the missing-skill warning is exercised only by tests.
+- **Deferred:** 105 triaged items still open or unclear (31 P2, 74 P3), the Phase 43.1 review findings deferred as P2 by the human, and Nyquist drafts for phases 35 and 36.
+- **Carried from v2.1, not scheduled in v3.0:** GAP-D1 own-session spawn capture (CAP-01/03, SPAWN-03), KIT-03/SPAWN-04 promotion, UATX-01/06, Windows (CAP-02, HOST-02), backlog 999.1–999.13.
+
+---
+
 ## v2.1 Autonomous Factory — Real Spawning, Controlled Language & Live Board (Shipped: 2026-10-18)
 
 **Phases completed:** 13 phases (27, 28, 29, 29.1, 29.2, 30, 31, 32, 32.1, 33, 33.1, 34, 34.1), 453 plans, 1,024 tasks

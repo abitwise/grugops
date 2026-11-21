@@ -2,36 +2,36 @@
 gsd_state_version: "1.0"
 milestone: v3.0
 milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: "43.1"
-status: completed
-stopped_at: Phase 43.1 complete — all phases complete
-last_updated: "2026-11-21T07:52:45.719Z"
+status: Awaiting next milestone
+stopped_at: Milestone v3.0 completed and archived
+last_updated: "2026-11-21T08:26:27.130Z"
 last_activity: 2026-11-21
-last_activity_desc: Phase 43.1 complete
-state_head: dca508ba8ad85d86c0086f1244ef8b0c5501a582
+last_activity_desc: Milestone v3.0 completed and archived
+state_head: 0a2d0496e906fea62ceb113f1d3059634f6007be
 progress:
   total_phases: 10
   completed_phases: 10
   total_plans: 182
   completed_plans: 182
   percent: 100
+current_phase: "43.1"
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-21 after Phase 43.1)
+See: .planning/PROJECT.md (updated 2026-11-21 after the v3.0 milestone)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Milestone v3.0 complete (all 10 phases) — ready for `/gsd-complete-milestone v3.0`
+**Current focus:** Planning the next milestone. v3.0 shipped 2026-11-21 (`override_closeout`); start with `/gsd-new-milestone`, phases continue from 44
 
 ## Current Position
 
-Phase: 43.1
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-11-21 — Phase 43.1 complete
+Phase: Milestone v3.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-21 — Milestone v3.0 completed and archived
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -2545,7 +2545,7 @@ None yet.
 - **[Phase 36] Open code-review warnings** — WR-01 (old-spelling gate misses end-of-path and `_plans` forms), WR-02 (`check-state-paths` passes vacuously from a subdirectory), WR-03 (uninstall banner lists `.grugops/` as preserved, then removes `.grugops/install.json`), plus IN-01..04, all open in `36-REVIEW-DISPOSITION.md`. WR-04 (two-root `--migrate` dead end) is pinned to Phase 38 SC 6 / MIGRATE-04. 36-VALIDATION.md is still draft (Nyquist audit not run).
 - **[v2.0] `windows-latest` CI leg is RED** on 3 test files (9 failures). 7 are harness/fixture artifacts (path-separator assertions, a CRLF token, a symlink-privilege fixture, an unbuildable old-layout fixture cascading into 2 more); 2 are a real Windows limitation of the ubuntu-scoped freshness mirror-rebuild. **Zero failures in the v2.0 substrate.** MIGR-04's Windows case is *unverified, not disproven* — its test fails as a cascade of the unbuildable fixture (empty output = the migrate never ran). The cross-platform-including-Windows constraint makes fixing this a standing obligation, not optional.
 - **[v2.0] `orchestrator.md` is 7562B against a 7165B `guard_role_size` WARN threshold and grows every phase** — it is the PAR-01..04 coordinator spine, so accretion is structural, not incidental. Five other roles (brownfield-mapper, frontend-ui, greenfield-mapper, qe-e2e, security-nfr) also sit near the ceiling. Advisory today (`check-foundation-guards` exits 0); a hard FAIL on the current trajectory. Trim or split **before** adding to it.
-- **[v2.0] `CLAUDE.md` drift** — the repo's project-instructions file still describes "handoff packets" and an Orchestrator that "routes work"; v2.0 deleted all 17 handoff templates (MIGR-02) and redefined the Orchestrator as a decomposer (PAR-01). It governs agent behavior repo-wide, so it was deliberately left for an explicit reconciliation rather than rewritten during the close.
+- ~~**[v2.0] `CLAUDE.md` drift**~~ — resolved in v3.0: Phase 28 removed the handoff/router text, and Phase 43 (STORY-05) and 43.1 (IN-04) made it name the shipped `/grugops` commands and `grugops-orchestrator`.
 - **[v2.0] GAP-D1** — the A3/DOG-02 retirement flip and its coupled `examples/03-ticket-to-pr.md` edit wait on ONE captured live dual-path run on an authed box. A loud-skip is never a capture (D-01/D-02); cost never gates it (D-11). Oldest open item in the project.
 
 **Standing invariants — violate these and something silently breaks:**
@@ -2600,19 +2600,75 @@ None yet.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 261018-0o7 | README launch section: claude --agent grugops-orchestrator + per-host start table | 2026-10-18 | 00833be8 | [261018-0o7-readme-launch-section-claude-agent-grugo](./quick/261018-0o7-readme-launch-section-claude-agent-grugo/) |
-| 261018-hs8 | Launch agents for OpenCode, Copilot CLI, Antigravity CLI and Pi; ship MIT LICENSE+NOTICE; D-06 fix pass (verified: Needs Review, live host runs UNKNOWN - verify) | 2026-10-18 | 8add25a0 | [261018-hs8-launch-agent-adapters-for-opencode-copil](./quick/261018-hs8-launch-agent-adapters-for-opencode-copil/) |
-| 261018-vfm | Launch-agent live-run results: launch form typed command/panel; OpenCode via /agents panel (no --agent); Antigravity CLI, OpenCode, Pi verified live 2026-10-18; Copilot CLI UNKNOWN - verify | 2026-10-19 | 498000fc | [261018-vfm-launch-agent-live-run-results](./quick/261018-vfm-launch-agent-live-run-results/) |
-| 261019-faq | Fix review WR-07 and WR-08: --check launch-file lines check route resolution and share one ownership rule with install's closing line | 2026-10-19 | b40ef825 | [261019-faq-fix-review-wr-07-and-wr-08-check-launch-](./quick/261019-faq-fix-review-wr-07-and-wr-08-check-launch-/) |
-| 261019-i3g | Review WR-09 IN-12 IN-13: closing line gives launchOwned's cause; provenance line names only forms given; launch pair held by the type | 2026-10-19 | 33de910e | [261019-i3g-review-wr-09-in-12-in-13-closing-line-ow](./quick/261019-i3g-review-wr-09-in-12-in-13-closing-line-ow/) |
-| 261019-ktd | Review WR-05 WR-06 WR-10 IN-14: live-run state on every --check launch line; host versions recorded; verified-live claims checked against the registry | 2026-10-19 | 0b5d9066 | [261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-](./quick/261019-ktd-review-wr-05-wr-06-wr-10-in-14-live-run-/) |
-| 261019-mq1 | Review hs8 leftovers: Pi trust warning, case-insensitive Pi guard, canonical YAML values, doc lists checked against the registry, CLAUDE.md launch files | 2026-10-19 | 598da0be | [261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-](./quick/261019-mq1-review-hs8-leftovers-wr-02-remainder-wr-/) |
-| 261030-fzo | Phase 39 follow-ups: raise tech-lead role ceiling to 4000 B, align notify wording with Workflow 04, explain escalate_unadjudicable_result | 2026-10-30 | aa21a823 | [261030-fzo-phase-39-follow-ups-raise-tech-lead-role](./quick/261030-fzo-phase-39-follow-ups-raise-tech-lead-role/) |
-| 261031-nd9 | Write the 39-UAT D1-D3 human decisions into WF04 steps 15-17, tech-lead.md, factory.config and the text checks | 2026-10-31 | f97c3985 | [261031-nd9-write-the-39-uat-d1-d3-human-decisions-i](./quick/261031-nd9-write-the-39-uat-d1-d3-human-decisions-i/) |
-| 261031-oxi | Close the 7 WF04 hand-off loop defects found by the 39 scenario re-trace | 2026-10-31 | 595c088a | [261031-oxi-close-the-7-wf04-hand-off-loop-defects-f](./quick/261031-oxi-close-the-7-wf04-hand-off-loop-defects-f/) |
-| 261031-rhv | Close WF04 hand-off loop re-trace defects R1-R4 | 2026-10-31 | 9e08db1b | [261031-rhv-close-wf04-hand-off-loop-re-trace-defect](./quick/261031-rhv-close-wf04-hand-off-loop-re-trace-defect/) |
 
 ## Deferred Items
+
+### v3.0 milestone close (2026-11-21)
+
+Items acknowledged and deferred at the **v3.0 milestone close on 2026-11-21** through the `audit-open acknowledge` writer (60 items: phase 37: 27, 41: 15, 40: 8, 39: 4, 38: 2, 43: 2, 42: 1, v2.1 phase 27: 1; closeout `override_closeout`, accepted by the human). 191 items acknowledged at the v2.1 close stay suppressed. **696 further deferred items could not be acknowledged**: each sits in a GFM table row, which the writer will not anchor a write to (v2.1 phase 27: 544, 33.1: 58, 30: 30, 32: 20, 34.1: 18, 29.2: 17, 29.1: 8, v3.0 phase 36: 1). The human chose to proceed and record them. They remain open in their `deferred-items.md` files and will resurface in later audits. Every one of the 768 items open at the audit has a verdict in `.planning/v3.0-DEFERRED-TRIAGE.md` and `.planning/v3.0-deferred-triage.jsonl`.
+
+| Category | Item | Status | Deferred At | Milestone |
+|----------|------|--------|-------------|-----------|
+| deferred_items | 37/deferred-items.md: checkTickets in scripts/validate-agent-factory.ts opens every ticket .md with readFileSync, so a FIFO at a tic… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: The progress roll (plan 37-11) needs each dated entry's extent, and LANG-07 allows that question exactly one o… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: node scripts/check-diff-disposition.js exits 1 on the live tree with 707 findings over 40 watched files status… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: The ubuntu-block reader census in scripts/check-foundation-guards.test.ts (UBUNTU_BLOCK_READER_COUNT, the clas… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: EXIT-1 siblings outside phase 37 status: open Found during: plan 37-20, Task 2 (the EXIT-1 class search, re-ru… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: The progress classifier asks the section-extent owner once per ## line, and the owner rescans the whole file e… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: The validator's read primitives follow links and read a dangling link as absent status: open Found during: pla… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Kit-side callers of readRegularFileOrNull read a dangling link's ENOENT as nothing there status: open Found du… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Pattern 4 of HAND_TRACE_PATTERNS still misses some ways of telling an agent to write the trace by hand status:… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Kit-side copies of the repository boundary predicate status: open Found during: plan 37-39, Task 3 (search re-… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Hand-trace shapes pattern 4 still lets through status: open Found during: plan 37-39, Task 1 (the planning tri… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: A link at .grugops/queue is refused as the parent of the queue-done folder status: open Found during: plan 37-… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: A link at a folder state-check lists is refused as the folder, and no file beneath it is read status: open Fou… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: State-check stops at the layout marker for a link at memory-bank or memory-bank/plans status: open Found durin… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: A backslash in a state-path file name is refused by name (trace-render and state-check) status: open Found dur… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: A regular file at a context root or the trace directory stops state-check (exit 2), not only the trace compari… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: The ticket-reader census in validate.test.ts counts test titles that name a ticket key, and a tracer verify ca… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: IN-09: a badly named task directory gets the "until they can be read" wording, and a mode-0444 context root na… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-40 residual): a host workspace glob such as tools/* reads tools/grugops/package.json, a packa… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-40 residual): uninstall keeps a program the user edited but removes tools/grugops/package.jso… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-40 residual): a repository installed before plan 37-40 gets tools/grugops/package.json only w… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-41 residual): state-check reads the layout marker through an in-root link at its own path sta… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-41 residual): a board or index link that points outside the repository gives exit 1 in state-… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-41 residual): scripts/claim.ts holds a second copy of the task-name rule status: open Found d… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-41 residual): scripts/nonblocking-reader-parity.test.ts needs the gitignored .temp/ directory… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-42, SCAN-1 siblings): the exclusions left in pattern 4 each let some hand-write sentences thr… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 37/deferred-items.md: Round 4 (plan 37-42, new finding): the WR-12 fix's rendered rule newly lets "Edit the rendered trace files by … | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 38/deferred-items.md: A code span holding <!-- RUN --> in a Done board row blocks the whole Done roll status: open What: found by th… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 38/deferred-items.md: The rendered trace depends on which context root holds a task status: open What: found by the plan 38-11 dogfo… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 39/deferred-items.md: Pre-existing suite reds from archived phase directories (found during plan 39-01, Task 1) status: open What: s… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 39/deferred-items.md: Pre-existing install/installer-fs-census.test.ts red on Node 26 (found during plan 39-01, Task 1) status: open… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 39/deferred-items.md: Environmental scripts/check-foundation-guards.test.ts red from the stray untracked ~/ directory at the repo ro… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 39/deferred-items.md: Stale scripts/checkpoints.ts comments after the G-39-71 hand-off rewrite (found during plan 39-19, Task 1) sta… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: From plan 40-07 - docs/audit/28-claim-registry.md mechanism text quotes Orchestrator wording that the 40-07 re… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: From plan 40-09 - scripts/check-foundation-guards.test.ts > "every remaining floor item's LIVE COUNT is DERIVE… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: From plan 40-13 - Full suite (npx vitest run --exclude '/scripts/e2e/', 1,371 s) shows 15 failures beyond the … | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: From the gap round (plans 40-11 to 40-16) - WR-03 (deferred to the backlog; candidate: Phase 41 flow guidance)… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: From plan 40-19 - The full suite with the e2e lane included (npx vitest run, 1,368 s) shows 25 failures: the 2… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: From gap round 2 (plans 40-17 to 40-21) - (a) WR-01 second floor, deferred by the human's 2026-11-02 instructi… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: From gap round 3 (plans 40-22 to 40-25) - IN-06: the fact patterns were widened to fit the normalized form, wh… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 40/deferred-items.md: Accepted at phase close (2026-11-04) - CR-05 (round-3 review): a "kept" disposition row matches its added clau… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: scripts/context-io-writer-set.test.ts fails two cases in the 31-14 describe (found during 41-01) status: open … | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: scripts/worktree-dogfood.test.ts did not run in the executor session (found during 41-01) status: open What: t… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: install/installer-write-set.test.ts could not be verified in the 41-02 executor session (found during 41-02) s… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: Five test files fail 14 cases with the same names in clean clones at bfd7f9d3 and at the 41-02 head (found dur… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: The untracked ~/ directory at the repository root fails one case in scripts/check-foundation-guards.test.ts (f… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: Wave 1 gate result, measured with TMPDIR on the root disk (recorded by the orchestrator) status: closed for wa… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: claimPending can leave an empty claim directory when the record write fails (found during 41-03) status: close… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: The render and free read through a symbolic link directly under claimed/ (found during 41-05) status: open Wha… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: IN-05, the coordinator adapter's size WARN, is re-deferred (decided in plan 41-06, Open Question 5) status: op… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: The two ideas 41-CONTEXT.md § Deferred Ideas holds stay deferred, by reference (recorded in plan 41-06) status… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: scripts/capture-live.test.ts fails one case when TMPDIR is under the home directory (recorded by the orchestra… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: The embedded root ladder can lose the governance dial, and note.js then admits what the dial refuses (found by… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: The hook's catch tells a reader to export the approval variable where a root cannot be named (found by plan 41… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: Workflow 18's stop tells a role to supersede a note the rule may now refuse (found by plan 41-15) status: open… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 41/deferred-items.md: The header of scripts/context-io.ts still lists admit <task> <noteFile> [root] (found by plan 41-14) status: o… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 42/deferred-items.md: Installer census reds from plan 42-08, found by the 42-07 full-suite run status: resolved (42940e06, 77b6936a,… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 43/deferred-items.md: The hook-entry manifest no longer matches scripts/audit-model.js (found by plan 43-02, 2026-11-17) - What fail… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 43/deferred-items.md: The checkout-only dogfood runbook still points at example 03 as real proof (found by plan 43-07, 2026-11-18) -… | acknowledged | 2026-11-21 | v3.0 |
+| deferred_items | 27/deferred-items.md (v2.1 archive): Mutation control — the pin is PROVEN able to fail The region-scoping decision reverted alone (the Part record,… | acknowledged | 2026-11-21 | v3.0 |
 
 ### v2.1 milestone close (2026-10-18)
 
@@ -2864,9 +2920,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 ## Session Continuity
 
 Last session: 2026-11-21
-Stopped at: Phase 43.1 complete — all phases complete
+Stopped at: Milestone v3.0 completed and archived (2026-11-21)
 Resume file: None
 
 ## Operator Next Steps
 
-- Close milestone v3.0 with /gsd-complete-milestone v3.0 (Phase 43.1 complete 2026-11-21; its decision-coverage override was re-checked at verification: D-04a and D-06a done by plans 07-09, SC3/SC4 verified)
+- Start the next milestone with /gsd-new-milestone

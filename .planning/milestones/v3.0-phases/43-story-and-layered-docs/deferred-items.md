@@ -17,6 +17,7 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
   `scripts/audit-model.ts`.
 - **Remedy (from the gate's own message):** `npm run generate:hook-manifest`, then commit `hooks/hook-entry.ts`,
   `hooks/hook-entry.js` and the D-24 freeze together.
+  status: acknowledged
 
 ## The checkout-only dogfood runbook still points at example 03 as real proof (found by plan 43-07, 2026-11-18)
 
@@ -29,6 +30,7 @@ Out-of-scope findings logged by executors. Each names who found it, where, and w
 - **Not fixed here:** the runbook is in no 43-07 `files_modified`, and its other text is pre-v3 too (`autonomy=pr`,
   handoff filenames), so the fix is a runbook rewrite or retirement, not a one-line edit. No gate reads it.
 - **Remedy:** point the runbook at the commit for the captured run, or retire its parity step, for human triage.
+  status: acknowledged
 
 ## A host's `node --test` runs the installed `tools/grugops/test-skip-integrity.js` (found by plan 43-13, 2026-11-18)
 

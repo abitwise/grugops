@@ -1,7 +1,7 @@
 ## Deferred Items
 
 - A code span holding `<!-- RUN -->` in a Done board row blocks the whole Done roll
-  status: open
+  status: acknowledged
   **What:** found by the plan 38-11 dogfood (38-DOGFOOD.md, finding C). The Done row ABC-109 of the real repository
   holds the text `<!-- RUN -->` inside backticks. The phase 37 state-rules planner reads it as an HTML comment and
   refuses to move the row, so `install --migrate` skips the Done roll (with a note) and `state-roll.js` refuses with
@@ -11,7 +11,7 @@
   phase's code, and whether a code span should count as a comment is a design question (`UNKNOWN - verify`).
 
 - The rendered trace depends on which context root holds a task
-  status: open
+  status: acknowledged
   **What:** found by the plan 38-11 dogfood (38-DOGFOOD.md, finding B). `collectTraceNotes` reads the live root, then
   the archive root, and a ticket's refs are listed in the order they are first read, so moving a folder between the
   roots can reorder a trace file. Plan 38-11 made every install arm that moves a folder render the trace afterwards
