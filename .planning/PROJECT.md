@@ -192,12 +192,19 @@ This is a largely **introspective** milestone: most work improves grugops's own 
 - ✓ Plain-language roles — the caveman voice constraint retired in one atomic change; all 19 roles and the role-switch protocol rewritten in clear, compact English (59,793 B of the 67,383 B corpus budget, guarded, with per-role ceilings); grugops-authored "do less" rules adapted from ponytail (MIT) and a lean-review lens in the PR checklist; a role-rule inventory and safety-sentence disposition rows a named human reads — v3.0 Phase 40 (PLAIN-01..07; PLAIN-03 passed by override: CR-05, CR-06 accepted by Olger, 2026-11-04)
 - ✓ Orchestrator flow guidance — Workflow 17 is the one flow home: `now-running.md`, rendered from `claimed/`, is the only in-flight log; the Orchestrator refills from `claim.js free` (`wip_limit` minus claims on disk, no timers), sweeps stale claims, and knows when to start a fresh session (`## Session compaction`); roles write with `tools/grugops/note.js` and close with `claim.js done`; tiered engineers start by adapter name with no model override. Live runs on Claude Code (plugin and standalone); the five other hosts and Windows are text-verified only, carried to the milestone UAT — v3.0 Phase 41 (RUN-01..06)
 - ✓ Skills per role — a role may declare a skill under `## Skills` with a built-in fallback, and uses it only when the host lists it (never a disk search); one `AGENTS.md` line puts grugops roles, workflows and hard limits above any skill's text; the Designer and Frontend/UI read design-system files in the user's repo and never write them; `install --check` prints an advisory line (never a failure, never an install) for a declared skill no host folder or Claude Code plugin holds, plus a Claude Code version-floor probe; `docs/skills.md` explains it. The written evaluation of six third-party skills ended in ratify-none, so no shipped role declares a skill — v3.0 Phase 42 (SKILL-01..05; Windows and live non-Claude host listing not verified)
+- ✓ v3.0 P1 debt closed — ubuntu CI on main green (run 44783682827, head 0a953d4e); archived-path readers resolve `.planning/milestones/v2.1-phases/`; no runnable install writes to `tools/grugops/` matches `node --test`'s default globs, and install, uninstall and `--migrate` handle the old name; the claim registry covers `docs/skills.md` and `install/README.md`; the deploy hard floor states its credential condition, including an OIDC trust policy whose subject names this repository and that environment (both subject formats), and that every production deploy runs as a job referencing the environment; the kit-home overlap check compares device and inode, confirmed on a real Mac firmlink — v3.0 Phase 43.1 (D0–D4, D6, D66, D67, D68, D692, D693, D739; hardens STORY-04, STORY-05, RUN-05, LAYOUT-03; Windows dev:ino `UNKNOWN - verify`)
 
 ### Active
 
 <!-- Next-milestone requirements will be defined via /gsd-new-milestone (fresh REQUIREMENTS.md). -->
 
 _Milestone v3.0 active (started 2026-10-20) — see Current Milestone above and `.planning/REQUIREMENTS.md`. Phases continue from 35._
+
+**Emerged in v3.0 Phase 43.1 (code review, deferred as P2 debt, accepted by Olger, `43.1-REVIEW-DISPOSITION.md`):**
+
+- [ ] Review warnings WR-01, WR-02, WR-05 and WR-06 (UAT test 3, accepted 2026-11-19), including the "none" Workflows cells.
+- [ ] Review info findings IN-01..IN-05, IN-07 and IN-08 (UAT test 8, accepted 2026-11-20).
+- [ ] Windows: five tests newly red on windows-latest after 43.1 are recorded in `.planning/WINDOWS.md`, including the 43.1 criterion-1 case (package.json with no type field); the intermittent `board-watch-live` EPERM (row 274) recurred on run 44783682827.
 
 **Emerged in v3.0 Phase 42 (code review re-run 2026-11-17, `42-REVIEW-DISPOSITION.md`, open, advisory):**
 
@@ -354,6 +361,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-11-21 after Phase 43.1 — **Phase 43.1 (Close v3.0 P1 debt, inserted) complete** (17/17 plans, 8 of them gap closure across three UAT rounds; verification passed 7/7; UAT 8 tests: 4 pass, 4 issues all resolved by gap plans 12 and 17, Mac firmlink run passed on a real Mac; security threats_open 0; ubuntu CI green on run 44783682827; 11 review findings deferred as P2 debt by Olger's typed-name acceptance). Last phase of v3.0; milestone ready to close.*
+
 *Last updated: 2026-11-17 after Phase 42 — **Phase 42 (Skills per role and evaluation) complete** (8/8 plans; verification passed 5/5; UAT 5 passed, 0 issues, Windows skipped by Olger's decision; security 28/28 closed; code review re-run on the fix delta: 0 critical, 4 warning, 4 info open, recorded as emerged requirements; regression gate: no failure outside the 21 known baseline reds). SKILL-01..05 validated; ratify-none recorded.*
 
 *Last updated: 2026-11-15 after Phase 41 — **Phase 41 (Orchestrator flow guidance) complete** (29/29 plans, gap rounds past the cap by Olger's override rulings; verification passed 11/11; UAT 15 tests: 9 pass, 4 issues all resolved by gap plans, 2 deferred to the milestone UAT — five other hosts and Windows; every pending (named human) row ruled, confirmed by typed name on 2026-11-14; review ledger open: 0, info and code rows deferred to a later phase). RUN-01..06 validated.*
