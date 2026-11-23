@@ -19,7 +19,7 @@ The kit's `AGENTS.md` has one line that says which rules win over a skill's text
 <!-- claim: C-28-079 -->
 grugops recommends no third-party skill.
 
-A maintainer reviewed six candidates against grugops's rules for merging, branching, planning, telemetry, network use and runtime needs, and declined the four skills the review proposed, for security, complexity, performance and licensing reasons. The review, its evidence and the versions it read are recorded in [`.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md`](https://github.com/abitwise/grugops/blob/main/.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md).
+A maintainer reviewed six candidates against grugops's rules for merging, branching, planning, telemetry, network use and runtime needs, and declined the four skills the review proposed, for security, complexity, performance and licensing reasons. The review, its evidence and the versions it read are recorded in [`.planning/milestones/v3.0-phases/42-skills-per-role-and-evaluation/42-EVALUATION.md`](https://github.com/abitwise/grugops/blob/main/.planning/milestones/v3.0-phases/42-skills-per-role-and-evaluation/42-EVALUATION.md).
 
 ## How a role declares a skill
 
