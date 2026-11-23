@@ -63,4 +63,4 @@ The Designer and Frontend/UI read design-system files in your repository, such a
 ## How these were chosen
 
 <!-- claim: C-28-086 -->
-The record `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` names the six candidates, the six checks, the evidence and the exact versions it read on 2026-11-16. It is reopened only when someone asks to bump an evaluated skill to a newer version, or when an upstream security advisory names an evaluated skill.
+The record `.planning/milestones/v3.0-phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` names the six candidates, the six checks, the evidence and the exact versions it read on 2026-11-16. It is reopened only when someone asks to bump an evaluated skill to a newer version, or when an upstream security advisory names an evaluated skill.

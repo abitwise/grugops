@@ -1373,7 +1373,7 @@ The Designer and Frontend/UI read design-system files in your repository, such a
 - mechanism: Registered by plan 43.1-08 (phase 43.1 decision D-06, reader-review finding F-10). Measured 2026-11-19 against `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md`. It names the six candidates, the six floors (the checks), their evidence and the pinned versions, read on 2026-11-16. § Revisit triggers: `This record is reopened only when one of two triggers fires`, a request to bump a pin and an upstream security advisory that names a pinned skill, and `There is no calendar check and no per-release check.` The page says `an evaluated skill` where the record says `a pinned skill`; since none was ratified, every evaluated skill's pin is the one the record read. Holds.
 
 ```
-The record `.planning/phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` names the six candidates, the six checks, the evidence and the exact versions it read on 2026-11-16. It is reopened only when someone asks to bump an evaluated skill to a newer version, or when an upstream security advisory names an evaluated skill.
+The record `.planning/milestones/v3.0-phases/42-skills-per-role-and-evaluation/42-EVALUATION.md` names the six candidates, the six checks, the evidence and the exact versions it read on 2026-11-16. It is reopened only when someone asks to bump an evaluated skill to a newer version, or when an upstream security advisory names an evaluated skill.
 ```
 
 ### C-28-087
