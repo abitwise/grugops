@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v3.0
 status: Awaiting next milestone
 stopped_at: Milestone v3.0 completed and archived
-last_updated: "2026-11-23T20:08:45.860Z"
-last_activity: 2026-11-21
+last_updated: "2026-11-23T21:26:40.377Z"
+last_activity: 2026-11-23
 last_activity_desc: Milestone v3.0 completed and archived
-state_head: e1732cdf7b482ee909d06805ae56acb7dd73f0df
+state_head: 3b7d09ab588c862249927996e0599682a63089e6
 progress:
   total_phases: 10
   completed_phases: 10
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-21 after the v3.0 milestone)
 Phase: Milestone v3.0 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-11-23 - Completed quick task 261123-rte: Repoint docs/skills.md links to the archived 42-EVALUATION.md path
+Last activity: 2026-11-23 - Completed quick task 261123-te4: Bump the artifact version to 3.0.0 for the v3.0 release (release tag v3.0.0)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -926,6 +926,8 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 - Phase 43.1 inserted after Phase 43: Close v3.0 P1 debt from the milestone audit (human chose option 1, fix before close) (URGENT)
 
 ### Decisions
+
+- [v3.0.0 release]: 2026-11-23 — The artifact version was bumped to `3.0.0` after the v3.0 close, in `agent-factory/VERSION`, `.claude-plugin/plugin.json`, `package.json` and `package-lock.json`. CHANGELOG `[Unreleased]` was cut as `[3.0.0] - 2026-11-23`. The bump is MAJOR under SemVer: state moved under `memory-bank/plans/`, a plain install refuses the pre-v3 layout, and the `grugops-software-engineer` adapter was removed. The release tag is `v3.0.0` by human decision, because `v3.0` is the pushed milestone tag on 1791c1c8 and stays where it is. From 3.0.0 on, release tags carry three parts. The agent committed but did not tag or push; the human tags, pushes and publishes the GitHub release.
 
 - **[Phase 35, 2026-10-20]** [v3.0, D-10] recorded: graph memory not adopted, nothing built (`35-DECISION.md`). Closed via UAT 2/2; REQUIREMENTS.md line 103 left as is by the human.
 
@@ -2601,6 +2603,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 261123-rte | Repoint docs/skills.md links to the archived 42-EVALUATION.md path | 2026-11-23 | e1732cdf | [261123-rte-repoint-docs-skills-md-links-to-the-arch](./quick/261123-rte-repoint-docs-skills-md-links-to-the-arch/) |
+| 261123-te4 | Bump the artifact version to 3.0.0 for the v3.0 release (release tag v3.0.0) | 2026-11-23 | 3b7d09ab | [261123-te4-bump-the-artifact-version-to-3-0-0-for-t](./quick/261123-te4-bump-the-artifact-version-to-3-0-0-for-t/) |
 
 ## Deferred Items
 
@@ -2927,3 +2930,4 @@ Resume file: None
 ## Operator Next Steps
 
 - Start the next milestone with /gsd-new-milestone
+- Tag `v3.0.0` on the release commit, push main and the tag, and publish the GitHub release (human only).
