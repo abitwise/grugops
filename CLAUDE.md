@@ -148,7 +148,7 @@ It is lean by default and scales to enterprise governance on a single config fla
 | SemVer 2.0.0 / Keep a Changelog 1.1.0 | Stable, no compat concerns | Both are mature, stable specs. |
 ## Open Questions / Flags for Roadmap
 - **`UNKNOWN - verify` (LOW):** Exact behavior of the standalone `/grugops` skill when grugops is *also* installed as the `grugops` plugin in the same session (potential `/grugops` vs `/grugops:...` confusion). Resolve during dogfood (spec acceptance §20).
-- **Decided (human, 2026-09-18):** the artifact version is `2.1.0`, aligned with the `v2.1` milestone tag, and the SemVer break-contract applies from this release. `0.1.0` was the pre-release seed (D-28); it is retired.
+- **Decided (human, 2026-11-23):** the artifact version is `3.0.0`, a MAJOR release under SemVer for the v3.0 state-layout change, tagged `v3.0.0`. From 3.0.0 a release tag carries all three version parts; the `v3.0` tag marks the milestone close, not a release. `2.1.0` (tag `v2.1`, 2026-09-18) was the first published SemVer release, and `0.1.0` was the pre-release seed (D-28); it is retired.
 - **Verify during dogfood:** Whether plugin-cache copying breaks the wrappers' `agent-factory/roles/*.md` references (they should resolve against the user's repo, not the plugin cache — confirm).
 ## Sources
 - code.claude.com/docs/en/plugins — plugin creation, commands-merged-into-skills, structure rules (HIGH)
