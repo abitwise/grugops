@@ -16,7 +16,7 @@ grugops gives the coding agent you already use a team of specialist roles for so
 ## Quickstart
 
 <!-- claim: C-28-004 -->
-grugops version `2.2.0`.
+grugops version `3.0.0`.
 
 <!-- claim: C-28-005 -->
 1. **Install** — clone grugops once, then run its idempotent, additive, reversible installer (Node 22+) against the project you want it in:
