@@ -11,12 +11,25 @@ and this project aims to follow [Semantic Versioning 2.0.0](https://semver.org/s
 > pre-release seed `0.1.0`, and the `v1.0`, `v1.1`, `v1.2` and `v2.0` entries below are the
 > project's internal milestone tags (they match `git tag`), not published SemVer releases.
 >
-> `2.2.0` (tag `v2.2`, 2026-10-19) is cut ahead of strict SemVer on purpose. grugops is not yet
+> `2.2.0` (tag `v2.2`, 2026-10-19) was cut ahead of strict SemVer on purpose. grugops is not yet
 > promoted, so the break-contract is relaxed for this one release: it carries the Phase 33 to 34.1
 > changes, which include removals (the Bash command guard, 33.1 D-17) that a strict SemVer read would
 > call MAJOR. SemVer applies again from the release after it.
+>
+> `3.0.0` (tag `v3.0.0`, 2026-11-23) is a MAJOR release under SemVer. It carries the v3.0 milestone
+> (Phases 35 to 43.1): per-repo planning state moved under `memory-bank/plans/`, a plain install
+> refuses the pre-v3 layout until `install --migrate` moves it, and the `grugops-software-engineer`
+> adapter was removed. From 3.0.0 on, a release tag carries all three version parts; `2.1.0` and
+> `2.2.0` were tagged `v2.1` and `v2.2`. The `v3.0` tag, like `v1.0` to `v2.0`, marks a milestone
+> close and is not a release tag.
 
 ## [Unreleased]
+
+## [3.0.0] - 2026-11-23
+
+This release carries the v3.0 milestone, Phases 35 to 43.1 (milestone tag `v3.0`). It is a MAJOR
+release: the planning-state layout change and the plain-install refusal are under Changed, and the
+removed `grugops-software-engineer` adapter is under Removed.
 
 ### Added
 
@@ -1173,7 +1186,9 @@ Factory v2 spec, proved end-to-end by an idea-to-PR dogfood across both dispatch
   fails closed.
 - A structure validator that never fabricates a pass, plus brand and legal collateral.
 
-[Unreleased]: https://github.com/abitwise/grugops/compare/v2.1...HEAD
+[Unreleased]: https://github.com/abitwise/grugops/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/abitwise/grugops/compare/v2.2...v3.0.0
+[2.2.0]: https://github.com/abitwise/grugops/compare/v2.1...v2.2
 [2.1.0]: https://github.com/abitwise/grugops/compare/v2.0...v2.1
 [2.0]: https://github.com/abitwise/grugops/compare/v1.2...v2.0
 [1.2]: https://github.com/abitwise/grugops/compare/v1.1...v1.2

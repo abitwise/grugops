@@ -5,10 +5,13 @@ plain: there is a floor that needs no scripts at all, and a paved path of idempo
 reversible installers on top. everything below is additive — grugops never overwrites or
 deletes a file you own.
 
-**Version: `2.1.0`.** This is the canonical value in `agent-factory/VERSION`; the Claude Code
+**Version: `3.0.0`.** This is the canonical value in `agent-factory/VERSION`; the Claude Code
 plugin mirrors it in `.claude-plugin/plugin.json` and the tooling `package.json` carries the same
-string. The three bump together, once per release, and the release tag is `v<MAJOR>.<MINOR>`
-(`v2.2` for this version). Version 2.2.0 was cut ahead of strict SemVer on purpose: the project is not yet promoted, so the break-contract is relaxed for it. From 2.2.0 on, grugops follows SemVer again: a breaking change bumps MAJOR.
+string. The three bump together, once per release. From 3.0.0 the release tag carries all three
+parts, `v<MAJOR>.<MINOR>.<PATCH>` (`v3.0.0` for this version); the releases before it were tagged
+with two parts (`v2.1`, `v2.2`). grugops follows SemVer: a breaking change bumps MAJOR. 3.0.0 is a
+MAJOR release: the per-repo state layout changed, and a plain install refuses the old layout.
+[docs/pre-v3-state-layout.md](../docs/pre-v3-state-layout.md) describes the old layout and the move.
 
 Once grugops is installed, **how you start the session decides what the Orchestrator can
 actually do.** The three entry tiers, and what each one really enforces, are §6.
