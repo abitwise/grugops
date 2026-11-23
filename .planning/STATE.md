@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v3.0
 status: Awaiting next milestone
 stopped_at: Milestone v3.0 completed and archived
-last_updated: "2026-11-23T21:26:40.377Z"
+last_updated: "2026-11-23T21:41:10.670Z"
 last_activity: 2026-11-23
 last_activity_desc: Milestone v3.0 completed and archived
-state_head: 3b7d09ab588c862249927996e0599682a63089e6
+state_head: 9a1f641f6030f558c94116a36a85b41d086b3259
 progress:
   total_phases: 10
   completed_phases: 10
@@ -2604,6 +2604,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 261123-rte | Repoint docs/skills.md links to the archived 42-EVALUATION.md path | 2026-11-23 | e1732cdf | [261123-rte-repoint-docs-skills-md-links-to-the-arch](./quick/261123-rte-repoint-docs-skills-md-links-to-the-arch/) |
 | 261123-te4 | Bump the artifact version to 3.0.0 for the v3.0 release (release tag v3.0.0) | 2026-11-23 | 3b7d09ab | [261123-te4-bump-the-artifact-version-to-3-0-0-for-t](./quick/261123-te4-bump-the-artifact-version-to-3-0-0-for-t/) |
+| 3 | Update CLAUDE.md artifact-version note to 3.0.0 (tag v3.0.0) | 2026-11-23 | 9a1f641f | — |
 
 ## Deferred Items
 
