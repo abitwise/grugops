@@ -168,7 +168,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
   3. Roles read upstream content only at the pinned commit, through one sanctioned reader that uses git object reads: a dirty working tree, a moved HEAD or CRLF line endings in the source checkout do not change what a role reads, and no upstream content is copied into `memory-bank/` (UP-02)
   4. A missing or unreadable source makes the dependent work `BLOCKED` with a named reason and nothing is guessed; upstream text enters the shared context only as cited `claim` notes, and a synthetic fixture with embedded instructions shows the instructions are not followed (UP-04, UP-05)
   5. A rendered trace shows `upstream:<source>:<id>@<commit>` refs in the Requirement column and never as phantom ticket rows, and the `BR` prefix is reserved for build requests (TRC-02)
-**Plans**: 7 plans
+**Plans**: 8 plans
 
 Plans:
 - [ ] 44-01-PLAN.md — Tracer: a declared source checks as `match` end to end through `upstream.js`; TRC-02 trace rule; seventh embed row
@@ -177,7 +177,8 @@ Plans:
 - [ ] 44-04-PLAN.md — Validator `upstream` arm refusing malformed declarations by name; config field reference
 - [ ] 44-05-PLAN.md — Every check state and exit code; the untrusted checkout cannot steer git (replace refs, GIT_DIR, fsmonitor, lazy fetch)
 - [ ] 44-06-PLAN.md — The fenced `read` verb (manifest-only, 64 KiB ceiling); injection fixture; red-team round prepared
-- [ ] 44-07-PLAN.md — Contract, Workflow 20, session-start step, Orchestrator key, AGENTS.md line; registration; names for Phases 45/47
+- [ ] 44-07-PLAN.md — The upstream contract and Workflow 20, registered with every gate (each count re-derived)
+- [ ] 44-08-PLAN.md — Workflow 17 session-start step, Orchestrator key, AGENTS.md third-root line, config pointer; names for Phases 45/47; open confirmation items
 **Notes**: The discussion opens with a decision gate: the names (S-06: the sources config key, the consult dial key and values, the build-request statuses) and the upstream export shape (ID grammar, supersession marker, entry manifest), stubbed as a minimal declared manifest if upstream has not settled it. S-02 sets the source location and S-05 the ownership. TRC-02 sits here, not in Phase 45, because the trace renderer's runnable carries a generated copy of `trace-model.ts`: adding the `upstream.js` runnable and changing the trace model in one phase moves the runnable set and embeds once. `AGENTS.md` gains one line for the third root, within its byte budget. Research flag: pin semantics (CRLF, shallow clones, SHA-256 repositories, reads across repositories without a fetch), the injection fence, whether a git read through Bash triggers nested `CLAUDE.md` or `AGENTS.md` loading, and per-host reads outside the repository (`UNKNOWN - verify` on Codex CLI, Antigravity CLI, Copilot CLI and Pi). Budget one adversarial red-team round on the untrusted read path.
 
 ### Phase 45: Traceability, build requests and architecture as input
