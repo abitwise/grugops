@@ -12,6 +12,8 @@ A user installs grugops on top of the coding-agent CLI they already run, types `
 
 The v2.0 differentiator is strict and mechanical: **"verified" means passed the §14 behavior gate**, recorded as an auditable `verified_by` stamp that the writing agent cannot forge or self-set — never a black-box blackboard.
 
+*Last updated: 2026-11-24 — **Milestone v3.1 (Upstream design, consultation and one-command install) started.** Goal: build from an approved upstream design package with build requests back upstream, one parameterized consultant role, a one-command install, and the `install --migrate` docs gap closed. Phases continue from 44. Sources: backlog 999.14 and the consultant core of 999.13.*
+
 ## Current State
 
 **Shipped through v3.0 Specialist agents. Shared context. Coordinated work. (2026-11-21).** Six milestones are complete:
@@ -29,6 +31,21 @@ The whole kit is **boring on purpose**: ~80+ markdown files under `agent-factory
 - **v2.1 Autonomous Factory — Real Spawning, Controlled Language & Live Board** (phases 27–34.1, 13 phases, 453 plans, shipped 2026-10-18): made the factory runnable and operable — every guard/validator scan set derived from the filesystem ("derive the set, assert the count") and all 17 role adapters generated from one source; a grugops-authored controlled-language profile with `guard_imperative_lexicon`, `guard_sentence_form` and `guard_banned_claims`; per-role `models` and `effort` dials delivered into installed adapters; a per-checkpoint autonomy matrix whose merge/deploy floors became installer-written Claude Code ask rules over a git-host hard floor after the Bash command-parsing guard was retired (33.1 D-17); autonomous manual testing whose browser evidence enters through verify-before-write; a read-only board projector and CLI dashboard; Pi as a sixth host behind a registry-derived host set; and a per-agent installer (`--claude`/`--codex`/`--antigravity`/`--opencode`/`--copilot`/`--pi`, Gemini CLI replaced by Antigravity CLI). Closed **`gaps_found` by accepted override** (52/64 requirements; 7 of 13 phases closed by human decision with gaps standing). **Not delivered:** the live capture proving role agents run in their own sessions (CAP-01/CAP-03, SPAWN-03 — every capture read `fail`), Windows CI (CAP-02, HOST-02), KIT-03/SPAWN-04 promotion, UATX-01/UATX-06. Audit: `milestones/v2.1-MILESTONE-AUDIT.md`.
 
 - **v3.0 Specialist agents. Shared context. Coordinated work.** (phases 35–43.1, 10 phases, 182 plans, shipped 2026-11-21): made the kit easier to read and kept its state files small. Graph memory was decided against and not built. Planning state moved under `memory-bank/plans/` behind one constants-only path authority. The board became a one-line-per-ticket overview, NFRs and traceability became one file per record with indexes, and nine byte budgets are checked in grugops and, through `tools/grugops/state-check.js`, in host repos. `install --migrate` moves an old-layout repo to the v3 layout without deleting an original. A Tech Lead scores tickets for junior, mid and senior engineer adapters, and a Designer role exists. The caveman voice was retired and all 19 roles were rewritten in plain English. Workflow 17 gives the Orchestrator one flow home that refills free capacity from disk. Roles may declare skills (the evaluation ratified none). The README and layered docs tell the new story, with a generated reference page per agent and skill. Closed **`tech_debt` by accepted override** (51/51 requirements; integration 11/12, flows 3/4; verification for phases 36–43 stale, not re-run). Ubuntu CI on main is green again (run 44882392482); Windows stays red. Audit: `milestones/v3.0-MILESTONE-AUDIT.md`.
+
+## Current Milestone: v3.1 Upstream design, consultation and one-command install
+
+**Goal:** A grugops repository builds from an approved design package that another system produced, sends questions and requirement changes back to that system as build requests, and gets second opinions from one parameterized consultant role, without grugops ever deciding what the product is. Installing grugops becomes one command a user copies from the README.
+
+**Target features:**
+- **Declared upstream sources.** A config key declares read-only design sources, each pinned by commit and blob hash. Roles read them in place; nothing is copied into `memory-bank/` state. The Orchestrator reports a pin that no longer matches.
+- **Traceability upstream.** BA/PM tickets cite upstream IDs, so the trail runs from the upstream decision to the requirement, code, test and release.
+- **Build requests.** A file type and a board status for a question or change that belongs upstream. The ticket stays blocked until a new pin answers it; the answer enters the shared context as a `claim` note citing the upstream ID and pin, never a `finding`. A human carries requests across; grugops never writes into the upstream repository.
+- **Universal consultant.** One parameterized role (topic and lens) of about 2 KB, with its procedure in a new workflow. Only the Orchestrator dispatches it, on a `CONSULT` request from BA/PM, the System Analyst, the Architect or the Designer, or on a human's request. It answers from declared sources first, and beyond them only questions outside the upstream owner's scope, as `claim` or `observation` notes. Panel mode gives each lens a stated position and ends with where the lenses disagree. A dial sets a single consult (lean) or a panel (enterprise).
+- **Architecture as input.** An upstream stack or architecture decision is given input for the Greenfield Mapper and the Architect; a deviation is a build request.
+- **One-command install.** A user installs grugops into a repository with one command copied from the README, without cloning the grugops repository or naming a target path by hand. The mechanism (for example `npx`, a fetched bootstrap script, or the Claude Code plugin marketplace) is chosen by research. It keeps zero runtime dependencies on host machines, a pinned version, and the installer contract (idempotent, additive, dry-run, reversible), and it works on Windows. A global `$PATH` binary is out of scope since v1.1, so a choice that needs one requires a recorded decision.
+- **`install --migrate` in the public docs.** README.md, docs/usage.md and docs/how-it-works.md name `install --migrate`, and a public page links docs/pre-v3-state-layout.md (carried from v3.0).
+
+**Boundaries:** files only, with no MCP server or live link to the upstream system; ratified domain packs stay in backlog 999.13 (they need the Out of Scope marketplace line amended); the role byte budget (about 61 KB against a 64,000 B warning and a 67,383 B fail) and the state budgets constrain the design. The proposed default is that upstream owns the technical architecture. Release: additive, `3.1.0` (tag `v3.1.0`).
 
 ## Most Recent Milestone: v3.0 Specialist agents. Shared context. Coordinated work. (shipped 2026-11-21, tech debt accepted)
 
@@ -203,7 +220,7 @@ This is a largely **introspective** milestone: most work improves grugops's own 
 
 <!-- Next-milestone requirements will be defined via /gsd-new-milestone (fresh REQUIREMENTS.md). -->
 
-_No milestone is active. v3.0 shipped on 2026-11-21; the next milestone's requirements come from `/gsd-new-milestone`, and phase numbers continue from 44._
+_Milestone v3.1 is active (started 2026-11-24): see "Current Milestone" above and `.planning/REQUIREMENTS.md`. Phase numbers continue from 44. The v3.0 `install --migrate` docs gap (item 3 below) is in v3.1 scope._
 
 **Carried out of v3.0 (accepted open at close, 2026-11-21):**
 

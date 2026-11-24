@@ -1,37 +1,33 @@
 ---
 gsd_state_version: "1.0"
-milestone: v3.0
-status: Awaiting next milestone
-stopped_at: Milestone v3.0 completed and archived
-last_updated: "2026-11-23T21:41:10.670Z"
-last_activity: 2026-11-23
-last_activity_desc: Milestone v3.0 completed and archived
-state_head: 9a1f641f6030f558c94116a36a85b41d086b3259
+milestone: v3.1
+milestone_name: Upstream design, consultation and one-command install
+status: planning
+last_updated: "2026-11-24T14:51:08.632Z"
+last_activity: 2026-11-24
 progress:
-  total_phases: 10
-  completed_phases: 10
-  total_plans: 182
-  completed_plans: 182
-  percent: 100
-milestone_name: Specialist agents. Shared context. Coordinated work.
-current_phase: "43.1"
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-21 after the v3.0 milestone)
+See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Planning the next milestone. v3.0 shipped 2026-11-21 (`override_closeout`); start with `/gsd-new-milestone`, phases continue from 44
+**Current focus:** Milestone v3.1 (Upstream design, consultation and one-command install), defining requirements; phases continue from 44
 
 ## Current Position
 
-Phase: Milestone v3.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-23 - Completed quick task 261123-te4: Bump the artifact version to 3.0.0 for the v3.0 release (release tag v3.0.0)
+Status: Defining requirements
+Last activity: 2026-11-24 — Milestone v3.1 started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
