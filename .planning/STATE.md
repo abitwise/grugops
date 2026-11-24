@@ -2,11 +2,15 @@
 gsd_state_version: "1.0"
 milestone: v3.1
 milestone_name: Upstream design, consultation and one-command install
+current_phase: 44
+current_phase_name: Upstream source declaration and pin check
 status: planning
-last_updated: "2026-11-24T14:51:08.632Z"
+stopped_at: v3.1 roadmap created (Phases 44–48); awaiting human approval
+last_updated: "2026-11-24T17:16:31.000Z"
 last_activity: 2026-11-24
+last_activity_desc: v3.1 roadmap created (5 phases, 39/39 requirements mapped)
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Milestone v3.1 (Upstream design, consultation and one-command install), defining requirements; phases continue from 44
+**Current focus:** Milestone v3.1 (Upstream design, consultation and one-command install) — roadmap created (Phases 44–48); next: discuss Phase 44, which opens with the decision gate on names (S-06) and the upstream export shape. Phase 46 may start in parallel, with the npm name claim first.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 44 of 48 (Upstream source declaration and pin check)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-11-24 — Milestone v3.1 started
+Status: Ready to plan
+Last activity: 2026-11-24 — v3.1 roadmap created (5 phases, 39/39 requirements mapped)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -902,6 +906,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 ### Roadmap Evolution
 
+- **v3.1 roadmap created (2026-11-24):** 5 phases (44–48), numbering continued from v3.0 (last phase 43.1, not reset). All 39 v3.1 requirements mapped to exactly one phase, 0 unmapped, 0 duplicated: UP-01..06 + TRC-02 → Phase 44; TRC-01, TRC-03 + BR-01..07 + ARCH-01/02 → Phase 45 (architecture as input merged per S-07); INST-01..10 + DOC-01 → Phase 46; CON-01..08 → Phase 47; DOC-02/03 → Phase 48. TRC-02 sits in 44, not 45, because the trace renderer's runnable embeds `trace-model.ts`, so adding `upstream.js` and the trace change together moves the runnable set and embeds once. Phase 46 is independent of 44–45 and may run in parallel; its first plan readies the manifest for the human `3.1.0-rc.0` name claim (INST-07, S-04). Research flags: 44, 45 (narrow), 46, 47; 48 is standard. One adversarial red-team round each for 44 (untrusted upstream read path) and 47 (new advisory output). Backlog 999.14 promoted; 999.13 promoted in part (its packs part stays backlog).
 - **Phase 34 added (2026-09-19):** Model Effort Dial & Pi Support — (1) per-role reasoning-effort setting on the `models` dial (verify CC frontmatter support first); (2) Pi (pi.dev) as sixth host CLI via the thin-pointer adapter pattern. Appended after Phase 33; not yet in REQUIREMENTS.md (enumerate at plan time).
 - **v2.1 roadmap created (2026-07-28):** 7 phases (27–33), numbering CONTINUED from v2.0 (last phase 26, NOT reset). All **46** v2.1 requirements mapped to exactly one phase — 100% coverage, 0 unmapped, 0 duplicated: KIT-01..03 + SPAWN-01..07 → Phase 27; AUDIT-01..04 → Phase 28; LANG-01..08 → Phase 29; AUTO-01..07 → Phase 30; UATX-01..06 → Phase 31; DASH-01..08 → Phase 32; CAP-01..03 → Phase 33. **Count correction recorded, not silently fixed:** REQUIREMENTS.md prose says "all 41 requirements retained"; the enumerated set is 46 (the "41" predates the final category split). Scope unchanged — the milestone's own founding defect (a hand-maintained count drifting from enumerated reality) caught by counting instead of trusting.
 - **v2.1 phase order follows the research dependency spine verbatim** (SUMMARY.md "Phase Ordering Rationale" — three independent researchers converged; no deviation): (1) **27 before everything** — the kit-set authority must be derived from the filesystem BEFORE 17 new adapter files exist, or they land outside `WR05_SCAN`/`ADAPTERS`/`CTX_WORKFLOWS` entirely, which is the exact mechanism by which the current spawn defect survived a whole milestone; (2) 28 before 29 — the audit produces the safety-surface exclusion list + the public-claim registry the language rewrite consumes as inputs; (3) 29 before 30 — the language pass touches governance prose, so running it after 30 would rewrite freshly-written text and re-run Phase 30's expensive red-team gate twice; (4) **30 is deliberately the expensive phase** — direct successor to Phase 25, red-team rounds budgeted AS SCOPE not overrun; (5) 31 after 30 — browser evidence enters through verify-before-write, whose dialability 30 settles; (6) 32 last among features — read-only, lowest blast radius; (7) 33 last overall — both items are milestone-wide proofs, not features.
@@ -2533,6 +2538,10 @@ None yet.
 
 [Issues that affect future work]
 
+**Open — v3.1:**
+
+- **[v3.1] npm name `grugops` unclaimed** — `npm view grugops` returned E404 on 2026-11-24, so anyone can publish it, and npm's moniker rule would then also block close spellings. A named human publishes `3.1.0-rc.0` by hand under dist-tag `next` early in the milestone (INST-07, S-04); trusted publishing can be configured only after the package exists. Today's `package.json` is the private `grugops-tooling`, so Phase 46's first plan readies a publishable manifest.
+
 **Open — carried into the next milestone:**
 
 - **[Phase 42] Four open code-review warnings, advisory** (42-REVIEW.md re-run 2026-11-17, `42-REVIEW-DISPOSITION.md`): WR-01 plugin real-path containment covers only a manifest `skills` path, not the default `skills/` folder or per-skill links; WR-02 an unresolvable `skills` path gets a false refusal reason; WR-03 the `claude --version` probe fails with ENOENT when `HOME` does not exist; WR-04 a CR-02 test fails under a long TMPDIR. Four Info items (IN-01..IN-04) also open. None defeats SKILL-05 (verification 5/5).
@@ -2920,11 +2929,11 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-21
-Stopped at: Milestone v3.0 completed and archived (2026-11-21)
+Last session: 2026-11-24
+Stopped at: v3.1 roadmap created (Phases 44–48); awaiting human approval
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
-- Tag `v3.0.0` on the release commit, push main and the tag, and publish the GitHub release (human only).
+- Discuss Phase 44 with /gsd-discuss-phase 44; the discussion opens with the decision gate on names (S-06) and the upstream export shape
+- Phase 46 may start in parallel: its first plan readies a publishable manifest so a named human can publish `grugops@3.1.0-rc.0` under `next` and claim the name (human only)

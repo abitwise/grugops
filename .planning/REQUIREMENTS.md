@@ -112,12 +112,52 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| UP-01 | Phase 44 | Pending |
+| UP-02 | Phase 44 | Pending |
+| UP-03 | Phase 44 | Pending |
+| UP-04 | Phase 44 | Pending |
+| UP-05 | Phase 44 | Pending |
+| UP-06 | Phase 44 | Pending |
+| TRC-01 | Phase 45 | Pending |
+| TRC-02 | Phase 44 | Pending |
+| TRC-03 | Phase 45 | Pending |
+| BR-01 | Phase 45 | Pending |
+| BR-02 | Phase 45 | Pending |
+| BR-03 | Phase 45 | Pending |
+| BR-04 | Phase 45 | Pending |
+| BR-05 | Phase 45 | Pending |
+| BR-06 | Phase 45 | Pending |
+| BR-07 | Phase 45 | Pending |
+| ARCH-01 | Phase 45 | Pending |
+| ARCH-02 | Phase 45 | Pending |
+| CON-01 | Phase 47 | Pending |
+| CON-02 | Phase 47 | Pending |
+| CON-03 | Phase 47 | Pending |
+| CON-04 | Phase 47 | Pending |
+| CON-05 | Phase 47 | Pending |
+| CON-06 | Phase 47 | Pending |
+| CON-07 | Phase 47 | Pending |
+| CON-08 | Phase 47 | Pending |
+| INST-01 | Phase 46 | Pending |
+| INST-02 | Phase 46 | Pending |
+| INST-03 | Phase 46 | Pending |
+| INST-04 | Phase 46 | Pending |
+| INST-05 | Phase 46 | Pending |
+| INST-06 | Phase 46 | Pending |
+| INST-07 | Phase 46 | Pending |
+| INST-08 | Phase 46 | Pending |
+| INST-09 | Phase 46 | Pending |
+| INST-10 | Phase 46 | Pending |
+| DOC-01 | Phase 46 | Pending |
+| DOC-02 | Phase 48 | Pending |
+| DOC-03 | Phase 48 | Pending |
 
 **Coverage:**
 - v1 requirements: 39 total
-- Mapped to phases: 0
-- Unmapped: 39 ⚠️
+- Mapped to phases: 39
+- Unmapped: 0 ✓
+- By phase: 44 (7), 45 (11), 46 (11), 47 (8), 48 (2)
 
 ---
 *Requirements defined: 2026-11-24*
-*Last updated: 2026-11-24 after initial definition*
+*Last updated: 2026-11-24 after roadmap creation (Phases 44–48)*
