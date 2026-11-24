@@ -258,3 +258,13 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.14: Upstream design sources, build requests and a universal consultant (BACKLOG)
+
+**Goal:** [Captured for future planning] Let a grugops repository build from an approved design package that another system produced (first case: a separate game-studio repository of Claude Code agents). Roles read the package in place, pinned by commit, and BA/PM traces tickets to its IDs. A question the package does not answer, or a change to what the product is, goes back upstream as a build request that a human carries; grugops never decides it. One parameterized consultant role (topic and lens) answers from the declared sources first, and otherwise only questions outside the upstream owner's scope, as `claim` notes; panel mode reports where the lenses disagree. Refines 999.13 and leaves its packs part there. Additive, so a MINOR release (`3.1.0`). See `999.14-upstream-design-sources-and-universal-consultant/999.14-IDEA.md`.
+**Deferred at:** 2026-11-24 (human, design discussion after the v3.0.0 release)
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
