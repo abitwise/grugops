@@ -5,10 +5,11 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
 status: planning
-stopped_at: v3.1 roadmap created (Phases 44–48); awaiting human approval
-last_updated: "2026-11-24T17:16:31.000Z"
+stopped_at: Phase 44 context gathered
+last_updated: "2026-11-24T21:06:37.653Z"
 last_activity: 2026-11-24
 last_activity_desc: v3.1 roadmap created (5 phases, 39/39 requirements mapped)
+state_head: 3f69d5cff26ebf458a690681f89d09f162f9b710
 progress:
   total_phases: 5
   completed_phases: 0
@@ -2929,9 +2930,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-24
-Stopped at: v3.1 roadmap created (Phases 44–48); awaiting human approval
-Resume file: None
+Last session: 2026-11-24T21:06:37.556Z
+Stopped at: Phase 44 context gathered
+Resume file: .planning/phases/44-upstream-source-declaration-and-pin-check/44-CONTEXT.md
 
 ## Operator Next Steps
 
