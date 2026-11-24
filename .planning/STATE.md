@@ -4,16 +4,16 @@ milestone: v3.1
 milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
-status: planning
+status: executing
 stopped_at: Phase 44 context gathered
-last_updated: "2026-11-24T21:06:37.653Z"
+last_updated: "2026-11-24T22:56:22.516Z"
 last_activity: 2026-11-24
 last_activity_desc: v3.1 roadmap created (5 phases, 39/39 requirements mapped)
-state_head: 3f69d5cff26ebf458a690681f89d09f162f9b710
+state_head: 2ebbd7d4e04bcb310536adac672b562cce8076f8
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 8
   completed_plans: 0
   percent: 0
 ---
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 
 ## Current Position
 
-Phase: 44 of 48 (Upstream source declaration and pin check)
+Phase: 44 (Upstream source declaration and pin check) — READY TO EXECUTE
 Plan: —
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-11-24 — v3.1 roadmap created (5 phases, 39/39 requirements mapped)
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute

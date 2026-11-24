@@ -159,6 +159,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
 ## Phase Details
 
 ### Phase 44: Upstream source declaration and pin check
+
 **Goal**: A user can point grugops at an approved upstream design package, and every role reads exactly the pinned version of it, safely, without copying it and without the pin moving on its own
 **Depends on**: Nothing in v3.1 (builds on shipped v3.0.0); opens with a decision gate
 **Requirements**: UP-01, UP-02, UP-03, UP-04, UP-05, UP-06, TRC-02
@@ -168,20 +169,34 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
   3. Roles read upstream content only at the pinned commit, through one sanctioned reader that uses git object reads: a dirty working tree, a moved HEAD or CRLF line endings in the source checkout do not change what a role reads, and no upstream content is copied into `memory-bank/` (UP-02)
   4. A missing or unreadable source makes the dependent work `BLOCKED` with a named reason and nothing is guessed; upstream text enters the shared context only as cited `claim` notes, and a synthetic fixture with embedded instructions shows the instructions are not followed (UP-04, UP-05)
   5. A rendered trace shows `upstream:<source>:<id>@<commit>` refs in the Requirement column and never as phantom ticket rows, and the `BR` prefix is reserved for build requests (TRC-02)
+
 **Plans**: 8 plans
 
 Plans:
+**Wave 1**
 - [ ] 44-01-PLAN.md — Tracer: a declared source checks as `match` end to end through `upstream.js`; TRC-02 trace rule; seventh embed row
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 44-02-PLAN.md — Unit-pin every upstream grammar and decision; prove an upstream ref travels from a claim note to the Requirement column
 - [ ] 44-03-PLAN.md — Install and uninstall `tools/grugops/upstream.js`; prove no host read rule for a source (D-20); census pins
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 44-04-PLAN.md — Validator `upstream` arm refusing malformed declarations by name; config field reference
 - [ ] 44-05-PLAN.md — Every check state and exit code; the untrusted checkout cannot steer git (replace refs, GIT_DIR, fsmonitor, lazy fetch)
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 44-06-PLAN.md — The fenced `read` verb (manifest-only, 64 KiB ceiling); injection fixture; red-team round prepared
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 44-07-PLAN.md — The upstream contract and Workflow 20, registered with every gate (each count re-derived)
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 44-08-PLAN.md — Workflow 17 session-start step, Orchestrator key, AGENTS.md third-root line, config pointer; names for Phases 45/47; open confirmation items
+
 **Notes**: The discussion opens with a decision gate: the names (S-06: the sources config key, the consult dial key and values, the build-request statuses) and the upstream export shape (ID grammar, supersession marker, entry manifest), stubbed as a minimal declared manifest if upstream has not settled it. S-02 sets the source location and S-05 the ownership. TRC-02 sits here, not in Phase 45, because the trace renderer's runnable carries a generated copy of `trace-model.ts`: adding the `upstream.js` runnable and changing the trace model in one phase moves the runnable set and embeds once. `AGENTS.md` gains one line for the third root, within its byte budget. Research flag: pin semantics (CRLF, shallow clones, SHA-256 repositories, reads across repositories without a fetch), the injection fence, whether a git read through Bash triggers nested `CLAUDE.md` or `AGENTS.md` loading, and per-host reads outside the repository (`UNKNOWN - verify` on Codex CLI, Antigravity CLI, Copilot CLI and Pi). Budget one adversarial red-team round on the untrusted read path.
 
 ### Phase 45: Traceability, build requests and architecture as input
+
 **Goal**: The trail runs from an upstream decision to a ticket, and anything that belongs upstream leaves as a build request that a human carries, so grugops never decides what the product is
 **Depends on**: Phase 44 (the ref grammar, the pin and the sanctioned reader)
 **Requirements**: TRC-01, TRC-03, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-07, ARCH-01, ARCH-02
@@ -191,10 +206,12 @@ Plans:
   3. A ticket waiting on a build request stays in `Blocked` with a bullet naming the request, a board from before v3.1 validates unchanged under v3.1 (cross-version test), and upstream waits escalate on their own threshold, not on `blocked_escalation_days` (BR-02, BR-06)
   4. The human sees a carry list of open build requests to take upstream, and grugops writes nothing into the upstream repository; a request is answered only when a human sets a new pin, and the answer enters the shared context as a `claim` citing the upstream ID and pin (BR-04, BR-05)
   5. When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`) and a deviation becomes a build request; a conflict with a grugops floor (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) becomes a build request plus a human stop, and the floor does not move (ARCH-01, ARCH-02)
+
 **Plans**: TBD
 **Notes**: S-01 settles the board status (a waiting ticket stays in `Blocked`; no new column), S-05 the architecture ownership, and S-07 the merge of architecture as input into this phase. If planning finds the architecture work larger than pointer lines, one Workflow 00 step and the ADR status, split it into its own phase by recorded decision. Every role edit is one pointer line (BA/PM, System Analyst, Architect, Designer, Greenfield Mapper); the procedure lives in the upstream-sources workflow. Research flag (narrow): the Blocked bullet against older installed `state-check.js` copies and the metrics "Blocked time", and the separate sweep threshold. A machine-checkable answer link stays deferred (BR-F1).
 
 ### Phase 46: One-command install and install --migrate docs
+
 **Goal**: A user installs grugops into the repository they are in with one pinned command copied from the README, without cloning, and the same command updates, checks, migrates and removes it
 **Depends on**: Nothing in v3.1 (independent; may run in parallel with Phases 44 and 45)
 **Requirements**: INST-01, INST-02, INST-03, INST-04, INST-05, INST-06, INST-07, INST-08, INST-09, INST-10, DOC-01
@@ -204,10 +221,12 @@ Plans:
   3. The packed tarball carries every file the installer reads, with no runtime dependencies and no lifecycle scripts, and a packed-tarball install test gates each release, green on ubuntu and on a windows-latest job (INST-06, INST-10)
   4. `npm view grugops` shows `3.1.0-rc.0` under dist-tag `next`, published by hand by a named human early in the milestone; after that, releases publish only from CI through trusted publishing, staged until a named human approves, with no long-lived npm token (INST-07)
   5. PROJECT.md records the decision that amends the Out of Scope line (no global binary is documented or required; `npm i -g` is unsupported); the README documents the Claude Code plugin one-liner as a second, Claude-Code-only path with one plugin name everywhere; and README.md, docs/usage.md and docs/how-it-works.md name `install --migrate` and link the pre-v3 page in a form that resolves from the kit home (INST-08, INST-09, DOC-01)
+
 **Plans**: TBD
 **Notes**: Claim the npm name first (S-04, research D8 and D9): the first plan prepares a publishable manifest (today's `package.json` is the private `grugops-tooling`) so a named human can publish `3.1.0-rc.0`. `install.js` stays the single installer (D-07/D-08) behind a thin dispatcher that checks Node. S-03 amends the v1.1 Out of Scope line; the docs never show `-g` or `@latest`. The migrate docs ride here because both changes rewrite the README install claims. The plugin-name drift includes `CLAUDE.md` (`grug@grugops`) against `install/README.md` (`grugops@grugops`). Research flag: the first publish and staging, provenance through staging, the installer run from an ephemeral package source end to end, and the Windows proof; whether trusted publishing can publish a brand-new package's first version is `UNKNOWN - verify`. The existing windows-latest test leg stays out of scope; only the packed-tarball install job must be green. No agent approves a staged publish.
 
 ### Phase 47: Universal consultant
+
 **Goal**: A role or a human can get a sourced second opinion on a question outside the upstream owner's scope, from one consultant or a panel whose deliverable is where the lenses disagree, and the opinion never becomes verified memory on its own
 **Depends on**: Phase 44 (declared sources first) and Phase 45 (upstream-scope questions become build requests; the role byte budget left after its pointer lines)
 **Requirements**: CON-01, CON-02, CON-03, CON-04, CON-05, CON-06, CON-07, CON-08
@@ -217,10 +236,12 @@ Plans:
   3. The consultant answers from declared sources first and cites them; beyond them it answers only questions outside the upstream owner's scope, with sources or `UNKNOWN - verify`, and a question in the upstream owner's scope becomes a build request, never an answer (CON-03, CON-05)
   4. Consultant output enters the shared context only as `claim` or `observation`; a decision that rests on it cites it, and a compliance, privacy or money claim goes to a named human (CON-04)
   5. With the dial at panel (enterprise; single is the lean default) the lenses answer independently, can run on different model tiers through the `models` dial, can include a risk lens that maps critical and major risks when the question calls for it, and one synthesis ends with where they disagree and why, with no vote (CON-06, CON-07, CON-08)
+
 **Plans**: TBD
 **Notes**: The last kit change: its byte budget depends on what Phases 44 and 45 spent (the role corpus is near 61 KB against a 64,000 B warning). Registering a 20th role and a new workflow moves many pins (role and workflow counts, ceilings, model tiers, generated adapters, hook manifest, catalog, install census tests); plan one task that regenerates everything. S-08: no always-on skeptic lens. Out of scope: multi-round debate, a judge that picks a winner, one role per domain. Research flag: CON-08 reverses the research default of one consultant adapter, so how lenses reach different model tiers (role schema tier values in `scripts/canonical-frontmatter.ts` are `UNKNOWN - verify`), and panel isolation (one context folder per lens, then one synthesis task). Budget one adversarial red-team round on the new advisory output. Domain packs stay in backlog 999.13.
 
 ### Phase 48: Feature docs and the 3.1.0 release
+
 **Goal**: A reader can learn the new features from the public docs, and a user can install the released `3.1.0` with the documented command
 **Depends on**: Phases 44, 45, 46 and 47
 **Requirements**: DOC-02, DOC-03
@@ -228,6 +249,7 @@ Plans:
   1. The public docs explain how to declare an upstream source, how a build request goes from raised to answered by a new pin, and how to ask the consultant, single or panel, and each new public claim carries a claim anchor held by the claim registry (DOC-02)
   2. `agent-factory/VERSION`, `.claude-plugin/plugin.json`, `package.json` and the README install line read `3.1.0`, the version agreement gate passes, and CHANGELOG has a `[3.1.0]` entry (DOC-03)
   3. The packed-tarball install test passes on the `3.1.0` tarball, which carries every file Phases 44–47 added, and after a named human tags `v3.1.0` and approves the staged publish, `npx grugops@3.1.0 --claude` installs from the registry (DOC-03)
+
 **Plans**: TBD
 **Notes**: Standard pattern (docs plus the claim-anchor mechanics from v3.0); no research phase needed. Tagging, pushing and approving the publish are human steps.
 
