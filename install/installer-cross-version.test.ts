@@ -67,9 +67,12 @@ import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 // 48 -> 49 on 2026-11-05, plan 41-09 (RUN-05, D-35): install materializes the host note writer `tools/grugops/note.js`
 // (one more RUNNABLES row) and records it, so the runnables part reads 9 (measured: the case printed 49, and the
 // removal side, RECORDED_FILE_COUNT - 1, printed 48).
-const RECORDED_FILE_COUNT = 49;
+// 49 -> 50 on 2026-11-25, plan 44-03 (UP-02, D-08): install materializes the host upstream reader
+// `tools/grugops/upstream.js` (one more RUNNABLES row) and records it, so the runnables part reads 10 (measured: the case
+// printed 50, and the removal side, RECORDED_FILE_COUNT - 1, printed 49).
+const RECORDED_FILE_COUNT = 50;
 const RECORDED_FILE_COUNT_WHY =
-  "21 adapters + 7 skills + AGENTS.md + 9 runnables + tools/grugops/LICENSE + tools/grugops/package.json + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
+  "21 adapters + 7 skills + AGENTS.md + 10 runnables + tools/grugops/LICENSE + tools/grugops/package.json + the 9 files install created (CLAUDE.md, .github/copilot-instructions.md, the 3 whole-file host entries .agents/skills/grugops/SKILL.md, .opencode/commands/grugops.md, .pi/prompts/grugops.md, and the 4 launch files .agents/agents/grugops-orchestrator.md, .opencode/agents/grugops-orchestrator.md, .github/agents/grugops-orchestrator.agent.md, .pi/grugops-orchestrator.md)";
 
 let SCRATCH = "";
 beforeAll(() => {

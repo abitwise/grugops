@@ -177,8 +177,10 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * is left byte for byte by uninstall, as for every runnable. Measured by this test's failing run (expected 80). 79 -> 80.
  * 81 on 2026-11-05, plan 41-09 (RUN-05, D-35): `tools/grugops/note.js` entered as a file (one more RUNNABLES row); an edit
  * to it is left byte for byte by uninstall, as for every runnable. Measured by this test's failing run (expected 81). 80 -> 81.
+ * 82 on 2026-11-25, plan 44-03 (UP-02, D-08): `tools/grugops/upstream.js` entered as a file (one more RUNNABLES row); an
+ * edit to it is left byte for byte by uninstall, as for every runnable. Measured by this test's failing run (expected 82). 81 -> 82.
  */
-const INSTALLED_FILE_COUNT = 81;
+const INSTALLED_FILE_COUNT = 82;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

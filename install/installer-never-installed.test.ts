@@ -147,8 +147,11 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * 81 files and links + 40 directories on 2026-11-05, plan 41-09 (RUN-05, D-35): `tools/grugops/note.js` entered as a file,
  * in every variant, because install materializes the host note writer (one more RUNNABLES row); `tools/grugops` was
  * already a directory. Measured by this test's failing run (expected 121). 120 -> 121.
+ * 82 files and links + 40 directories on 2026-11-25, plan 44-03 (UP-02, D-08): `tools/grugops/upstream.js` entered as a
+ * file, in every variant, because install materializes the host upstream reader (one more RUNNABLES row);
+ * `tools/grugops` was already a directory. Measured by this test's failing run (expected 122). 121 -> 122.
  */
-const WRITE_PATH_COUNT = 121;
+const WRITE_PATH_COUNT = 122;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

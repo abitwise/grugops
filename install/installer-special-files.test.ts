@@ -141,7 +141,11 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // read-only inputs), because install materializes the host note writer (one more RUNNABLES row) and asks its destination
 // through readForWrite; a FIFO and a directory are planted at it by derivation. Measured by this test's failing run
 // (expected 83). 82 -> 83.
-const READ_PATH_COUNT = 83;
+// 84 on 2026-11-25, plan 44-03 (UP-02, D-08): `tools/grugops/upstream.js` entered (82 files and links written, plus the
+// two read-only inputs), because install materializes the host upstream reader (one more RUNNABLES row) and asks its
+// destination through readForWrite; a FIFO and a directory are planted at it by derivation. Measured by this test's
+// failing run (expected 84). 83 -> 84.
+const READ_PATH_COUNT = 84;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo
