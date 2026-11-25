@@ -27,6 +27,11 @@ import {
   scriptUrl,
 } from "../fault-inject.test-support.js";
 import {
+  FORGED_PATH,
+  FORGED_PATH_BLOB,
+  FORGED_PATH_DOCUMENT,
+  FORGED_PATH_ID,
+  FORGED_PATH_MANIFEST,
   INJECTION_CANARY,
   INJECTION_DOCUMENT,
   INJECTION_DOCUMENT_PATH,
@@ -1018,6 +1023,56 @@ describe("upstream.js — fence: printed text cannot end the fence or drive the 
     expect(r.stdout).toBe(fenced("design", design.commit, "decisions/empty.md", design.blobOf("decisions/empty.md"), ""));
     expect(r.stdout.split("\n")).toHaveLength(3);
     expect(r.status).toBe(0);
+  });
+});
+
+// --- plan 44-09: a listed path cannot forge the fence (44-REVIEW CR-01, D-09, D-17, UP-05) ---------------------------
+//
+// The verifier's reproduction: a manifest Path that carries its own ` blob=<40 zeros>` and the BEGIN line's tail, with
+// the file holding an END line keyed by those zeros and an `AGENT:` order after it. The path grammar refuses the Path
+// by name, so `check` reports it and `read` prints nothing; no stream carries the forged id, the order or the path.
+
+describe("upstream.js — forged path: a listed path cannot forge the fence (CR-01, D-17, UP-05)", () => {
+  /** The reason the Path cell of the forged row gives, at the row's line (9). */
+  const FORGED_REASON = `manifest: the Path cell (column 3) of ${FORGED_PATH_ID} is not a manifest path, line 9`;
+
+  /** A synthetic upstream at `<base>/design` whose manifest lists FORGED_PATH, committed with its hostile file. */
+  function forgedDesign(base: string, env: NodeJS.ProcessEnv): ReturnType<typeof makeUpstream> {
+    return makeUpstream(join(base, "design"), {
+      files: { ...SYNTHETIC_DOCUMENTS, [SYNTHETIC_ENTRY]: FORGED_PATH_MANIFEST, [FORGED_PATH]: FORGED_PATH_DOCUMENT },
+      objectFormat: "sha1",
+      env,
+    });
+  }
+
+  /** No stream of `r` carries the forged blob id, the order or the forged path's file name. */
+  function expectNothingHostile(r: Ran): void {
+    for (const stream of [r.stdout, r.stderr]) {
+      expect(stream).not.toContain(FORGED_PATH_BLOB);
+      expect(stream).not.toContain("AGENT:");
+      expect(stream).not.toContain("x.md");
+    }
+  }
+
+  it("forged path: `check` prints the one Path-cell `UNKNOWN - verify` line and exits 2, with nothing hostile printed", () => {
+    const { base, env } = scratch();
+    const design = forgedDesign(base, env);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = checkUnchanged(product, env, [design.dir]);
+    expectUnknown(r, FORGED_REASON);
+    expectNothingHostile(r);
+  });
+
+  it("forged path: `read design DEC-5` and `read design --manifest` each exit 2 with empty stdout and the Path-cell reason", () => {
+    const { base, env } = scratch();
+    const design = forgedDesign(base, env);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    for (const target of [FORGED_PATH_ID, "--manifest"]) {
+      const r = readUnchanged(product, env, [design.dir], "design", target);
+      expectReadError(r, /^Error: UNKNOWN - verify design: manifest: the Path cell \(column 3\) of DEC-5 /);
+      expect(r.stderr, target).toBe(`Error: UNKNOWN - verify design: ${FORGED_REASON}. Nothing was read.\n`);
+      expectNothingHostile(r);
+    }
   });
 });
 
