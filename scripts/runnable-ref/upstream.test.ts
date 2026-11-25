@@ -56,6 +56,7 @@ import {
   cloneShallow,
   commitGitlink,
   commitMore,
+  failingGitDir,
   fixtureEnv,
   fixtureGit,
   injectionDeclaration,
@@ -1851,5 +1852,76 @@ describe("upstream.js — source stat: a stat that fails is that source's own `U
     );
     expect(r.status, all).toBe(2);
     expect(treeDigest(product)).toBe(before);
+  });
+});
+
+// --- plan 44-12: a git error quoted in a reason never echoes a listed path (T-44-38, UP-05) ---------------------
+//
+// An `UNKNOWN - verify` reason quotes the first line git printed on stderr, and git can echo the arguments it was
+// given, among them the manifest's listed paths. A path that passes the grammar can still read as an order
+// (CELL_SENTINEL_PATH). The program replaces every pathspec argument of the failing call with `<listed path>`, so the
+// human still learns which git call failed and git's diagnosis, never the path. failingGitDir fails the one call that
+// carries the path and echoes all of its arguments.
+
+describe("upstream.js — git message: a git error never echoes a listed path (plan 44-12, T-44-38, UP-05)", () => {
+  if (process.platform === "win32") console.warn(`SKIPPED git message on win32: ${POSIX_WRAPPER_ONLY}`);
+
+  /** The token the wrapper fails on: a word of the prose-like listed path. */
+  const TOKEN = "SYSTEM-NOTE";
+
+  /** An upstream at `<base>/design` that lists DEC-9 at the prose-like path, present as a regular file, and its product. */
+  function proseDesign(base: string, env: NodeJS.ProcessEnv): { design: ReturnType<typeof makeUpstream>; product: string } {
+    const design = designWith(base, env, [["DEC-9", "locked", CELL_SENTINEL_PATH, ""]], {
+      [CELL_SENTINEL_PATH]: "# DEC-9\n\nA synthetic document at a path that reads as an order.\n",
+    });
+    expect(fixtureGit(design.dir, ["ls-tree", design.commit, "--", CELL_SENTINEL_PATH], env), "PREMISE: a regular file at the pin").toMatch(
+      /^100644 blob /,
+    );
+    return { design, product: productDeclaring(base, sourceOf("design", "../design", design)) };
+  }
+
+  /** The environment with failingGitDir first on PATH, after checking that the wrapper does echo the listed path. */
+  function failingEnv(base: string, env: NodeJS.ProcessEnv, dir: string): NodeJS.ProcessEnv {
+    const bin = failingGitDir(join(base, "git-calls.log"), TOKEN);
+    const failing = { ...env, PATH: `${bin}:${env.PATH ?? ""}` };
+    const echoed = plainGit(dir, ["ls-tree", "HEAD", "--", CELL_SENTINEL_PATH], failing);
+    expect(echoed.status, "PREMISE: the wrapper fails a call carrying the token").toBe(128);
+    expect(echoed.stderr, "PREMISE: the wrapper echoes the listed path on stderr").toContain(CELL_SENTINEL_PATH);
+    return failing;
+  }
+
+  it.skipIf(process.platform === "win32")(
+    "git message: `check` prints one `git ls-tree failed` line naming `<listed path>` at exit 2, and the path reaches neither stream",
+    () => {
+      const { base, env } = scratch();
+      const { design, product } = proseDesign(base, env);
+      const r = checkUnchanged(product, failingEnv(base, env, design.dir), [design.dir]);
+      expectUnknown(r, /^git ls-tree failed: fatal: could not read .*<listed path>/);
+      for (const stream of [r.stdout, r.stderr]) expect(stream).not.toContain(TOKEN);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "git message: `read design DEC-9` exits 2 with one `Error:` line naming `<listed path>`, and the path reaches neither stream",
+    () => {
+      const { base, env } = scratch();
+      const { design, product } = proseDesign(base, env);
+      const r = readUnchanged(product, failingEnv(base, env, design.dir), [design.dir], "design", "DEC-9");
+      expectReadError(r, /^Error: UNKNOWN - verify design: git ls-tree failed: fatal: could not read .*<listed path>.*\. Nothing was read\.$/m);
+      for (const stream of [r.stdout, r.stderr]) expect(stream).not.toContain(TOKEN);
+    },
+  );
+
+  it("git message: control: the same upstream under the real git gives `match` and reads DEC-9 at exit 0", () => {
+    const { base, env } = scratch();
+    const { design, product } = proseDesign(base, env);
+    const c = checkUnchanged(product, env, [design.dir]);
+    expect(c.stderr).toBe("");
+    expect(c.stdout).toBe(`match design ${design.commit}\n`);
+    expect(c.status).toBe(0);
+    const r = readUnchanged(product, env, [design.dir], "design", "DEC-9");
+    expect(r.stderr).toBe("");
+    expect(r.stdout.startsWith(`BEGIN UNTRUSTED UPSTREAM DATA design@${design.commit}:${CELL_SENTINEL_PATH} blob=`)).toBe(true);
+    expect(r.status).toBe(0);
   });
 });

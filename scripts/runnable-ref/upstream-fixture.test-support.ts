@@ -321,6 +321,17 @@ export function versionedGitDir(logPath: string, version: string): string {
   return gitWrapperDir(logPath, "versioned-bin", "versionedGitDir", answer);
 }
 
+/**
+ * Plan 44-12 (T-44-38, UP-05): a recording `git` wrapper, as recordingGitDir, that fails every call one of whose
+ * arguments contains `token`: it prints `fatal: could not read <all its arguments joined by spaces>` on stderr and
+ * exits 128, the way a git error can echo the pathspecs it was given. Every other call runs the real git. POSIX hosts
+ * only. Returns the directory.
+ */
+export function failingGitDir(logPath: string, token: string): string {
+  const fail = `for a in "$@"; do case "$a" in *${shellQuoted(token)}*) printf 'fatal: could not read %s\\n' "$*" >&2; exit 128;; esac; done\n`;
+  return gitWrapperDir(logPath, "failing-bin", "failingGitDir", fail);
+}
+
 // --- read variants (plan 44-06, D-15, D-16, D-17, UP-02, UP-05) ---------------------------------
 
 /** One manifest row: ID, status, path and successor (empty for a locked row). */
