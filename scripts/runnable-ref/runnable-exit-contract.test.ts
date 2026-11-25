@@ -27,7 +27,9 @@
 // UPSTREAM.JS (plan 44-01, D-12, 2026-11-25). Its one command, `check`, writes nothing and prints every stdout line in
 // one write at the end, so its row passes `--root` at a scratch directory holding an empty `.grugops/` directory: the
 // run reaches that single write (the none-declared line) and the injected throw there must be exit 2 with nothing on
-// stdout. The census below then covers upstream.ts and upstream.js like every other runnable.
+// stdout. The census below then covers upstream.ts and upstream.js like every other runnable. Its second command, `read`
+// (plan 44-06, D-15), also writes nothing and prints its whole answer in one write, so its row reads one manifest-listed
+// file of a synthetic upstream built at test time and injects the throw at that write.
 //
 // NOTE.JS TAKES NO ROOT AT ALL. Its store is the working directory's, so its rows run through runNote, with the fixture
 // as the working directory and the ambient root names blank, so the dial comes from the fixture.
@@ -56,6 +58,7 @@ import {
   QUEUE_REL,
   TRACE_DIR_REL,
 } from "../../install/state-layout.js";
+import { SYNTHETIC_ENTRY, fixtureEnv, makeProduct, makeUpstream, syntheticFiles } from "./upstream-fixture.test-support.js";
 import {
   FAULT_LOG_ENV,
   FAULT_SPEC_ENV,
@@ -475,6 +478,34 @@ describe("EXIT-1: upstream.js, an unexpected throw past every inner catch is exi
     expectStopped("upstream", r);
     expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
     expect(treeDigest(root)).toEqual(before);
+  });
+
+  it("read: a throw at its one stdout write is exit 2 with nothing on stdout, and nothing was written (plan 44-06)", () => {
+    const base = mkTmp("grugops-exit-contract-upstream-read-");
+    const env = fixtureEnv(join(base, "home"));
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const root = makeProduct(join(base, "product"), {
+      upstream: {
+        sources: [
+          {
+            id: "design",
+            path: "../design",
+            commit: design.commit,
+            entry: SYNTHETIC_ENTRY,
+            entry_blob: design.blobOf(SYNTHETIC_ENTRY),
+            owns: { areas: ["product"], prefixes: ["DEC", "Q"] },
+          },
+        ],
+      },
+    });
+    const plain = runPlain("upstream", "read", "design", "DEC-1", "--root", root);
+    expect(plain.stdout.startsWith("BEGIN UNTRUSTED UPSTREAM DATA design@"), "PREMISE: the run reaches its single stdout write").toBe(true);
+    expect(plain.status, "PREMISE: the unfaulted run exits 0").toBe(0);
+    const before = [treeDigest(root), treeDigest(design.dir)];
+    const r = runWith("upstream", ["read", "design", "DEC-1", "--root", root], STDOUT_THROW);
+    expectStopped("upstream", r);
+    expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
+    expect([treeDigest(root), treeDigest(design.dir)]).toEqual(before);
   });
 });
 

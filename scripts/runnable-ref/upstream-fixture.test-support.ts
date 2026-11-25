@@ -273,3 +273,39 @@ export function recordingGitDir(logPath: string): string {
   writeFileSync(logPath, "");
   return bin;
 }
+
+// --- read variants (plan 44-06, D-15, D-16, D-17, UP-02, UP-05) ---------------------------------
+
+/** One manifest row: ID, status, path and successor (empty for a locked row). */
+export type FixtureManifestRow = readonly [id: string, status: "locked" | "superseded", path: string, successor: string];
+
+/** The synthetic manifest with `rows` appended after its last row. */
+export function manifestPlus(rows: readonly FixtureManifestRow[]): string {
+  return SYNTHETIC_MANIFEST + rows.map(([id, status, path, successor]) => `| ${id} | ${status} | ${path} | ${successor} |\n`).join("");
+}
+
+/**
+ * ASCII text of exactly `bytes` bytes, ending in LF (empty for 0): the large-file variant, so a test names the size it
+ * needs (65536 reads, 65537 is over the ceiling) and the fixture holds it exactly.
+ */
+export function textOfBytes(bytes: number): string {
+  if (bytes === 0) return "";
+  const line = "Synthetic filler line for the per-read ceiling.\n";
+  let out = "";
+  while (out.length < bytes) out += line;
+  return `${out.slice(0, bytes - 1)}\n`;
+}
+
+/** A document that holds a NUL byte: not a text file. */
+export const NUL_DOCUMENT = "# DEC-7\n\nA binary\u0000tail.\n";
+
+/**
+ * One more commit in `dir` whose tree holds a gitlink (mode 160000, a submodule entry) at `path` naming the commit
+ * `target`, with no `.gitmodules` and nothing on disk. Returns the new commit. A later `git add -A` would stage the
+ * gitlink's removal, so call nothing that stages everything after it.
+ */
+export function commitGitlink(dir: string, path: string, target: string, env: NodeJS.ProcessEnv): string {
+  fixtureGit(dir, ["update-index", "--add", "--cacheinfo", `160000,${target},${path}`], env);
+  fixtureGit(dir, ["commit", "-q", "-m", "synthetic gitlink"], env);
+  return fixtureGit(dir, ["rev-parse", "HEAD"], env);
+}
