@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
 status: executing
-stopped_at: Completed 44-03-PLAN.md
-last_updated: "2026-11-25T09:19:03.491Z"
+stopped_at: Completed 44-04-PLAN.md
+last_updated: "2026-11-25T09:28:07.493Z"
 last_activity: 2026-11-25
 last_activity_desc: Phase 44 execution started
-state_head: 8a24c1c333fc88c7481ea28c2e315c58505b4f1e
+state_head: b61a1fe8205b5eeeb9077bfc6db4ce49c1b12977
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 8
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 ## Current Position
 
 Phase: 44 (Upstream source declaration and pin check) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-11-25 — Phase 44 execution started
 
@@ -905,6 +905,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P01 | 37 min | 2 tasks | 25 files |
 | Phase 44 P02 | 17 min | 2 tasks | 6 files |
 | Phase 44 P03 | 21 min | 2 tasks | 14 files |
+| Phase 44 P04 | 7 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -2535,6 +2536,7 @@ Recent decisions affecting current work:
 - [Phase 44]: 44-02: BR-3 joined the AUTH-1 agreement corpus (18 to 19) so the BR reserved prefix is exercised; the ticket answer is unchanged
 - [Phase 44]: 44-03: the D-20 proof searches every file in the target and the scratch HOME for the declared source path, with the declaration as the positive control
 - [Phase 44]: 44-03: upstream.js is installed to tools/grugops/upstream.js and joins the update-together list in install/README.md, because state-check checks its build stamp
+- [Phase 44]: 44-04: the validator's upstream arm adds no rule of its own; it relabels parseUpstreamConfig findings and applies sourcePathFindings against the canonical base (the root that holds .grugops/) only once the declaration is otherwise well formed, as the runnable does
 
 ### Pending Todos
 
@@ -2940,8 +2942,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T09:19:03.405Z
-Stopped at: Completed 44-03-PLAN.md
+Last session: 2026-11-25T09:28:07.420Z
+Stopped at: Completed 44-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
