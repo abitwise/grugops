@@ -278,7 +278,12 @@ export function isManifestPath(p) {
  * grammar's one fold). Exactly one line must equal UPSTREAM_MANIFEST_HEADER; the next line must be a delimiter row;
  * data rows run until the first line that does not start with `|`. Each row has exactly four cells, so a `|` inside a
  * cell is refused. Text before the header and after the table is ignored. Zero rows is a valid, empty manifest. The
- * first violation is returned with its 1-based line, never guessed around (D-09).
+ * first violation is returned with its 1-based line, never guessed around (D-09). Rows are checked in line order, and
+ * the cells of a row in column order (ID, Status, Path, Superseded by), so the same text always gives the same reason.
+ *
+ * A reason never quotes a cell (44-REVIEW CR-02, D-13): `check` prints it outside the fence, so a bad cell is named
+ * by its column, with a fixed reason and the line. The only manifest text a reason may carry is an ID that has already
+ * matched UPSTREAM_ID_RE, and a successor is held to that same grammar (D-11).
  */
 export function parseManifest(text) {
     const lines = normalizeDocument(text).split("\n");
@@ -312,7 +317,7 @@ export function parseManifest(text) {
         }
         const [id, status, path, successor] = cells;
         if (!UPSTREAM_ID_RE.test(id))
-            return malformed(`ID ${upstreamQuote(id)} does not match the upstream ID grammar`, line);
+            return malformed("the ID cell (column 1) does not match the upstream ID grammar", line);
         if (seen.has(id))
             return malformed(`ID ${id} is listed more than once`, line);
         if (status !== "locked" && status !== "superseded") {
@@ -324,6 +329,9 @@ export function parseManifest(text) {
             return malformed(`${id} is locked and must not name a successor`, line);
         if (status === "superseded" && successor === "")
             return malformed(`${id} is superseded and must name its successor`, line);
+        if (status === "superseded" && !UPSTREAM_ID_RE.test(successor)) {
+            return malformed(`the Superseded by cell (column 4) of ${id} does not match the upstream ID grammar`, line);
+        }
         const row = Object.freeze({
             id,
             status,
@@ -338,7 +346,7 @@ export function parseManifest(text) {
         if (row.supersededBy === null)
             continue;
         if (!seen.has(row.supersededBy)) {
-            return malformed(`${row.id} is superseded by ${upstreamQuote(row.supersededBy)}, which the manifest does not list`, row.line);
+            return malformed(`the Superseded by cell (column 4) of ${row.id} names an ID the manifest does not list`, row.line);
         }
         const visited = new Set([row.id]);
         let at = seen.get(row.supersededBy);
