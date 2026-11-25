@@ -1,7 +1,7 @@
 ---
 phase: "44"
 slug: "upstream-source-declaration-and-pin-check"
-status: open
+status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
 threats_open: 0
 asvs_level: 1
@@ -87,11 +87,11 @@ created: "2026-11-25"
 
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
-| AR-44-01 | T-44-07 | A raw upstream ID still forms a ticket row; Workflow 20 requires the namespaced form and Phase 45 TRC-03 owns detection | plan disposition (44-02); no human sign-off yet | 2026-11-25 |
-| AR-44-02 | T-44-31 | Reserving `BR` costs a project with ticket prefix `BR` its trace rows, the same class as `EPIC`/`ADR` | plan disposition (44-08); no human sign-off yet | 2026-11-25 |
+| AR-44-01 | T-44-07 | A raw upstream ID still forms a ticket row; Workflow 20 requires the namespaced form and Phase 45 TRC-03 owns detection | plan disposition (44-02); accepted by Olger at UAT (typed name, 44-UAT.md test 3) | 2026-11-25 |
+| AR-44-02 | T-44-31 | Reserving `BR` costs a project with ticket prefix `BR` its trace rows, the same class as `EPIC`/`ADR` | plan disposition (44-08); accepted by Olger at UAT (typed name, 44-UAT.md test 3) | 2026-11-25 |
 | AR-44-03 | T-44-SC | No package was installed this phase | plan disposition (all plans) | 2026-11-25 |
-| AR-44-04 | T-44-37 | The ASCII path grammar refuses a non-ASCII or dot-led upstream file name; the source fails closed with a named `UNKNOWN - verify`, and upstream renames the file | plan disposition (44-09); no human sign-off yet | 2026-11-25 |
-| AR-44-05 | T-44-38 (residual) | `<listed path>` replaces each path as the failing git call named it; a fragment of a listed path that git prints in another form, and git text about the local `.git`, are not replaced | plan disposition (44-12); no human sign-off yet | 2026-11-25 |
+| AR-44-04 | T-44-37 | The ASCII path grammar refuses a non-ASCII or dot-led upstream file name; the source fails closed with a named `UNKNOWN - verify`, and upstream renames the file | plan disposition (44-09); accepted by Olger at UAT (typed name, 44-UAT.md test 3) | 2026-11-25 |
+| AR-44-05 | T-44-38 (residual) | `<listed path>` replaces each path as the failing git call named it; a fragment of a listed path that git prints in another form, and git text about the local `.git`, are not replaced | plan disposition (44-12); accepted by Olger at UAT (typed name, 44-UAT.md test 3) | 2026-11-25 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -106,7 +106,7 @@ created: "2026-11-25"
 | 2026-11-25 | 47 | 47 | 0 | gap-closure round 1, plans 44-09 to 44-14 (recorded by the plan 44-14 executor from passing test filters; not a secure-phase audit): T-44-15, T-44-19 and T-44-30 re-closed, T-44-35 to T-44-46 added; re-audit by /gsd-secure-phase owed |
 | 2026-11-25 | 47 | 47 | 0 | gsd-secure-phase re-audit of round 1 (gsd-security-auditor, 15 in scope: T-44-15, T-44-19, T-44-30, T-44-35 to T-44-46). Critical and high rows checked beyond grep: the CR-01 and CR-02 reproductions re-run against the committed upstream.js (byte-identical to a fresh tsc build), 27 untested variants and 300,000 fuzzed paths through fenceLines; none defeated a mitigation. Every recorded filter count reproduced. T-44-15 and T-44-30 closed for the automated half only |
 
-Live checks still owed at UAT, outside this L1 register: the UP-05 red-team round against a live agent (T-44-15, T-44-30), Windows git behaviour, and git older than 2.45.
+Live checks at UAT (44-UAT.md, 2026-11-25): the UP-05 red-team round against a live agent (T-44-15, T-44-30) passed, test 1; git older than 2.45 (T-44-40) passed on a real git 2.39.5 with a real partial clone, test 2. Windows and the other hosts stay `UNKNOWN - verify` (test 5 blocked: no host available); the reader fails closed there.
 
 ---
 
@@ -115,9 +115,9 @@ Live checks still owed at UAT, outside this L1 register: the UP-05 red-team roun
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
 - [x] `threats_open: 0` confirmed (secure-phase re-audit, 2026-11-25)
-- [ ] `status: verified` set in frontmatter
+- [x] `status: verified` set in frontmatter
 
-**Approval:** pending a human. The re-audit is done and `threats_open` is 0. Still owed: sign-off on AR-44-01, AR-44-02, AR-44-04 and AR-44-05; the live UP-05 red-team round (T-44-15, T-44-30); and a run on a real git older than 2.45 (T-44-40, tested only through a wrapper so far, `UNKNOWN - verify`). `status: verified` waits for that sign-off.
+**Approval:** verified 2026-11-25. Olger accepted AR-44-01, AR-44-02, AR-44-04 and AR-44-05 at UAT with his typed name (44-UAT.md test 3). The UP-05 red-team round (T-44-15, T-44-30) passed at UAT test 1, with the `InstructionsLoaded` item accepted by Olger on substitute transcript evidence because the hook did not fire on Claude Code 2.1.329. The git older than 2.45 run (T-44-40) passed at UAT test 2. Windows and the other hosts remain `UNKNOWN - verify` (UAT test 5, blocked).
 
 ## Security Audit 2026-11-25
 
