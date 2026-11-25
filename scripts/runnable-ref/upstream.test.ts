@@ -27,7 +27,11 @@ import {
   scriptUrl,
 } from "../fault-inject.test-support.js";
 import {
+  CELL_SENTINEL_ID_MANIFEST,
+  CELL_SENTINEL_PATH,
+  CELL_SENTINEL_PATH_MANIFEST,
   CELL_SENTINEL_STATUS_MANIFEST,
+  CELL_SENTINEL_SUCCESSOR_MANIFEST,
   FORGED_PATH,
   FORGED_PATH_BLOB,
   FORGED_PATH_DOCUMENT,
@@ -403,7 +407,7 @@ describe("upstream.js — unknown: each cause is one named `UNKNOWN - verify` li
       env,
     });
     const product = productDeclaring(base, sourceOf("design", "../design", design));
-    expectUnknown(checkUnchanged(product, env, [design.dir]), "listed path decisions/dec-9.md is not a regular file at the pin");
+    expectUnknown(checkUnchanged(product, env, [design.dir]), "the file listed for DEC-9 (manifest line 9, column 3) is not a regular file at the pin");
   });
 
   it("unknown: a manifest row whose Path is a symbolic link at the pin is not a regular file at the pin", () => {
@@ -413,7 +417,7 @@ describe("upstream.js — unknown: each cause is one named `UNKNOWN - verify` li
     expect(fixtureGit(first.dir, ["ls-tree", commit, "--", "decisions/dec-2.md"], env), "PREMISE: a link at the pin").toMatch(/^120000 /);
     const pinned = { commit, blobOf: (p: string) => blobAt(first.dir, commit, p, env) };
     const product = productDeclaring(base, sourceOf("design", "../design", pinned));
-    expectUnknown(checkUnchanged(product, env, [first.dir]), "listed path decisions/dec-2.md is not a regular file at the pin");
+    expectUnknown(checkUnchanged(product, env, [first.dir]), "the file listed for DEC-2 (manifest line 6, column 3) is not a regular file at the pin");
   });
 
   it("unknown: a `path` that is a symbolic link resolving inside the product repository (the real-path re-check, D-19)", () => {
@@ -925,7 +929,7 @@ describe("upstream.js — refused: what read will not print is one named `refuse
       readUnchanged(product, env, [design.dir], "design", "DEC-6"),
       "design",
       "DEC-6",
-      "big/over.md is over the per-read ceiling (65537 bytes; the ceiling is 65536); ask upstream to split it",
+      "the file listed for DEC-6 is over the per-read ceiling (65537 bytes; the ceiling is 65536); ask upstream to split it",
     );
   });
 
@@ -939,7 +943,7 @@ describe("upstream.js — refused: what read will not print is one named `refuse
       readUnchanged(product, env, [first.dir], "design", "DEC-2"),
       "design",
       "DEC-2",
-      "decisions/dec-2.md is not a regular file at the pin",
+      "the file listed for DEC-2 is not a regular file at the pin",
     );
   });
 
@@ -949,7 +953,7 @@ describe("upstream.js — refused: what read will not print is one named `refuse
     const commit = commitGitlink(first.dir, "vendor/sub", first.commit, env);
     expect(fixtureGit(first.dir, ["ls-tree", commit, "--", "vendor/sub"], env), "PREMISE: a gitlink at the pin").toMatch(/^160000 commit /);
     const product = productDeclaring(base, sourceOf("design", "../design", pinAt(first.dir, commit, env)));
-    expectRefused(readUnchanged(product, env, [first.dir], "design", "DEC-5"), "design", "DEC-5", "vendor/sub is not a regular file at the pin");
+    expectRefused(readUnchanged(product, env, [first.dir], "design", "DEC-5"), "design", "DEC-5", "the file listed for DEC-5 is not a regular file at the pin");
   });
 
   it("refused: a listed file holding a NUL byte is not a text file", () => {
@@ -960,7 +964,7 @@ describe("upstream.js — refused: what read will not print is one named `refuse
       readUnchanged(product, env, [design.dir], "design", "DEC-7"),
       "design",
       "DEC-7",
-      "decisions/dec-7.md is not a text file (it contains a NUL byte)",
+      "the file listed for DEC-7 is not a text file (it contains a NUL byte)",
     );
   });
 
@@ -981,7 +985,7 @@ describe("upstream.js — refused: what read will not print is one named `refuse
     writeFileSync(join(design.dir, "decisions", "dec-8.md"), Buffer.from([0x23, 0x20, 0xff, 0xfe, 0x0a]));
     const commit = commitMore(design.dir, {}, env);
     const product = productDeclaring(base, sourceOf("design", "../design", pinAt(design.dir, commit, env)));
-    expectRefused(readUnchanged(product, env, [design.dir], "design", "DEC-8"), "design", "DEC-8", "decisions/dec-8.md is not UTF-8 text");
+    expectRefused(readUnchanged(product, env, [design.dir], "design", "DEC-8"), "design", "DEC-8", "the file listed for DEC-8 is not UTF-8 text");
   });
 });
 
@@ -1145,6 +1149,67 @@ describe("upstream.js — cell text: manifest cell text never reaches stdout or 
     expectReadError(r, /^Error: UNKNOWN - verify design: manifest: the Status cell \(column 2\) of DEC-1 /);
     expect(r.stderr).toBe(`Error: UNKNOWN - verify design: ${STATUS_REASON}. Nothing was read.\n`);
     expectNoCellText(r);
+  });
+
+  /** One manifest per remaining cell, each holding the sentinel, with the fixed reason `check` and `read` must give. */
+  const OTHER_CELLS = [
+    ["ID", CELL_SENTINEL_ID_MANIFEST, "manifest: the ID cell (column 1) does not match the upstream ID grammar, line 5"],
+    ["Path", CELL_SENTINEL_PATH_MANIFEST, "manifest: the Path cell (column 3) of DEC-1 is not a manifest path, line 5"],
+    [
+      "Superseded by",
+      CELL_SENTINEL_SUCCESSOR_MANIFEST,
+      "manifest: the Superseded by cell (column 4) of DEC-2 does not match the upstream ID grammar, line 6",
+    ],
+  ] as const;
+
+  it.each(OTHER_CELLS)("cell text: the %s cell holding prose makes `check` print one positional reason at exit 2", (_cell, manifest, reason) => {
+    const { base, env } = scratch();
+    const design = cellDesign(base, env, manifest);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = checkUnchanged(product, env, [design.dir]);
+    expectUnknown(r, reason);
+    expectNoCellText(r);
+  });
+
+  it.each(OTHER_CELLS)("cell text: `read design DEC-1` with the %s cell holding prose exits 2 naming the same reason", (_cell, manifest, reason) => {
+    const { base, env } = scratch();
+    const design = cellDesign(base, env, manifest);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = readUnchanged(product, env, [design.dir], "design", "DEC-1");
+    expectReadError(r, /^Error: UNKNOWN - verify design: manifest: the /);
+    expect(r.stderr).toBe(`Error: UNKNOWN - verify design: ${reason}. Nothing was read.\n`);
+    expectNoCellText(r);
+  });
+
+  it("cell text: a prose-like listed path absent at the pin is named by its ID, line and column in `check`, never by the path", () => {
+    const { base, env } = scratch();
+    const design = designWith(base, env, [["DEC-9", "locked", CELL_SENTINEL_PATH, ""]], {});
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = checkUnchanged(product, env, [design.dir]);
+    expectUnknown(r, "the file listed for DEC-9 (manifest line 9, column 3) is not a regular file at the pin");
+    for (const stream of [r.stdout, r.stderr]) expect(stream).not.toContain("SYSTEM-NOTE");
+    expectNoCellText(r);
+  });
+
+  it("cell text: a prose-like listed path that is a symbolic link at the pin is refused by its ID in `read`, never by the path", () => {
+    const { base, env } = scratch();
+    const first = designWith(base, env, [["DEC-9", "locked", CELL_SENTINEL_PATH, ""]], {});
+    const commit = commitMore(first.dir, {}, env, { [CELL_SENTINEL_PATH]: "decisions/dec-1.md" });
+    expect(fixtureGit(first.dir, ["ls-tree", commit, "--", CELL_SENTINEL_PATH], env), "PREMISE: a link at the pin").toMatch(/^120000 /);
+    const product = productDeclaring(base, sourceOf("design", "../design", pinAt(first.dir, commit, env)));
+    const r = readUnchanged(product, env, [first.dir], "design", "DEC-9");
+    expectRefused(r, "design", "DEC-9", "the file listed for DEC-9 is not a regular file at the pin");
+    for (const stream of [r.stdout, r.stderr]) expect(stream).not.toContain("SYSTEM-NOTE");
+    expectNoCellText(r);
+  });
+
+  it("cell text: a superseded ID still prints `superseded DEC-2 by DEC-3` before the fence (grammar-checked IDs only)", () => {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = readUnchanged(product, env, [design.dir], "design", "DEC-2");
+    expect(r.stdout.startsWith("superseded DEC-2 by DEC-3\nBEGIN UNTRUSTED UPSTREAM DATA ")).toBe(true);
+    expect(r.status).toBe(0);
   });
 });
 
