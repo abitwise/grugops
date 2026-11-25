@@ -584,6 +584,22 @@ function plainGit(dir: string, args: readonly string[], env: NodeJS.ProcessEnv):
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
+/** The refusal for a partial clone under a git that ignores GIT_NO_LAZY_FETCH (plan 44-05; WR-01, plan 44-12). */
+const OLDER_GIT_REASON = "partial clone and git older than 2.45; make a full clone or upgrade git";
+
+/**
+ * True when the host's own git is 2.45 or later, from `git --version` (plan 44-12, IN-06). A partial-clone case expects
+ * the reason that git gives: on 2.45 or later GIT_NO_LAZY_FETCH holds and the missing blob is a `git cat-file failed`
+ * reason; below 2.45 the program refuses the partial clone first.
+ */
+function hostGitHonorsNoLazyFetch(): boolean {
+  const r = spawnSync("git", ["--version"], { encoding: "utf8", timeout: 20_000 });
+  const m = /git version (\d+)\.(\d+)/.exec(r.stdout ?? "");
+  expect(m, `PREMISE: the host git reports its version (${r.stdout}${r.stderr})`).not.toBeNull();
+  const [major, minor] = [Number((m as RegExpExecArray)[1]), Number((m as RegExpExecArray)[2])];
+  return major > 2 || (major === 2 && minor >= 45);
+}
+
 describe("upstream.js — adversarial git: replace refs, environment redirection, configured commands and lazy fetch (plan 44-05, D-20)", () => {
   it("adversarial git: a replace ref on the pinned manifest blob does not change the result (`match`); plain git does answer the replacement", () => {
     const { base, env } = scratch();
@@ -663,7 +679,8 @@ describe("upstream.js — adversarial git: replace refs, environment redirection
     const noLazy = { ...env, GIT_NO_LAZY_FETCH: "1" };
     expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "PREMISE: the pinned blob is not in the clone").not.toBe(0);
     const product = productDeclaring(base, sourceOf("design", "../design", origin));
-    expectUnknown(checkUnchanged(product, env, [clone]), /^git cat-file failed: .+$/);
+    // 2026-11-25, plan 44-12 (IN-06): the reason depends on the host git, so the case passes on any version.
+    expectUnknown(checkUnchanged(product, env, [clone]), hostGitHonorsNoLazyFetch() ? /^git cat-file failed: .+$/ : OLDER_GIT_REASON);
     expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "check fetched nothing").not.toBe(0);
     const control = plainGit(clone, ["cat-file", "-s", pinnedBlob], env);
     expect(control.status, `CONTROL: cat-file without GIT_NO_LAZY_FETCH fetches the blob (${control.stderr})`).toBe(0);
@@ -1727,8 +1744,6 @@ const POSIX_WRAPPER_ONLY = "the git wrapper is a POSIX shell script, which Windo
 describe("upstream.js — partial clone guard: detection runs before any object read, on either key (plan 44-12, WR-01, T-44-11)", () => {
   if (process.platform === "win32") console.warn(`SKIPPED partial clone guard on win32: ${POSIX_WRAPPER_ONLY}`);
 
-  const OLDER_GIT_REASON = "partial clone and git older than 2.45; make a full clone or upgrade git";
-
   it.skipIf(process.platform === "win32")(
     "partial clone guard: under a git that reports 2.44, a partial clone is refused before `^{commit}` is peeled, no ls-tree or cat-file runs, and nothing is fetched",
     () => {
@@ -1760,4 +1775,81 @@ describe("upstream.js — partial clone guard: detection runs before any object 
       expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "check fetched nothing").not.toBe(0);
     },
   );
+
+  it.skipIf(process.platform === "win32")(
+    "partial clone guard: a full repository marked only by `extensions.partialClone` is refused under a git that reports 2.44, and matches under the host git",
+    () => {
+      const { base, env } = scratch();
+      const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+      fixtureGit(design.dir, ["config", "extensions.partialClone", "origin"], env);
+      expect(fixtureGit(design.dir, ["config", "--get", "extensions.partialclone"], env), "PREMISE: only the extensions key is set").toBe(
+        "origin",
+      );
+      expect(plainGit(design.dir, ["config", "--get-regexp", "^remote\\..*\\.promisor$"], env).status, "PREMISE: no promisor key").toBe(1);
+      const product = productDeclaring(base, sourceOf("design", "../design", design));
+      const log = join(base, "git-calls.log");
+      const bin = versionedGitDir(log, "2.44.0");
+      expectUnknown(checkUnchanged(product, { ...env, PATH: `${bin}:${env.PATH ?? ""}` }, [design.dir]), OLDER_GIT_REASON);
+      const peel = recordedCalls(log).findIndex((c) => c.some((a) => a.endsWith("^{commit}")));
+      expect(peel, "no ^{commit} peel ran before the refusal").toBe(-1);
+      const host = checkUnchanged(product, env, [design.dir]);
+      if (hostGitHonorsNoLazyFetch()) {
+        expect(host.stderr).toBe("");
+        expect(host.stdout).toBe(`match design ${design.commit}\n`);
+        expect(host.status).toBe(0);
+      } else {
+        expectUnknown(host, OLDER_GIT_REASON);
+      }
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "partial clone guard: a promisor key set to `false` is not a partial clone: under a git that reports 2.44 the source matches and the version is never asked",
+    () => {
+      const { base, env } = scratch();
+      const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+      fixtureGit(design.dir, ["config", "remote.origin.promisor", "false"], env);
+      expect(fixtureGit(design.dir, ["config", "--get", "remote.origin.promisor"], env), "PREMISE: the promisor key is false").toBe("false");
+      const product = productDeclaring(base, sourceOf("design", "../design", design));
+      const log = join(base, "git-calls.log");
+      const bin = versionedGitDir(log, "2.44.0");
+      const r = checkUnchanged(product, { ...env, PATH: `${bin}:${env.PATH ?? ""}` }, [design.dir]);
+      expect(r.stderr).toBe("");
+      expect(r.stdout).toBe(`match design ${design.commit}\n`);
+      expect(r.status).toBe(0);
+      const calls = recordedCalls(log);
+      expect(calls.length, "CONTROL: the wrapper saw the git calls").toBeGreaterThan(0);
+      expect(calls.filter((c) => c[2] === "version"), "a source that is not partial never asks the git version").toEqual([]);
+    },
+  );
+});
+
+// --- plan 44-12: a failed stat of a source's real path is that source's own UNKNOWN line (IN-04, T-44-42) -----------
+
+describe("upstream.js — source stat: a stat that fails is that source's own `UNKNOWN - verify` line (plan 44-12, IN-04, T-44-42)", () => {
+  it("source stat: an EACCES injected at the stat of a source's real path names the path and the code, and the next source still reports", () => {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const product = productDeclaring(base, sourceOf("design", "../design", design, 0), sourceOf("gone", "../gone", design, 1));
+    const js = hostProgram();
+    const stats = deriveReadSites(js).filter((s) => s.enclosing === "gitAnswers" && s.fn === "statSync");
+    expect(stats, "PREMISE: gitAnswers stats the source's real path at one site, derived from the committed .js").toHaveLength(1);
+    const url = scriptUrl(js);
+    const before = treeDigest(product);
+    const r = runFaulted(
+      js,
+      ["check"],
+      { kind: "fs", fn: "statSync", site: { url, line: (stats[0] as { line: number }).line }, code: "EACCES" },
+      { scratch: mkTmp("grugops-upstream-fault-"), cwd: product, env: { HOME: env.HOME as string } },
+    );
+    const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(r.fired, `PREMISE: the fault fired (site-not-via ${r.siteNotVia})\n${all}`).toBeGreaterThan(0);
+    expect(hasNodeStack(r.stderr), all).toBe(false);
+    expect(r.stderr, all).toBe("");
+    expect(r.stdout, all).toBe(
+      "UNKNOWN - verify design: path ../design cannot be inspected (EACCES)\nUNKNOWN - verify gone: path ../gone does not exist\n",
+    );
+    expect(r.status, all).toBe(2);
+    expect(treeDigest(product)).toBe(before);
+  });
 });
