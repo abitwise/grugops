@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
 status: executing
-stopped_at: Completed 44-11-PLAN.md
-last_updated: "2026-11-25T14:54:15.593Z"
+stopped_at: Completed 44-12-PLAN.md
+last_updated: "2026-11-25T15:09:58.066Z"
 last_activity: 2026-11-25
 last_activity_desc: Phase 44 execution started
-state_head: abbe5e84006a08c8e7effb5f7eaedf84d34a8f27
+state_head: 6ec3fae082c12fc875978fc909fe939573fca256
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 ## Current Position
 
 Phase: 44 (Upstream source declaration and pin check) — EXECUTING
-Plan: 12 of 14
+Plan: 13 of 14
 Status: Ready to execute
 Last activity: 2026-11-25 — Phase 44 execution started
 
@@ -913,6 +913,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P09 | 6 min | 2 tasks | 17 files |
 | Phase 44 P10 | 6 min | 2 tasks | 17 files |
 | Phase 44 P11 | 11min | 2 tasks | 15 files |
+| Phase 44 P12 | 9 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -2559,6 +2560,9 @@ Recent decisions affecting current work:
 - [Phase 44]: 44-10: check and read name a listed file as 'the file listed for <ID>' (check adds manifest line and column 3) and --manifest as 'the entry manifest'; a listed path appears only inside the fence
 - [Phase 44]: 44-11: upstream.js check reports each RUNNABLE_SET sibling whose stamp differs, is missing or appears more than once as a stdout runnable-version-skew line after the source lines; the exit code stays the pin decision (D-13) and read never prints it (WR-03, TRC-02)
 - [Phase 44]: 44-11: an unreadable sibling's skew reason carries only the errno code (plus a fixed phrase for a dangling link), never a filesystem path
+- [Phase 44]: 44-12: the partial-clone guard (config read, version read, refusal) runs before the ^{commit} peel, so no object read precedes it (WR-01, T-44-11)
+- [Phase 44]: 44-12: one config --get-regexp reads remote.<name>.promisor and extensions.partialclone; any extensions.partialclone line is partial, a promisor set to false/no/off/0 is not
+- [Phase 44]: 44-12: gitComplaint replaces each argument after the failing call's first -- with <listed path>, one pass, longest first; the T-44-38 residual is accepted
 
 ### Pending Todos
 
@@ -2964,8 +2968,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T14:54:15.530Z
-Stopped at: Completed 44-11-PLAN.md
+Last session: 2026-11-25T15:09:58.001Z
+Stopped at: Completed 44-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
