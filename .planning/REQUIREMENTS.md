@@ -27,7 +27,7 @@
 - [ ] **UP-03**: At session start the Orchestrator reports each source's pin state (match, drift or `UNKNOWN - verify`) and never moves a pin; only a named human edits it.
 - [ ] **UP-04**: A missing or unreadable source makes the dependent work `BLOCKED` with a named reason; nothing is guessed.
 - [ ] **UP-05**: Upstream text is untrusted data: it enters the shared context only as cited `claim` notes, and an adversarial fixture with embedded instructions shows they are not followed.
-- [ ] **UP-06**: The pin records the entry file's blob hash, and the check reports a mismatch between the declared blob and the blob at the pinned commit.
+- [x] **UP-06**: The pin records the entry file's blob hash, and the check reports a mismatch between the declared blob and the blob at the pinned commit.
 
 ### Traceability
 
@@ -117,7 +117,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UP-03 | Phase 44 | Pending |
 | UP-04 | Phase 44 | Pending |
 | UP-05 | Phase 44 | Pending |
-| UP-06 | Phase 44 | Pending |
+| UP-06 | Phase 44 | Complete |
 | TRC-01 | Phase 45 | Pending |
 | TRC-02 | Phase 44 | Complete |
 | TRC-03 | Phase 45 | Pending |
