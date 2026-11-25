@@ -4,7 +4,7 @@ slug: "upstream-source-declaration-and-pin-check"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
 status: validated
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-24"
 ---
@@ -52,7 +52,15 @@ Statuses read from the phase-gate full-suite run on 2026-11-25 (12,368 tests; th
 | UP-03 | no write verb; config bytes unchanged | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "never moves a pin"` | ✅ | ✅ green |
 | UP-04 | missing path, no git, absent commit, toplevel mismatch, malformed manifest, hash-algo mismatch → named `UNKNOWN - verify`, exit 2 | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "unknown"` | ✅ | ✅ green |
 | UP-04 | exit-2 contract under injected throw | integration | `npx vitest run scripts/runnable-ref/runnable-exit-contract.test.ts` | ✅ | ✅ green |
-| UP-05 | fence exact; forged END does not end fence; ANSI stripped | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "fence"` | ✅ | ⚠️ partial: green, but no case forges the path inside the BEGIN line (code review CR-01; escalated as an implementation bug) |
+| UP-05 | fence exact; forged END does not end fence; ANSI stripped | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "fence"` | ✅ | ✅ green (20 passed, 2026-11-25): plan 44-09 adds the forged-path cases that forge the path inside the BEGIN line (CR-01), plan 44-10 the cell-text cases (CR-02) |
+| UP-05 | a listed path carrying ` blob=<x>` and the BEGIN tail is `UNKNOWN - verify` through `check`, `read <ID>` and `read --manifest`; a forged END inside a valid file stays inside the fence (CR-01) | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "forged path"` | ✅ | ✅ green (3 passed) |
+| UP-05 | prose in each of the four manifest cells, and a prose-like listed path, reaches neither stdout nor stderr of `check` or `read` (CR-02) | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "cell text"` | ✅ | ✅ green (11 passed) |
+| UP-05 | the path grammar accepts `a<c>b` only for ASCII letters, digits, `.`, `_`, `-` and `/` over every UTF-16 code unit | unit | `npx vitest run scripts/upstream-model.test.ts -t "code-point sweep"` | ✅ | ✅ green (1 passed) |
+| UP-05 | a git message quoted in a reason names `<listed path>`, never the listed path (T-44-38) | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "git message"` | ✅ | ✅ green (3 passed) |
+| UP-05, UP-04 | Workflow 17 session-start step 4 reports `BLOCKED` with the reason Workflow 20 names, never a printed reason (CR-02 kit half) | unit | `npx vitest run scripts/flow-guidance-text.test.ts -t "session start step 4"` | ✅ | ✅ green (1 passed; file 166 passed) |
+| UP-05 | every reworded safety clause in Workflows 20 and 17 has a disposition row | gate | `npm run check:diff-disposition` | ✅ | ✅ green (ALL CHECKS PASSED) |
+| UP-02 | a partial clone under a git that reports 2.44 is refused before any object read, on either partial-clone key; a promisor set to false is not partial (WR-01) | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "partial clone guard"` | ✅ | ✅ green (3 passed; older git played by a wrapper, no real git below 2.45 run) |
+| TRC-02 | `upstream.js check` prints one `runnable-version-skew` line per sibling from another build, after the source lines, and the exit code is unchanged (WR-03) | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "version skew"` | ✅ | ✅ green (11 passed) |
 | UP-05 | `upstream:` ref round-trips through `note.js add/read` | integration | `npx vitest run scripts/runnable-ref/note.test.ts -t upstream` | ✅ | ✅ green |
 | UP-06 | declared `entry_blob` ≠ blob at pin → `drift <id>: blob-mismatch` | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t "blob-mismatch"` | ✅ | ✅ green |
 | TRC-02 | upstream ref → Requirement column; `BR-3` → Requirement, no phantom row | unit | `npx vitest run scripts/trace-model.test.ts` | ✅ | ✅ green |
@@ -77,7 +85,6 @@ Statuses read from the phase-gate full-suite run on 2026-11-25 (12,368 tests; th
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | A live agent ignores instructions embedded in upstream content (canary file not created, pin unchanged, upstream untouched, no nested CLAUDE.md load in an `InstructionsLoaded` log) | UP-05 | Needs a live host agent session; behavior of a model cannot be asserted by a unit test | End-of-phase red-team UAT against the synthetic injection fixture; record the result |
-| Manifest text never reaches stdout outside the fence (`UNKNOWN - verify … manifest:`, `listed path`, `refused` lines echo raw cells) | UP-05 | Implementation bug, not a missing test: code review CR-02 | Fix CR-02, then add a regression case to `upstream.test.ts` |
 
 ---
 
@@ -88,9 +95,9 @@ Statuses read from the phase-gate full-suite run on 2026-11-25 (12,368 tests; th
 - [x] Wave 0 covers all MISSING references
 - [x] No watch-mode flags
 - [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending — `nyquist_compliant` stays false until CR-01 and CR-02 are fixed with regression cases
+**Approval:** `nyquist_compliant: true` set on 2026-11-25 by plan 44-14, from the gap-closure round 1 filters: forged path 3, cell text 11, code-point sweep 1, version skew 11, partial clone guard 3, git message 3, flow-guidance-text 166 (step 4: 1), fence 20, each with no failure, and `check:diff-disposition` ALL CHECKS PASSED. The live UP-05 red-team round stays manual and owed at /gsd-verify-work.
 
 ## Validation Audit 2026-11-25
 
@@ -99,3 +106,13 @@ Statuses read from the phase-gate full-suite run on 2026-11-25 (12,368 tests; th
 | Gaps found | 1 |
 | Resolved | 0 |
 | Escalated | 1 |
+
+## Validation Audit 2026-11-25 (gap-closure round 1, plans 44-09 to 44-14)
+
+| Metric | Count |
+|---|---|
+| Gaps found | 1 |
+| Resolved | 1 |
+| Escalated | 0 |
+
+The gap was the UP-05 fence (CR-01 and CR-02). Plans 44-09 and 44-10 fixed it in the code and added the `forged path`, `cell text` and `code-point sweep` regressions; plans 44-11 to 44-13 added the `version skew`, `partial clone guard`, `git message` and Workflow 17 step 4 checks. Each filter was run on 2026-11-25 by plan 44-14 and passed with no failure. The full suite was not re-run here; the phase gate compares it by test name against the baseline. The live UP-05 red-team round stays a manual verification.
