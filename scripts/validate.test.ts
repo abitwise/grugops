@@ -4091,3 +4091,148 @@ describe("fixture role headers type no section count (IN-03)", () => {
     expect(offenders, offenders.join("\n")).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 44-04, UP-01) THE `upstream` DECLARATION, FORM-CHECKED THROUGH THE ONE AUTHORITY.
+//
+// The validator imports parseUpstreamConfig and sourcePathFindings from scripts/upstream-model.ts,
+// the same module the host runnable embeds, so the cases below drive the grammar that module owns
+// through the validator's exit code and output. An absent `upstream` key is the zero-config default
+// and passes; a present but malformed declaration is refused and the finding names the key path.
+// Every value here is synthetic: no real repository, commit or user path is named.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** One well-formed source; each case below changes one thing. */
+function upstreamSource(): Record<string, unknown> {
+  return {
+    id: "design",
+    path: "../design-package",
+    commit: "c".repeat(40),
+    entry: "export/MANIFEST.md",
+    entry_blob: "b".repeat(40),
+    owns: { areas: ["product", "ux"], prefixes: ["DEC", "Q"] },
+  };
+}
+
+/** A good kit whose in-kit config carries `upstream` set to `value`. */
+function kitWithUpstream(value: unknown): string {
+  return kitWithConfig((c) => {
+    c.upstream = value;
+  });
+}
+
+/** A good kit whose one source has `mutate` applied. */
+function kitWithSource(mutate: (s: Record<string, unknown>) => void): string {
+  const s = upstreamSource();
+  mutate(s);
+  return kitWithUpstream({ sources: [s] });
+}
+
+describe("validate-agent-factory.js — the upstream declaration (UP-01, D-01, D-02, D-19)", () => {
+  it("a config with no upstream key passes (zero-config)", () => {
+    const r = runFixture(kitWithConfig(() => {}));
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("a config with one valid upstream source passes", () => {
+    const r = runFixture(kitWithUpstream({ sources: [upstreamSource()] }));
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("refuses upstream: null, naming upstream", () => {
+    const r = runFixture(kitWithUpstream(null));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toMatch(/upstream must be an object/);
+  });
+
+  it("refuses an empty sources array, naming upstream.sources", () => {
+    const r = runFixture(kitWithUpstream({ sources: [] }));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("upstream.sources must be a non-empty array");
+  });
+
+  it("refuses an unknown source key by name and quotes the allowed set", () => {
+    const r = runFixture(kitWithSource((s) => {
+      s.pinned = true;
+    }));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("upstream.sources[0].pinned");
+    // The allowed set is quoted back; compared as a set, so the case does not pin the order.
+    const m = /upstream\.sources\[0\]\.pinned is not a known key; the allowed keys are: ([^\n]+)/.exec(out(r));
+    expect(m, out(r)).not.toBeNull();
+    expect(m![1].split(", ").sort()).toEqual(["commit", "entry", "entry_blob", "id", "owns", "path"]);
+  });
+
+  it("refuses a short commit, naming upstream.sources[0].commit", () => {
+    const r = runFixture(kitWithSource((s) => {
+      s.commit = "c".repeat(7);
+    }));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("upstream.sources[0].commit");
+  });
+
+  it("refuses an uppercase entry_blob, naming upstream.sources[0].entry_blob", () => {
+    const r = runFixture(kitWithSource((s) => {
+      s.entry_blob = "B".repeat(40);
+    }));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("upstream.sources[0].entry_blob");
+  });
+
+  it("refuses an area outside the closed vocabulary, naming the area", () => {
+    const r = runFixture(kitWithSource((s) => {
+      s.owns = { areas: ["marketing"], prefixes: ["DEC"] };
+    }));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("upstream.sources[0].owns.areas");
+    expect(out(r)).toContain("marketing");
+  });
+
+  it("refuses upstream.escalation_days, which this version does not read (D-06)", () => {
+    const r = runFixture(kitWithUpstream({ sources: [upstreamSource()], escalation_days: 10 }));
+    expect(r.status).not.toBe(0);
+    expect(out(r)).toContain("upstream.escalation_days");
+  });
+
+  for (const [why, path] of [
+    ["an absolute path", "/abs/design"],
+    ["a ~ path", "~/design"],
+    ["a backslash path", "..\\design"],
+    ["a path inside the repository", "sub/inside"],
+    ["an ancestor of the repository", ".."],
+  ] as const) {
+    it(`refuses ${why} (${JSON.stringify(path)}), naming upstream.sources[0].path`, () => {
+      const r = runFixture(kitWithSource((s) => {
+        s.path = path;
+      }));
+      expect(r.status, out(r)).not.toBe(0);
+      expect(out(r)).toContain("upstream.sources[0].path");
+    });
+  }
+
+  it("refuses the same malformed bytes at the state base, under that label", () => {
+    const { kit, state } = twoRoots();
+    const s = upstreamSource();
+    s.pinned = true;
+    mkdirSync(join(state, ".grugops"), { recursive: true });
+    writeFileSync(join(state, ".grugops", "factory.config.json"), JSON.stringify({ upstream: { sources: [s] } }));
+    const r = runSplit(kit, state);
+    expect(r.status).not.toBe(0);
+    const lines = out(r).split("\n").filter((l) => l.includes(".grugops/factory.config.json:"));
+    expect(lines.join("\n")).toContain("upstream.sources[0].pinned");
+  });
+
+  it("resolves the path against the base that holds .grugops/: a path inside the state root is refused there", () => {
+    const { kit, state } = twoRoots();
+    const s = upstreamSource();
+    s.path = "sub/inside";
+    mkdirSync(join(state, ".grugops"), { recursive: true });
+    writeFileSync(join(state, ".grugops", "factory.config.json"), JSON.stringify({ upstream: { sources: [s] } }));
+    const r = runSplit(kit, state);
+    expect(r.status).not.toBe(0);
+    const lines = out(r).split("\n").filter((l) => l.includes(".grugops/factory.config.json:"));
+    expect(lines.join("\n")).toContain("upstream.sources[0].path");
+  });
+});
