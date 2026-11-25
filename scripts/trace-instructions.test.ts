@@ -458,8 +458,11 @@ const EXCLUSION_CONTROLS: readonly ExclusionControl[] = [
  * trace by hand (measured: the case printed 80).
  * 2026-11-18, plan 43-12: 85 files; examples/ entered: the five worked walkthroughs, rewritten to v3 in plans 43-07 and
  * 43-08; none tells an agent to edit the trace by hand (measured: the case printed 85).
+ * 2026-11-25, plan 44-07: 87 files; `agent-factory/workflows/20-upstream-sources.md` and
+ * `agent-factory/contracts/upstream.md` entered, and neither tells an agent to edit the trace by hand (measured: the
+ * case printed 87).
  */
-const SCAN_SET_SIZE = 85;
+const SCAN_SET_SIZE = 87;
 
 /**
  * The runtime ceiling for one pattern on one adversarial input. The expected time is a few milliseconds; the ceiling

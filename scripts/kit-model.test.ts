@@ -268,11 +268,12 @@ describe("kit-model (KIT-01 kit-set derivation authority)", () => {
   });
 
   // ── exported constants + the live tree ────────────────────────────────────────────────────────
-  it("exports the exact expected cardinalities (ROLE_COUNT 19 / WORKFLOW_COUNT 19)", () => {
+  it("exports the exact expected cardinalities (ROLE_COUNT 19 / WORKFLOW_COUNT 20)", () => {
     // (Plan 39-05, 2026-10-29) 17 -> 18: the Tech Lead role (TIER-01).
     // (Plan 39-06, 2026-10-29) 18 -> 19: the Designer role (TIER-05).
+    // (Plan 44-07, 2026-11-25) WORKFLOW_COUNT 19 -> 20: Workflow 20, upstream sources (UP-02 to UP-05).
     expect(ROLE_COUNT).toBe(19);
-    expect(WORKFLOW_COUNT).toBe(19);
+    expect(WORKFLOW_COUNT).toBe(20);
   });
 
   it("the live kit derives exactly ROLE_COUNT roles and WORKFLOW_COUNT workflows", () => {
@@ -465,14 +466,18 @@ describe("kit-model display-name derivations (D-40)", () => {
     // NOT a fix — an OBSERVATION pinned so the rewrite plans meet it rather than rediscover it.
     // Three of the nineteen workflow display names are lowercase while sixteen are sentence-case.
     // The heading IS the kit prose those plans rewrite, so the correction belongs there.
+    // (Plan 44-07, 2026-11-25) Four of twenty: Workflow 20's display name `upstream sources` is the
+    // name decision D-08 recorded, lowercase in the style of 16 to 18, so the observation grows by one.
     const lower = listWorkflowDisplayNames().filter(
       (w) => w[0] === w[0].toLowerCase() && w[0] !== w[0].toUpperCase(),
     );
-    // In listWorkflows() order — 16-context-read-write, 17-task-claim, 18-context-compaction.
+    // In listWorkflows() order — 16-context-read-write, 17-task-claim, 18-context-compaction,
+    // 20-upstream-sources.
     expect(lower).toEqual([
       "context read/write",
       "task claim + schedule",
       "context compaction",
+      "upstream sources",
     ]);
   });
 });

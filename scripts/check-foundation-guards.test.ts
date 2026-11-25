@@ -367,6 +367,10 @@ const GUARD_INPUTS = [
   "agent-factory/workflows/16-context-read-write.md",
   "agent-factory/workflows/17-task-claim.md",
   "agent-factory/workflows/18-context-compaction.md",
+  // (Plan 44-07, 2026-11-25) Workflow 20, upstream sources, joins the mirror: WORKFLOW_COUNT moved
+  // 19 -> 20, and the count guard requires exactly WORKFLOW_COUNT workflows here, or every plant case
+  // trips it on a 19-workflow mirror instead of the violation it planted.
+  "agent-factory/workflows/20-upstream-sources.md",
   // Phase 23 (D-19): the invoked oracleWr05Wording now scans the per-host tables for asymmetric-flip
   // drift, so mirror them too — otherwise the oracle's CR-01 missing-file fail-red would fire on
   // every foundation-guards plant case. (Plan 43-10, D-10: the kit README's per-host table moved to

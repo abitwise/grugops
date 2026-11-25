@@ -888,7 +888,10 @@ describe("check-imperative-lexicon — exported pins and cost", () => {
     // (Plan 40-10, 2026-11-01) 49 → 69: the role corpus, agent-factory/roles/ (19 roles and the
     // role-switch protocol), leaves GOVERNED_CORPUS_EXCLUDED_LOCATIONS and enters as the fifth part
     // (PLAIN-07, v3.0 D-9).
-    expect(GOVERNED_CORPUS_COUNT).toBe(69);
+    // (Plan 44-07, 2026-11-25) 69 → 71: agent-factory/workflows/20-upstream-sources.md enters the
+    // workflows part (19 → 20) and agent-factory/contracts/upstream.md enters the contracts part
+    // (3 → 4); both are hand-authored and enter by existing (UP-02 to UP-05).
+    expect(GOVERNED_CORPUS_COUNT).toBe(71);
     expect(ROLE_PART_COUNT).toBe(20);
     expect(ROLE_CORPUS_N).toBe(ROLE_PART_COUNT);
     expect(GOVERNED_CORPUS_PARTS.map((p) => p.name)).toEqual([

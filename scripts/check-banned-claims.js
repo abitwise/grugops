@@ -1537,8 +1537,21 @@ export function bannedClaimScanOverlap(parts = BANNED_CLAIM_SCAN_PARTS) {
  *         guarantees 1, skills 1, overlap 3)
  *
  * The same run reported 0 findings over 161/161 elements.
+ *
+ * MOVED AGAIN 161 → 163 ON 2026-11-25 IN PLAN 44-07, AND THE TWO ENTRANTS ARE NAMED:
+ * `agent-factory/workflows/20-upstream-sources.md` (Workflow 20, `upstream sources`) and
+ * `agent-factory/contracts/upstream.md`, the upstream-sources contract. Both move through the `kit`
+ * corpus ONLY (79 → 81); neither is a member of another part here, so the overlap stays at 3 and the
+ * deduped total moves by two. Read off this gate's own refusal with both files written and the pin not
+ * yet moved, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 163 document(s), expected exactly 161 (kit 81,
+ *         publicDocs 45, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, skills 1, overlap 3)
+ *
+ * The same run reported 0 findings over 163/163 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 161;
+export const BANNED_CLAIM_SCAN_COUNT = 163;
 /**
  * Locate the region and report every way it can be wrong. Returns the region when exactly one
  * well-formed region exists, and null otherwise — the caller then scans the file WHOLE, which is

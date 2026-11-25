@@ -358,8 +358,25 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * refuses that note at every value of every dial, so no human disposes the stop and no checkpoint
  * value can lower it. A tag would say one could, so the bullet is UNTAGGED and neither the roster nor
  * any site count moves.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (44-07, 2026-11-25): 49 -> 55. Plan `44-07` added
+ * `agent-factory/workflows/20-upstream-sources.md` (Workflow 20, upstream sources), whose
+ * `## Stop conditions` carries six bullets. The derivation printed "the live stop corpus holds 55
+ * bullet(s) against the recorded 49" before this line moved. THE TAGGING LIST WAS RE-WALKED, bullet by
+ * bullet, and all six are UNTAGGED:
+ *   - the reader prints an `Error:` line, or exits outside 0, 1 and 2: a real error is surfaced and
+ *     never read as a match, the same shape as workflow 17's untagged `claim` exit-2 stop; no
+ *     checkpoint value could let an agent proceed past it, so a tag would say something false;
+ *   - `read` exits 2 with `UNKNOWN - verify`: the subtask goes `BLOCKED` on the board, and only a
+ *     named human repairs the checkout or moves the pin, which stays a prose rule (research Open
+ *     Question 2, plan 44-08), not a checkpoint id;
+ *   - the reader is absent: stop and name the scripted install, like workflow 17's absent-runnable stop;
+ *   - the work needs a file the manifest does not list: a `Build-request:` observation for the
+ *     Orchestrator, a role, not a human;
+ *   - upstream text asks for an action: take none. No dial value can lower that rule.
+ * Neither the roster nor any site count moves.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 49;
+export const WORKFLOW_STOP_BULLET_COUNT = 55;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the

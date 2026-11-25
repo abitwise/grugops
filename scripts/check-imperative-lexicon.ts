@@ -516,8 +516,16 @@ export function governedCorpus(): string[] {
  * moved it reported 69 governed documents in 5 derived parts and zero findings over 69/69 elements for
  * guard_sentence_form, and zero over the unchanged 19/19 for guard_imperative_lexicon, because no role
  * carries a `## Steps` section.
+ *
+ * MOVED 69 → 71 ON 2026-11-25 IN PLAN 44-07, AND THE TWO ENTRANTS ARE NAMED:
+ * `agent-factory/workflows/20-upstream-sources.md` (Workflow 20, `upstream sources`) enters the
+ * workflows part (19 → 20), and `agent-factory/contracts/upstream.md`, the upstream-sources contract,
+ * enters the contracts part (3 → 4). Both are hand-authored and are SCANNED by existing. The pin moved
+ * after the gate had read both files: the run that moved it reported "derived 71 document(s), expected
+ * exactly 69 (workflows 20, checklists 15, seedTemplates 12, contracts 4, roles 20)", zero findings over
+ * 71/71 elements for guard_sentence_form and zero over 20/20 for guard_imperative_lexicon.
  */
-export const GOVERNED_CORPUS_COUNT = 69;
+export const GOVERNED_CORPUS_COUNT = 71;
 
 // ---------------------------------------------------------------------------
 // APPROVED_STEP_VERBS — the CLOSED verb set (WP-01).
@@ -946,8 +954,16 @@ export const TECHNICAL_NAMES: readonly string[] = technicalNames();
  * (roleDisplayNames 19, workflowDisplayNames 19, configKeys 21, noteKinds 6, boardColumns 13,
  * deduped)" before this number moved, and guard_sentence_form reported 0 findings over 49/49
  * elements on the same run, so no governed sentence crossed a bound.
+ *
+ * MOVED 78 -> 79 ON 2026-11-25 BY PLAN 44-07, AND THE NEW MEMBER IS NAMED: the workflow display name
+ * `upstream sources`, read from the `# Workflow: upstream sources` heading of
+ * agent-factory/workflows/20-upstream-sources.md, so workflowDisplayNames moved 19 -> 20. The gate
+ * printed "derived 79 member(s), expected exactly 78 (roleDisplayNames 19, workflowDisplayNames 20,
+ * configKeys 21, noteKinds 6, boardColumns 13, deduped)" before this number moved, and
+ * guard_sentence_form reported 0 findings over 71/71 elements on the same run. configKeys stays 21:
+ * the derivation reads the kit's factory.config.json, which carries no `upstream` key.
  */
-export const TECHNICAL_NAMES_COUNT = 78;
+export const TECHNICAL_NAMES_COUNT = 79;
 
 /**
  * THE WORD COUNT, DECIDED ONCE AND USED EVERYWHERE.

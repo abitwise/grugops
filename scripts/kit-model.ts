@@ -119,8 +119,13 @@ import { parseFrontmatter } from "./frontmatter.js";
 // agent-factory/roles/designer.md. guard_kit_counts printed "derived 19 role files, expected exactly
 // 18" before this number moved, and every consumer it names was walked first (ROLE_CEILINGS row,
 // TIERED row, register row, generated adapter and grant).
+// WORKFLOW_COUNT MOVED 19 -> 20 ON 2026-11-25 BY PLAN 44-07 (UP-02 to UP-05): the entrant is
+// agent-factory/workflows/20-upstream-sources.md (Workflow 20, `upstream sources`), registered with the
+// contract agent-factory/contracts/upstream.md. guard_kit_counts printed "derived 20 workflow files, expected
+// exactly 19" before this number moved, and every consumer it names was walked first (catalog row 20,
+// register row, safety-surface exclusions, lexicon and banned-claim counts, the kit mirror).
 export const ROLE_COUNT = 19;
-export const WORKFLOW_COUNT = 19;
+export const WORKFLOW_COUNT = 20;
 
 // ── THE RULE THAT DECIDES THE WORKFLOW CORPUS (round 6, IN-01 — plan 29-54) ────────────────────
 //

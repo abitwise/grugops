@@ -8,7 +8,7 @@ Decompose each request into subtasks and route each to the right role agent over
 | Tier | core |
 | Capabilities | read edit shell admit |
 | Skills | none declared |
-| Workflows | [Ticket to PR](../../../agent-factory/workflows/04-ticket-to-pr.md), [PR quality gate](../../../agent-factory/workflows/05-pr-quality-gate.md), [Sprint planning](../../../agent-factory/workflows/08-sprint-planning.md), [Daily sweep](../../../agent-factory/workflows/09-daily-sweep.md), [task claim + schedule](../../../agent-factory/workflows/17-task-claim.md) |
+| Workflows | [Ticket to PR](../../../agent-factory/workflows/04-ticket-to-pr.md), [PR quality gate](../../../agent-factory/workflows/05-pr-quality-gate.md), [Sprint planning](../../../agent-factory/workflows/08-sprint-planning.md), [Daily sweep](../../../agent-factory/workflows/09-daily-sweep.md), [task claim + schedule](../../../agent-factory/workflows/17-task-claim.md), [upstream sources](../../../agent-factory/workflows/20-upstream-sources.md) |
 | Source | [agent-factory/roles/orchestrator.md](../../../agent-factory/roles/orchestrator.md) |
 
 ## Adapters per host

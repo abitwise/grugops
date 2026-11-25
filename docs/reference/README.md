@@ -2,7 +2,7 @@
 # grugops reference
 
 This is the generated reference for the grugops kit: 19 roles and 7 skills, each with its
-own page, and 19 workflows. The pages are generated from the role, skill and workflow files
+own page, and 20 workflows. The pages are generated from the role, skill and workflow files
 by `scripts/generate-catalog.js` and are never hand-edited; re-run the generator and commit the
 result. Any unverified field reads `UNKNOWN - verify` rather than an invented value.
 
@@ -65,3 +65,4 @@ result. Any unverified field reads `UNKNOWN - verify` rather than an invented va
 | 16 | context read/write | both | Whenever a role is about to act on, or record into, the shared verified context. | [agent-factory/workflows/16-context-read-write.md](../../agent-factory/workflows/16-context-read-write.md) |
 | 17 | task claim + schedule | both | Whenever the Orchestrator schedules the queue, or a role takes or finishes a queued subtask. | [agent-factory/workflows/17-task-claim.md](../../agent-factory/workflows/17-task-claim.md) |
 | 18 | context compaction | both | Whenever an agent has accumulated a verbose local trajectory for a task and is about to promote results into the shared verified context. | [agent-factory/workflows/18-context-compaction.md](../../agent-factory/workflows/18-context-compaction.md) |
+| 20 | upstream sources | both | Whenever `.grugops/factory.config.json` declares upstream sources under `upstream.sources`, and the work needs what a source decides. | [agent-factory/workflows/20-upstream-sources.md](../../agent-factory/workflows/20-upstream-sources.md) |

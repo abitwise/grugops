@@ -106,7 +106,8 @@ describe("audit-prepass: the derived audit set", () => {
     expect(AUDIT_SET_COUNT).toBe(ROLE_COUNT + WORKFLOW_COUNT + 1);
     // (Plan 39-05, 2026-10-29) 37 -> 38: the Tech Lead role (TIER-01) is the 18th role.
     // (Plan 39-06, 2026-10-29) 38 -> 39: the Designer role (TIER-05) is the 19th role.
-    expect(AUDIT_SET_COUNT).toBe(39);
+    // (Plan 44-07, 2026-11-25) 39 -> 40: Workflow 20, upstream sources, is the 20th workflow (UP-02 to UP-05).
+    expect(AUDIT_SET_COUNT).toBe(40);
     const live = auditSetFiles();
     expect(live.length).toBe(AUDIT_SET_COUNT);
     expect(live.length).not.toBe(AUDIT_SET_COUNT - 1);
