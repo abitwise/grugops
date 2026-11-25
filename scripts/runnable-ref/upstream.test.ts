@@ -467,8 +467,16 @@ describe("upstream.js — config read: a config that cannot be read or parsed st
     const js = hostProgram();
     const site = deriveReadSites(js).find((s) => s.key === "readRegularFileOrNull:readSync#0");
     expect(site, "PREMISE: the reader's readSync site is derived from the committed .js").toBeDefined();
+    // 2026-11-25, plan 44-11 (WR-03, TRC-02): the reader has a second caller, siblingSkewLines, which reads each
+    // sibling program's build stamp. The fault is still aimed at the config read: the via site is the call inside
+    // configTextOrNull, selected by its scope, never by position.
     const callers = callingSites(js, "readRegularFileOrNull");
-    expect(callers.map((c) => c.scope), "PREMISE: the reader is entered from the config read only").toEqual(["configTextOrNull"]);
+    expect(
+      callers.map((c) => c.scope).sort(),
+      "PREMISE: the reader is entered from the config read and the sibling stamp read only",
+    ).toEqual(["configTextOrNull", "siblingSkewLines"]);
+    const configCall = callers.filter((c) => c.scope === "configTextOrNull");
+    expect(configCall, "PREMISE: the config read calls the reader once").toHaveLength(1);
     const url = scriptUrl(js);
     const before = treeDigest(product);
     const r = runFaulted(
@@ -478,7 +486,7 @@ describe("upstream.js — config read: a config that cannot be read or parsed st
         kind: "fs",
         fn: "readSync",
         site: { url, line: (site as { line: number }).line },
-        via: { url, line: (callers[0] as { line: number }).line },
+        via: { url, line: (configCall[0] as { line: number }).line },
         code: "EIO",
       },
       { scratch: mkTmp("grugops-upstream-fault-"), cwd: product, env: { HOME: env.HOME as string } },

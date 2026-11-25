@@ -78,8 +78,8 @@ import * as nodePath from "node:path";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:e920f63cfc17a648b0859a9e161bcaebb17dc66dbd1e2922e556283c2823c3dd";
+import { join, parse, resolve, sep } from "node:path";
+export const RUNNABLE_SET_STAMP = "sha256:b88172a9b2d9f4f6dfad2d85ee748f4a6ee6afd03dbf49bc4beacf40ef67f5a2";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -169,6 +169,68 @@ export function readRegularFileOrNull(path, maxBytes, position) {
 function presenceCode(e) {
     const code = e?.code;
     return typeof code === "string" && code !== "" ? code : "unknown";
+}
+export function entryPresence(path) {
+    const full = resolve(path);
+    const top = parse(full).root;
+    // Every prefix from the filesystem root to the path itself, so one lstat, one stat and one realpath answer for
+    // every component.
+    const prefixes = [top];
+    for (const name of full.slice(top.length).split(sep)) {
+        if (name !== "")
+            prefixes.push(join(prefixes[prefixes.length - 1], name));
+    }
+    for (let i = 0;; i += 1) {
+        const at = prefixes[i];
+        const last = i === prefixes.length - 1;
+        let entry;
+        try {
+            entry = lstatSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            if (code === "ENOENT")
+                return { kind: "absent" };
+            return { kind: "unreadable", code, reason: `"${at}" cannot be inspected (${code})`, link: false };
+        }
+        // A link is followed with a stat. The last component is stat'ed whatever it is, so `target` is always what the
+        // path names, and the one stat site is reached under every caller.
+        let target = entry;
+        if (entry.isSymbolicLink() || last) {
+            try {
+                target = statSync(at);
+            }
+            catch (e) {
+                const code = presenceCode(e);
+                return {
+                    kind: "unreadable",
+                    code,
+                    reason: !entry.isSymbolicLink()
+                        ? `"${at}" cannot be inspected (${code})`
+                        : last
+                            ? `it is a symbolic link whose target cannot be reached (${code})`
+                            : `a symbolic link on the path has a target that cannot be reached: "${at}" (${code})`,
+                    // The path's own lstat showed a link only when this is the last component and it is one (IN-11).
+                    link: last && entry.isSymbolicLink(),
+                };
+            }
+        }
+        if (!last) {
+            if (!target.isDirectory()) {
+                return { kind: "unreadable", code: "ENOTDIR", reason: `"${at}" on the path is not a directory (ENOTDIR)`, link: false };
+            }
+            continue;
+        }
+        let real;
+        try {
+            real = realpathSync(at);
+        }
+        catch (e) {
+            const code = presenceCode(e);
+            return { kind: "unreadable", code, reason: `"${at}" cannot be resolved (${code})`, link: entry.isSymbolicLink() };
+        }
+        return { kind: "present", entry, target, real };
+    }
 }
 export function isWithin(real, boundary) {
     const prefix = boundary.endsWith(sep) ? boundary : `${boundary}${sep}`;
@@ -587,6 +649,23 @@ export function formatCheckLine(sourceId, commit, finding) {
         return `drift ${sourceId}: ${finding.cause} (${finding.detail})`;
     return `UNKNOWN - verify ${sourceId}: ${finding.reason}`;
 }
+// from scripts/runnable-stamp.ts
+export const RUNNABLE_STAMP_NAME = "RUNNABLE_SET_STAMP";
+export const RUNNABLE_STAMP_LINE = new RegExp(`^export const ${RUNNABLE_STAMP_NAME} = "(sha256:[0-9a-f]{64})";$`);
+export function readRunnableStamp(text) {
+    const stamps = [];
+    for (const raw of text.split("\n")) {
+        const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+        const m = RUNNABLE_STAMP_LINE.exec(line);
+        if (m !== null)
+            stamps.push(m[1]);
+    }
+    if (stamps.length === 0)
+        return { kind: "none" };
+    if (stamps.length > 1)
+        return { kind: "ambiguous", count: stamps.length };
+    return { kind: "stamp", stamp: stamps[0] };
+}
 // </runnable-embeds>
 // EXIT-1 (plan 37-20): a throw that escapes every inner catch is could-not-run, never the outcome code. Registered
 // before argv is read, and every binding the handler reads is declared above it.
@@ -942,7 +1021,76 @@ function declaredSources() {
     }
     return declaration.kind === "absent" ? null : declaration.sources;
 }
-/** The stdout lines and the exit code of `check`. */
+// --- sibling programs built together (plan 44-11, WR-03, TRC-02) --------------------------------------------
+/**
+ * The largest sibling program this file reads, in bytes: state-check's reader ceiling (plan 37-24), so a huge file
+ * beside upstream.js is refused rather than read.
+ */
+const SIBLING_CEILING_BYTES = 16 * 1024 * 1024;
+/** `names` as one list for a sentence: `a`, `a and b`, `a, b and c`. */
+function listed(names) {
+    if (names.length < 2)
+        return names.join("");
+    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+/**
+ * One `runnable-version-skew <program>: <reason>; remove … and install them again together` line per sibling program
+ * in RUNNABLE_SET, other than this one, that sits in this file's directory and was not built together with it: a
+ * different stamp, no stamp, more than one stamp, or a present file that could not be inspected or read. The rule is
+ * state-check's (plan 37-24): entryPresence decides absence, and an absent sibling is no line. A present sibling is
+ * read through the embedded non-blocking reader under SIBLING_CEILING_BYTES, so a FIFO or a directory is a line and
+ * never a hang. The sibling is only read: nothing here writes, moves or removes a file. Every value in a line is a
+ * program name, a constant, a hex stamp or an errno code, never repository or upstream text.
+ */
+function siblingSkewLines() {
+    const here = import.meta.dirname;
+    const remedy = `remove ${listed(RUNNABLE_SET)} and install them again together`;
+    const notCompared = `so its build could not be compared with ${RUNNABLE_SELF}`;
+    const out = [];
+    for (const name of RUNNABLE_SET) {
+        if (name === RUNNABLE_SELF)
+            continue;
+        const abs = nodePath.join(here, name);
+        let reason = null;
+        const presence = entryPresence(abs);
+        if (presence.kind === "absent")
+            continue;
+        if (presence.kind === "unreadable") {
+            const why = presence.link ? `a symbolic link whose target cannot be reached, ${presence.code}` : presence.code;
+            reason = `it could not be inspected (${why}), ${notCompared}`;
+        }
+        else {
+            let text = null;
+            try {
+                text = readRegularFileOrNull(abs, SIBLING_CEILING_BYTES, "sibling program");
+            }
+            catch (e) {
+                const condition = e instanceof ReadPositionRefusal ? e.condition : codeOf(e);
+                reason = `it could not be read (${condition}), ${notCompared}`;
+            }
+            if (reason === null && text === null)
+                reason = `it was present and then could not be found, ${notCompared}`;
+            if (reason === null && text !== null) {
+                const read = readRunnableStamp(text);
+                if (read.kind === "stamp" && read.stamp === RUNNABLE_SET_STAMP)
+                    continue;
+                reason =
+                    read.kind === "none"
+                        ? "it carries no build stamp, so an older kit built it"
+                        : read.kind === "ambiguous"
+                            ? `it carries ${read.count} build stamps, ${notCompared}`
+                            : `it was built from different authorities (stamp ${read.stamp}) than ${RUNNABLE_SELF} (stamp ` +
+                                `${RUNNABLE_SET_STAMP})`;
+            }
+        }
+        out.push(`runnable-version-skew ${name}: ${reason}; ${remedy}`);
+    }
+    return out;
+}
+/**
+ * The stdout lines and the exit code of `check`. When sources are declared, the sibling skew lines follow the source
+ * lines; they are a report for a human and never change the exit code, which stays the pin decision (D-13).
+ */
 function checkReport() {
     const sources = declaredSources();
     if (sources === null)
@@ -955,6 +1103,7 @@ function checkReport() {
             lines.push(formatCheckLine(source.id, source.commit, finding));
         }
     });
+    lines.push(...siblingSkewLines());
     return { lines, code: checkExitCode(findings) };
 }
 /** The mode and object id `ls-tree -z --full-tree <commit> -- <path>` gives for exactly `path`, or null when none. */

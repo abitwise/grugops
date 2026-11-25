@@ -164,6 +164,10 @@ export function runnableSpecs(set) {
  * UPSTREAM_REF_PREFIX, normalizeDocument and isWithin from those row siblings. The upstream-model roots include what
  * plans 44-05 and 44-06 call, so those plans need no generator change. The same generation carries the TRC-02 routing
  * rule of scripts/trace-model.ts into the trace renderer and the state checker.
+ * Plan 44-11 (2026-11-25, WR-03, TRC-02) adds entryPresence to the upstream.ts row's scripts/context-io.ts roots and a
+ * last authority, scripts/runnable-stamp.ts with the root readRunnableStamp (it imports nothing, so it can go last), so
+ * `check` compares the build stamp of each sibling program in RUNNABLE_SET with its own, by the rule state-check uses
+ * (plan 37-24). EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -404,7 +408,7 @@ export const EMBED_SPECS = Object.freeze([
             { module: "scripts/board-model.ts", roots: ["normalizeDocument"] },
             {
                 module: "scripts/context-io.ts",
-                roots: ["rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL", "readRegularFileOrNull"],
+                roots: ["rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL", "readRegularFileOrNull", "entryPresence"],
             },
             {
                 module: "scripts/upstream-model.ts",
@@ -424,6 +428,7 @@ export const EMBED_SPECS = Object.freeze([
                     "UPSTREAM_NONE_DECLARED_LINE",
                 ],
             },
+            { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },
         ],
     },
     {
