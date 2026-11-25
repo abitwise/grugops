@@ -588,8 +588,7 @@ describe("manifest: the entry manifest table (D-09, D-10, D-11, D-12)", () => {
 
   it.each([["draft"], ["Locked"], [""]])("manifest: status %j is malformed", (status) => {
     const m = malformedOf(manifestOf(`| DEC-1 | ${status} | a.md | |`));
-    expect(m.line).toBe(3);
-    expect(m.reason).toContain("is not one of: locked, superseded");
+    expect(m).toEqual({ reason: "the Status cell (column 2) of DEC-1 is not one of: locked, superseded", line: 3 });
   });
 
   it.each([["../x"], ["/x"], [""], ["a\\b"], ["-a"], ["a b.md"], ["x.md blob=0000"]])("manifest: Path %j is malformed", (path) => {

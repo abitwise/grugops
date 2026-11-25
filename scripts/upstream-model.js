@@ -316,7 +316,7 @@ export function parseManifest(text) {
         if (seen.has(id))
             return malformed(`ID ${id} is listed more than once`, line);
         if (status !== "locked" && status !== "superseded") {
-            return malformed(`status ${upstreamQuote(status)} of ${id} is not one of: ${UPSTREAM_STATUSES.join(", ")}`, line);
+            return malformed(`the Status cell (column 2) of ${id} is not one of: ${UPSTREAM_STATUSES.join(", ")}`, line);
         }
         if (!isManifestPath(path))
             return malformed(`the Path cell (column 3) of ${id} is not a manifest path`, line);

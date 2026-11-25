@@ -73,7 +73,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:7914ca5a30951f9eff20b67e4e365a5477805da0bf4ab7a855b322daad9b427e";
+export const RUNNABLE_SET_STAMP = "sha256:334c993e50767f024b0e88d6b1b438040b3cd6ef8a927785616e0c7a286781ea";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -476,7 +476,7 @@ export function parseManifest(text) {
         if (seen.has(id))
             return malformed(`ID ${id} is listed more than once`, line);
         if (status !== "locked" && status !== "superseded") {
-            return malformed(`status ${upstreamQuote(status)} of ${id} is not one of: ${UPSTREAM_STATUSES.join(", ")}`, line);
+            return malformed(`the Status cell (column 2) of ${id} is not one of: ${UPSTREAM_STATUSES.join(", ")}`, line);
         }
         if (!isManifestPath(path))
             return malformed(`the Path cell (column 3) of ${id} is not a manifest path`, line);
