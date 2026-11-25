@@ -170,7 +170,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
   4. A missing or unreadable source makes the dependent work `BLOCKED` with a named reason and nothing is guessed; upstream text enters the shared context only as cited `claim` notes, and a synthetic fixture with embedded instructions shows the instructions are not followed (UP-04, UP-05)
   5. A rendered trace shows `upstream:<source>:<id>@<commit>` refs in the Requirement column and never as phantom ticket rows, and the `BR` prefix is reserved for build requests (TRC-02)
 
-**Plans**: 6/8 plans executed
+**Plans**: 7/8 plans executed
 
 Plans:
 **Wave 1**
@@ -188,7 +188,7 @@ Plans:
 - [x] 44-06-PLAN.md — The fenced `read` verb (manifest-only, 64 KiB ceiling); injection fixture; red-team round prepared
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 44-07-PLAN.md — The upstream contract and Workflow 20, registered with every gate (each count re-derived)
+- [x] 44-07-PLAN.md — The upstream contract and Workflow 20, registered with every gate (each count re-derived)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 44-08-PLAN.md — Workflow 17 session-start step, Orchestrator key, AGENTS.md third-root line, config pointer; names for Phases 45/47; open confirmation items
@@ -259,7 +259,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 44. Upstream source declaration and pin check | v3.1 | 6/8 | In Progress | - |
+| 44. Upstream source declaration and pin check | v3.1 | 7/8 | In Progress | - |
 | 45. Traceability, build requests and architecture as input | v3.1 | 0/TBD | Not started | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |

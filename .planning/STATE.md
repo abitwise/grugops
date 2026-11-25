@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
 status: executing
-stopped_at: Completed 44-06-PLAN.md
-last_updated: "2026-11-25T10:01:43.227Z"
+stopped_at: Completed 44-07-PLAN.md
+last_updated: "2026-11-25T10:31:45.266Z"
 last_activity: 2026-11-25
 last_activity_desc: Phase 44 execution started
-state_head: a40746cefd74b84e019e4bc9bd510f36596e1d6d
+state_head: 1d4cfb38ddb6eafcb68c37a6b556008de9333273
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 ## Current Position
 
 Phase: 44 (Upstream source declaration and pin check) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-11-25 — Phase 44 execution started
 
@@ -908,6 +908,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P04 | 7 min | 2 tasks | 4 files |
 | Phase 44 P05 | 11 min | 2 tasks | 2 files |
 | Phase 44 P06 | 16 min | 2 tasks | 6 files |
+| Phase 44 P07 | 28 min | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -2543,6 +2544,8 @@ Recent decisions affecting current work:
 - [Phase 44]: Plan 44-05: a fixture declared value (entry_blob) must be read before a replace ref is added, because fixture git honors replace refs
 - [Phase 44]: 44-06: read skips check's listed-path sweep and mode-checks only the path it prints, so a listed symlink or submodule is an exit-1 refused line
 - [Phase 44]: 44-06: a listed file that is not valid UTF-8 is refused by name at exit 1, never printed with replacement characters
+- [Phase 44]: 44-07: all six Workflow 20 stop bullets stay untagged; a pin move stays a prose rule, so WORKFLOW_STOP_BULLET_COUNT moved 49 -> 55 with no roster or site-count change
+- [Phase 44]: 44-07: a new watched workflow owes a docs/audit/29-style-dispositions/<plan>.md file with one added row per derived clause; plan 44-08 owes one for its Workflow 17 and Orchestrator edits
 
 ### Pending Todos
 
@@ -2948,8 +2951,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T10:01:43.167Z
-Stopped at: Completed 44-06-PLAN.md
+Last session: 2026-11-25T10:31:45.206Z
+Stopped at: Completed 44-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
