@@ -2092,6 +2092,22 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
       "and asserts what the spawned CLI publishes about them, exactly as board-model.test.ts and " +
       "board-read.test.ts do — every ticket field it reasons about arrives already parsed, inside " +
       "the --json document the one grammar produced",
+    // ── The two plan 44-10 added, READ BEFORE THEY WERE EXEMPTED. Both files already named `status`;
+    //    44-10's positional manifest reasons ("the Path cell (column 3) of …") supplied the `column`
+    //    spelling that tipped the conjunction (commit 070d4efe). Neither file reads a ticket.
+    "runnable-ref/upstream.test.ts":
+      "the upstream reader's suite. The census resolves `status` out of the git SUBCOMMAND argument " +
+      "in `fixtureGit(dir, [\"status\", \"--porcelain\"])`, a premise that an upstream working tree " +
+      "is dirty, and `column` out of the expected reader message `the file listed for DEC-9 " +
+      "(manifest line 9, column 3) is not a regular file at the pin`, where column 3 is an UPSTREAM " +
+      "ENTRY-MANIFEST table column. Its subject is an upstream manifest and a pinned git tree; it " +
+      "hands no ticket document to any parser",
+    "upstream-model.test.ts":
+      "the upstream manifest model's suite. The census resolves `column` out of expected positional " +
+      "reasons such as `the ID cell (column 1) does not match the upstream ID grammar` and `status` " +
+      "out of the test description `manifest: status %j is malformed`. Both name the Status column " +
+      "and cell positions of an UPSTREAM ENTRY MANIFEST (locked / superseded), not a ticket key; " +
+      "the file parses manifests with parseManifest and never reads a ticket document",
   });
 
   /**
@@ -2101,8 +2117,13 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
    * 9 → 8 (plan 32.1-04, ledger row 194): `check-diff-disposition.ts` stopped supplying both key
    * spellings, so the census stopped naming it and its entry was deleted in the same commit as the
    * reword that retired it. See the deletion note above for the measurement.
+   *
+   * 8 → 10 (phase 44 gap-closure round 1): plan 44-10's positional manifest reasons put the word
+   * `column` into `runnable-ref/upstream.test.ts` and `upstream-model.test.ts`, which already named
+   * `status`, so the census started naming both. Each was read before it was exempted; see their
+   * entries for what supplies each spelling.
    */
-  const NOT_A_SECOND_AUTHORITY_COUNT = 8;
+  const NOT_A_SECOND_AUTHORITY_COUNT = 10;
 
   /**
    * THE CENSUS AS A FUNCTION OF ITS INPUT, so the boundary and degenerate cases below are asked the
