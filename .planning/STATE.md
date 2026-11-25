@@ -2,37 +2,37 @@
 gsd_state_version: "1.0"
 milestone: v3.1
 milestone_name: Upstream design, consultation and one-command install
-current_phase: 44
-current_phase_name: Upstream source declaration and pin check
-status: verifying
-stopped_at: Completed 44-14-PLAN.md
-last_updated: "2026-11-25T15:36:25.285Z"
+current_phase: 45
+current_phase_name: Traceability, build requests and architecture as input
+status: planning
+stopped_at: Phase 44 complete, ready to plan Phase 45
+last_updated: "2026-11-25T21:00:28.907Z"
 last_activity: 2026-11-25
-last_activity_desc: Phase 44 execution started
-state_head: 883ea7f91c09100baf5ce6c625d76a28ed47261f
+last_activity_desc: Phase 44 complete, transitioned to Phase 45
+state_head: 7b4f6b2011324a1edca5c9dd95a774d4f1a0f3da
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 14
   completed_plans: 14
-  percent: 0
+  percent: 20
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
+See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Phase 44 — Upstream source declaration and pin check
+**Current focus:** Phase 45 — Traceability, build requests and architecture as input
 
 ## Current Position
 
-Phase: 44 (Upstream source declaration and pin check) — EXECUTING
-Plan: 14 of 14
-Status: Phase complete — ready for verification
-Last activity: 2026-11-25 — Phase 44 execution started
+Phase: 45 — Traceability, build requests and architecture as input
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-25 — Phase 44 complete, transitioned to Phase 45
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -101,7 +101,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 
 **Velocity:**
 
-- Total plans completed: 577
+- Total plans completed: 591
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -151,6 +151,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | 42 | 8 | - | - |
 | 43 | 15 | - | - |
 | 43.1 | 17 | - | - |
+| 44 | 14 | - | - |
 
 **Recent Trend:**
 
@@ -942,6 +943,8 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 - Phase 43.1 inserted after Phase 43: Close v3.0 P1 debt from the milestone audit (human chose option 1, fix before close) (URGENT)
 
 ### Decisions
+
+- **[Phase 44, 2026-11-25]** Completed after gap-closure round 1 (44-09..44-14) and UAT (4 passed, test 5 deferred by Olger). Olger accepted the 44-08 open decisions 1-6 (Option A mixed exit, id grammar and full-hex pins, one owner per area/prefix, pin move as prose rule, `escalation_days` refused until Phase 45, no `cite` line) and risks AR-44-01/02/04/05 with his typed name; 44-SECURITY.md `status: verified`. Phase 45 must add `escalation_days` to `UPSTREAM_KEYS` and own raw-ID detection (TRC-03, AR-44-01).
 
 - [v3.0.0 release]: 2026-11-23 — The artifact version was bumped to `3.0.0` after the v3.0 close, in `agent-factory/VERSION`, `.claude-plugin/plugin.json`, `package.json` and `package-lock.json`. CHANGELOG `[Unreleased]` was cut as `[3.0.0] - 2026-11-23`. The bump is MAJOR under SemVer: state moved under `memory-bank/plans/`, a plain install refuses the pre-v3 layout, and the `grugops-software-engineer` adapter was removed. The release tag is `v3.0.0` by human decision, because `v3.0` is the pushed milestone tag on 1791c1c8 and stays where it is. From 3.0.0 on, release tags carry three parts. The agent committed but did not tag or push; the human tags, pushes and publishes the GitHub release.
 
@@ -2586,6 +2589,8 @@ None yet.
 
 **Open — v3.1:**
 
+- **[Phase 44] Reader unrun on other hosts and Windows** — `upstream.js` has no live run on Codex CLI, Antigravity CLI, OpenCode, Copilot CLI, Pi or Windows (44-UAT.md test 5, deferred). It fails closed with `UNKNOWN - verify`.
+- **[Phase 44] `InstructionsLoaded` hook silent on Claude Code 2.1.329** — the UP-05 nested-load item was accepted on transcript evidence; later red-team rounds need another instrument.
 - **[v3.1] npm name `grugops` unclaimed** — `npm view grugops` returned E404 on 2026-11-24, so anyone can publish it, and npm's moniker rule would then also block close spellings. A named human publishes `3.1.0-rc.0` by hand under dist-tag `next` early in the milestone (INST-07, S-04); trusted publishing can be configured only after the package exists. Today's `package.json` is the private `grugops-tooling`, so Phase 46's first plan readies a publishable manifest.
 
 **Open — carried into the next milestone:**
@@ -2975,11 +2980,11 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T15:36:25.203Z
-Stopped at: Completed 44-14-PLAN.md
+Last session: 2026-11-25T21:05:00Z
+Stopped at: Phase 44 complete, ready to plan Phase 45
 Resume file: None
 
 ## Operator Next Steps
 
-- Discuss Phase 44 with /gsd-discuss-phase 44; the discussion opens with the decision gate on names (S-06) and the upstream export shape
+- Discuss Phase 45 with /gsd-discuss-phase 45 (traceability, build requests and architecture as input); it inherits the `escalation_days` key and TRC-03 raw-ID detection from Phase 44
 - Phase 46 may start in parallel: its first plan readies a publishable manifest so a named human can publish `grugops@3.1.0-rc.0` under `next` and claim the name (human only)

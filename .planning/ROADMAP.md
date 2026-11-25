@@ -134,7 +134,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
 
 **Milestone goal:** A grugops repository builds from an approved design package that another system produced, sends questions and requirement changes back to that system as build requests, and gets second opinions from one parameterized consultant role, without grugops ever deciding what the product is. Installing grugops becomes one command a user copies from the README.
 
-- [ ] **Phase 44: Upstream source declaration and pin check** - a user declares a read-only upstream design source pinned by commit and entry-file blob; roles read it only at the pin through one reader, the Orchestrator reports pin state at session start, and upstream refs render in the trace's Requirement column
+- [x] **Phase 44: Upstream source declaration and pin check** - a user declares a read-only upstream design source pinned by commit and entry-file blob; roles read it only at the pin through one reader, the Orchestrator reports pin state at session start, and upstream refs render in the trace's Requirement column (completed 2026-11-25)
 - [ ] **Phase 45: Traceability, build requests and architecture as input** - tickets cite upstream IDs that are checked at the pin; a question or change that belongs upstream becomes a build request that blocks its tickets until a human sets a new pin; an upstream architecture is given input and grugops floors never move
 - [ ] **Phase 46: One-command install and install --migrate docs** - a user installs, updates, checks, migrates and uninstalls with one pinned `npx grugops@<version>` command from the README, releases publish from CI with human-approved staging, and the public docs name `install --migrate`
 - [ ] **Phase 47: Universal consultant** - one parameterized consultant role, dispatched only by the Orchestrator, answers from declared sources first as `claim` or `observation`, sends upstream-scope questions to build requests, and in panel mode ends with where its lenses disagree
@@ -170,7 +170,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
   4. A missing or unreadable source makes the dependent work `BLOCKED` with a named reason and nothing is guessed; upstream text enters the shared context only as cited `claim` notes, and a synthetic fixture with embedded instructions shows the instructions are not followed (UP-04, UP-05)
   5. A rendered trace shows `upstream:<source>:<id>@<commit>` refs in the Requirement column and never as phantom ticket rows, and the `BR` prefix is reserved for build requests (TRC-02)
 
-**Plans**: 14/14 plans executed (gap-closure round 1 of 4 planned: 44-09 to 44-14)
+**Plans**: 14/14 plans complete (gap-closure round 1 of 4 planned: 44-09 to 44-14)
 
 Plans:
 **Wave 1**
@@ -279,7 +279,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 44. Upstream source declaration and pin check | v3.1 | 14/14 | In Progress | - |
+| 44. Upstream source declaration and pin check | v3.1 | 14/14 | Complete    | 2026-11-25 |
 | 45. Traceability, build requests and architecture as input | v3.1 | 0/TBD | Not started | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
