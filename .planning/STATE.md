@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
 status: executing
-stopped_at: Completed 44-12-PLAN.md
-last_updated: "2026-11-25T15:09:58.066Z"
+stopped_at: Completed 44-13-PLAN.md
+last_updated: "2026-11-25T15:23:51.637Z"
 last_activity: 2026-11-25
 last_activity_desc: Phase 44 execution started
-state_head: 6ec3fae082c12fc875978fc909fe939573fca256
+state_head: 654a874a0b5fc86dd54ded1e6b57f03048ba6ea5
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 ## Current Position
 
 Phase: 44 (Upstream source declaration and pin check) — EXECUTING
-Plan: 13 of 14
+Plan: 14 of 14
 Status: Ready to execute
 Last activity: 2026-11-25 — Phase 44 execution started
 
@@ -914,6 +914,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P10 | 6 min | 2 tasks | 17 files |
 | Phase 44 P11 | 11min | 2 tasks | 15 files |
 | Phase 44 P12 | 9 min | 3 tasks | 4 files |
+| Phase 44 P13 | 12 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2563,6 +2564,8 @@ Recent decisions affecting current work:
 - [Phase 44]: 44-12: the partial-clone guard (config read, version read, refusal) runs before the ^{commit} peel, so no object read precedes it (WR-01, T-44-11)
 - [Phase 44]: 44-12: one config --get-regexp reads remote.<name>.promisor and extensions.partialclone; any extensions.partialclone line is partial, a promisor set to false/no/off/0 is not
 - [Phase 44]: 44-12: gitComplaint replaces each argument after the failing call's first -- with <listed path>, one pass, longest first; the T-44-38 residual is accepted
+- [Phase 44]: A BLOCKED reason for an untrusted upstream source is the fixed template `upstream <source>: <cause>` (cause blob-mismatch or UNKNOWN - verify); no reader-printed text enters board state (CR-02, D-14, D-17)
+- [Phase 44]: Workflow 20 step 2 states the reader guarantee as in the upstream.ts header: no manifest or listed-file text outside the fence except a grammar-checked ID
 
 ### Pending Todos
 
@@ -2968,8 +2971,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T15:09:58.001Z
-Stopped at: Completed 44-12-PLAN.md
+Last session: 2026-11-25T15:23:51.573Z
+Stopped at: Completed 44-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
