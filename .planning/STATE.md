@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
 status: executing
-stopped_at: Phase 44 context gathered
-last_updated: "2026-11-24T22:56:22.516Z"
-last_activity: 2026-11-24
-last_activity_desc: v3.1 roadmap created (5 phases, 39/39 requirements mapped)
-state_head: 2ebbd7d4e04bcb310536adac672b562cce8076f8
+stopped_at: Completed 44-01-PLAN.md
+last_updated: "2026-11-25T08:36:59.527Z"
+last_activity: 2026-11-25
+last_activity_desc: Phase 44 execution started
+state_head: 1c532e1d623b0c984275f3f5ccafe3aae7896f47
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 8
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 
 **Core value:** A user installs grugops on top of the coding-agent CLI they already run, types `/grugops`, and gets a disciplined delivery team — a visible board, a shared context where nothing is written until it is *verified*, and an auditable requirement→code→test→release trail — entirely as readable markdown, with humans always holding merge and deploy. The v2.0 differentiator: **"verified" means passed the §14 behavior gate**, recorded as a `verified_by` stamp the writing agent cannot forge or self-set.
-**Current focus:** Milestone v3.1 (Upstream design, consultation and one-command install) — roadmap created (Phases 44–48); next: discuss Phase 44, which opens with the decision gate on names (S-06) and the upstream export shape. Phase 46 may start in parallel, with the npm name claim first.
+**Current focus:** Phase 44 — Upstream source declaration and pin check
 
 ## Current Position
 
-Phase: 44 (Upstream source declaration and pin check) — READY TO EXECUTE
-Plan: —
+Phase: 44 (Upstream source declaration and pin check) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-11-24 — v3.1 roadmap created (5 phases, 39/39 requirements mapped)
+Last activity: 2026-11-25 — Phase 44 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -902,6 +902,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 43.1 P15 | 8 min | 3 tasks | 8 files |
 | Phase 43.1 P16 | 5 min | 3 tasks | 11 files |
 | Phase 43.1 P17 | 9min | 3 tasks | 7 files |
+| Phase 44 P01 | 37 min | 2 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -2525,6 +2526,9 @@ Recent decisions affecting current work:
 - [Phase 43.1]: 43.1-16: Workflow 05 step 3 reuses Workflow 12's job sentence verbatim (IN-11); no split needed
 - [Phase 43.1]: 43.1-17: IN-14 docs name two --migrate stop cases read from install.ts (pre-check refusal :8911, already-migrated arm :8948/:8995); every other --migrate reaches retireStaleRunnables() at :10461, including a target with no install marker
 - [Phase 43.1]: 43.1-17: WR-10, IN-11, IN-12, IN-13, IN-14 recorded fixed with commits in 43.1-REVIEW-DISPOSITION.md (open: 0); no acceptance by anyone written
+- [Phase 44]: 44-01: upstream.js check uses Option A exit (any UNKNOWN - verify is exit 2), to be confirmed at UAT in 44-08
+- [Phase 44]: 44-01: listed manifest paths are checked with one ls-tree over the listed paths as literal pathspecs, bounded by the manifest
+- [Phase 44]: 44-01: upstream.js is the one named RUNNABLE_SET member not yet installed; plan 44-03 must empty NOT_YET_INSTALLED in generate-runnable-embeds.test.ts when it adds the installer row
 
 ### Pending Todos
 
@@ -2930,9 +2934,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-24T21:06:37.556Z
-Stopped at: Phase 44 context gathered
-Resume file: .planning/phases/44-upstream-source-declaration-and-pin-check/44-CONTEXT.md
+Last session: 2026-11-25T08:36:59.469Z
+Stopped at: Completed 44-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
