@@ -711,9 +711,10 @@ describe("fence: the D-17 lines around upstream text", () => {
     ["a blob that is not hex", ["design", C40, "decisions/dec-1.md", "zz".repeat(20)], "the blob is not a full-length object id"],
     ["a path with a space", ["design", C40, "decisions/x.md blob=0000", B40], "the path is not a manifest path"],
   ] as const)("fence: fenceLines throws for %s, with a fixed message that names no argument value", (_label, args, says) => {
+    const [src, commit, path, blob] = args;
     let message: string | null = null;
     try {
-      fenceLines(...args);
+      fenceLines(src, commit, path, blob);
     } catch (e) {
       message = (e as Error).message;
     }
