@@ -2129,6 +2129,10 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
       "the host queue tool (plan 41-05): reads only the `queue` block, for `free` and `sweep`. A NON-GOVERNANCE dial reader that decides no checkpoint, and it spells the file name itself because it is a kit-shipped runnable with no context-io.js beside it on a host.",
     "scripts/runnable-ref/note.ts":
       "the host note writer (plan 41-07, D-35): its generated region copies the one reader, because the embedded `appendNote` admits through it. A copy the freshness gate holds equal to the authority, so not a second reader, and its hand-written part reads no dial.",
+    "scripts/runnable-ref/upstream.ts":
+      "the host upstream reader (plan 44-01, D-08, D-13): reads only the `upstream` block, through its generated copy of parseUpstreamConfig, to check each declared source at its pin. A NON-GOVERNANCE reader that decides no checkpoint and writes nothing; it spells the file name itself, as claim.ts does, because it is a kit-shipped runnable with no context-io.js beside it on a host.",
+    "scripts/runnable-ref/upstream-fixture.test-support.ts":
+      "test harness (plan 44-01): WRITES a synthetic `upstream` declaration into a scratch product's .grugops/factory.config.json so upstream.test.ts can run the committed upstream.js. It opens no config for a value and reads no dial.",
   };
 
   /**
@@ -2186,8 +2190,17 @@ describe("30-03 D-13 — the derived, pinned set of config-resolving sites", () 
    * can only say what the one reader says. AUTO-06's "a second must not be added" still binds: the
    * reader case below strips a region only while it is fresh, and a hand-written read of a dial
    * beside it stays red. AUTO-06's one governance reader is unmoved.
+   *
+   * 14 → 16 (2026-11-25, plan 44-01, UP-01, D-08). TWO ENTRANTS, and the question was asked of both: is
+   * either a second GOVERNANCE READER? Neither is. `scripts/runnable-ref/upstream.ts` reads the `upstream`
+   * block and nothing else, through its generated copy of scripts/upstream-model.ts parseUpstreamConfig, to
+   * check each declared source at its pin; it decides no checkpoint and writes nothing, and it spells the
+   * file name itself for the reason claim.ts does. `scripts/runnable-ref/upstream-fixture.test-support.ts`
+   * is a test harness that WRITES a synthetic declaration into a scratch product and reads no dial.
+   * Re-derived by the scan below: 16 sites with both modules tracked. AUTO-06's one governance reader is
+   * unmoved.
    */
-  const CONFIG_PATH_SITE_COUNT = 14;
+  const CONFIG_PATH_SITE_COUNT = 16;
 
   /**
    * Refuse a zero-length set BY NAME rather than reporting a pass over nothing. This mirrors
