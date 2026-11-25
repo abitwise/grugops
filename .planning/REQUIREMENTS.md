@@ -22,11 +22,11 @@
 
 ### Upstream sources
 
-- [ ] **UP-01**: A user can declare one or more upstream design sources in `.grugops/factory.config.json` (id, relative path to a checkout outside the product repository, pinned commit, entry file with its blob hash, owned scope); with no declaration grugops behaves as today.
-- [ ] **UP-02**: Roles read upstream content only at the pinned commit, through one sanctioned reader that uses git object reads, never the working tree, and never copy it into `memory-bank/` state.
-- [ ] **UP-03**: At session start the Orchestrator reports each source's pin state (match, drift or `UNKNOWN - verify`) and never moves a pin; only a named human edits it.
-- [ ] **UP-04**: A missing or unreadable source makes the dependent work `BLOCKED` with a named reason; nothing is guessed.
-- [ ] **UP-05**: Upstream text is untrusted data: it enters the shared context only as cited `claim` notes, and an adversarial fixture with embedded instructions shows they are not followed.
+- [x] **UP-01**: A user can declare one or more upstream design sources in `.grugops/factory.config.json` (id, relative path to a checkout outside the product repository, pinned commit, entry file with its blob hash, owned scope); with no declaration grugops behaves as today.
+- [x] **UP-02**: Roles read upstream content only at the pinned commit, through one sanctioned reader that uses git object reads, never the working tree, and never copy it into `memory-bank/` state.
+- [x] **UP-03**: At session start the Orchestrator reports each source's pin state (match, drift or `UNKNOWN - verify`) and never moves a pin; only a named human edits it.
+- [x] **UP-04**: A missing or unreadable source makes the dependent work `BLOCKED` with a named reason; nothing is guessed.
+- [x] **UP-05**: Upstream text is untrusted data: it enters the shared context only as cited `claim` notes, and an adversarial fixture with embedded instructions shows they are not followed.
 - [x] **UP-06**: The pin records the entry file's blob hash, and the check reports a mismatch between the declared blob and the blob at the pinned commit.
 
 ### Traceability
@@ -112,11 +112,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UP-01 | Phase 44 | Pending |
-| UP-02 | Phase 44 | Pending |
-| UP-03 | Phase 44 | Pending |
-| UP-04 | Phase 44 | Pending |
-| UP-05 | Phase 44 | Pending |
+| UP-01 | Phase 44 | Complete |
+| UP-02 | Phase 44 | Complete |
+| UP-03 | Phase 44 | Complete |
+| UP-04 | Phase 44 | Complete |
+| UP-05 | Phase 44 | Complete |
 | UP-06 | Phase 44 | Complete |
 | TRC-01 | Phase 45 | Pending |
 | TRC-02 | Phase 44 | Complete |
