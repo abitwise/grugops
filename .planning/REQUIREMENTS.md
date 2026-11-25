@@ -32,7 +32,7 @@
 ### Traceability
 
 - [ ] **TRC-01**: A BA/PM ticket cites the upstream IDs it implements as `upstream:<source>:<id>@<commit>`, or states `none (build-internal)`.
-- [ ] **TRC-02**: The rendered trace shows upstream refs in the Requirement column and never as phantom ticket rows; the `BR` prefix is reserved.
+- [x] **TRC-02**: The rendered trace shows upstream refs in the Requirement column and never as phantom ticket rows; the `BR` prefix is reserved.
 - [ ] **TRC-03**: The validator confirms that every upstream ID a ticket cites exists at the pinned commit, using the ID grammar the source declares.
 
 ### Build requests
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UP-05 | Phase 44 | Pending |
 | UP-06 | Phase 44 | Pending |
 | TRC-01 | Phase 45 | Pending |
-| TRC-02 | Phase 44 | Pending |
+| TRC-02 | Phase 44 | Complete |
 | TRC-03 | Phase 45 | Pending |
 | BR-01 | Phase 45 | Pending |
 | BR-02 | Phase 45 | Pending |
