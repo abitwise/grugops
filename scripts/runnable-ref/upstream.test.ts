@@ -16,7 +16,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -27,6 +27,7 @@ import {
   scriptUrl,
 } from "../fault-inject.test-support.js";
 import { RUNNABLE_STAMP_LINE, readRunnableStamp } from "../runnable-stamp.js";
+import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "../check-platform-shapes.js";
 import {
   CELL_SENTINEL_ID_MANIFEST,
   CELL_SENTINEL_PATH,
@@ -1548,5 +1549,156 @@ describe("upstream.js — version skew: a sibling program from another build is 
     expect(r.stderr).toBe("");
     expect(r.stdout).toBe(`match design ${commit}\n`);
     expect(r.status).toBe(0);
+  });
+
+  // Plan 44-11 Task 2: every other branch of siblingSkewLines, and the rule that a skew line never moves the exit code.
+
+  /** The one skew line for `name` with `reason`, ending in the remedy. */
+  function skewLine(name: string, reason: string): string {
+    return `runnable-version-skew ${name}: ${reason}; ${REMEDY}`;
+  }
+
+  /** `check` in `product`: exit 0, no stderr, the match line and then exactly `skew`, in order. */
+  function expectMatchThen(r: Ran, commit: string, ...skew: string[]): void {
+    const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(r.stderr, all).toBe("");
+    expect(r.stdout, all).toBe([`match design ${commit}`, ...skew].map((l) => `${l}\n`).join(""));
+    expect(r.status, all).toBe(0);
+  }
+
+  it("version skew: a trace-render.js with its stamp line removed carries no build stamp", () => {
+    const { product, env, commit } = matchingProduct();
+    const text = committedText("trace-render.js");
+    const stampless = text.replace(`${stampLineOf(text)}\n`, "");
+    expect(stampless.split("\n").filter((l) => RUNNABLE_STAMP_LINE.test(l)), "PREMISE: no stamp line is left").toEqual([]);
+    const js = hostWith({ "trace-render.js": stampless });
+    expectMatchThen(runAt(js, product, env, "check"), commit, skewLine("trace-render.js", "it carries no build stamp, so an older kit built it"));
+  });
+
+  it("version skew: a trace-render.js with two stamp lines carries 2 build stamps", () => {
+    const { product, env, commit } = matchingProduct();
+    const text = committedText("trace-render.js");
+    const line = stampLineOf(text);
+    const js = hostWith({ "trace-render.js": text.replace(`${line}\n`, `${line}\n${line}\n`) });
+    expectMatchThen(
+      runAt(js, product, env, "check"),
+      commit,
+      skewLine("trace-render.js", "it carries 2 build stamps, so its build could not be compared with upstream.js"),
+    );
+  });
+
+  it("version skew: two skewed siblings give two lines in RUNNABLE_SET order, and a sibling with the same stamp gives none", () => {
+    const { product, env, commit } = matchingProduct();
+    const js = hostWith({
+      "trace-render.js": withStamp("trace-render.js", ZERO_STAMP),
+      "state-roll.js": committedText("state-roll.js"),
+      "claim.js": withStamp("claim.js", ZERO_STAMP),
+    });
+    const differs = `it was built from different authorities (stamp ${ZERO_STAMP}) than upstream.js (stamp ${upstreamStamp()})`;
+    expectMatchThen(runAt(js, product, env, "check"), commit, skewLine("claim.js", differs), skewLine("trace-render.js", differs));
+  });
+
+  it("version skew: a directory named state-check.js beside upstream.js is one skew line naming it, exit 0", () => {
+    const { product, env, commit } = matchingProduct();
+    const js = hostWith({});
+    mkdirSync(join(js, "..", "state-check.js"));
+    expectMatchThen(
+      runAt(js, product, env, "check"),
+      commit,
+      skewLine("state-check.js", "it could not be read (not-a-regular-file), so its build could not be compared with upstream.js"),
+    );
+  });
+
+  it("version skew: a FIFO named note.js beside upstream.js is one skew line, in bounded time (POSIX mkfifo)", () => {
+    const { product, env, commit } = matchingProduct();
+    const js = hostWith({});
+    const at = join(js, "..", "note.js");
+    const skipped = stageShapeOrSkip("FIFO", at, "scripts/runnable-ref/upstream.test.ts: a FIFO at a sibling path (plan 44-11)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the directory-sibling case beside this one (the same non-blocking reader)"));
+      return;
+    }
+    expect(lstatSync(at).isFIFO(), "PREMISE: the planted path is a FIFO").toBe(true);
+    const r = spawnSync(process.execPath, [js, "check"], { encoding: "utf8", cwd: product, env, timeout: 15_000 });
+    expect(r.error, "the check did not finish in bounded time").toBeUndefined();
+    expectMatchThen(
+      { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" },
+      commit,
+      skewLine("note.js", "it could not be read (not-a-regular-file), so its build could not be compared with upstream.js"),
+    );
+  });
+
+  it("version skew: a dangling link named state-roll.js beside upstream.js is one skew line, never a crash", () => {
+    const { product, env, commit } = matchingProduct();
+    const js = hostWith({});
+    const host = join(js, "..");
+    const skipped = stageSymlinkOrSkip(
+      join(host, "gone.js"),
+      join(host, "state-roll.js"),
+      "dangling symlink (its target does not exist)",
+      "scripts/runnable-ref/upstream.test.ts: a dangling link at a sibling path (plan 44-11)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the directory-sibling case beside this one (the same presence owner)"));
+      return;
+    }
+    expectMatchThen(
+      runAt(js, product, env, "check"),
+      commit,
+      skewLine(
+        "state-roll.js",
+        "it could not be inspected (a symbolic link whose target cannot be reached, ENOENT), so its build could not be " +
+          "compared with upstream.js",
+      ),
+    );
+  });
+
+  it("version skew: with a skewed sibling, a drifting source still exits 1 and an UNKNOWN source still exits 2", () => {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const other = design.blobOf("decisions/dec-1.md");
+    const atPin = design.blobOf(SYNTHETIC_ENTRY);
+    const js = hostWith({ "trace-render.js": withStamp("trace-render.js", ZERO_STAMP) });
+    const skew = skewLine(
+      "trace-render.js",
+      `it was built from different authorities (stamp ${ZERO_STAMP}) than upstream.js (stamp ${upstreamStamp()})`,
+    );
+    const drifting = productDeclaring(base, sourceOf("design", "../design", design, 0, { entry_blob: other }));
+    const d = runAt(js, drifting, env, "check");
+    expect(d.stderr).toBe("");
+    expect(d.stdout).toBe(`drift design: blob-mismatch (declared ${other}, at the pin ${atPin})\n${skew}\n`);
+    expect(d.status, "the skew line does not move the drift exit").toBe(1);
+    const unknown = productDeclaring(base, sourceOf("design", "../missing", design));
+    const u = runAt(js, unknown, env, "check");
+    expect(u.stderr).toBe("");
+    const lines = u.stdout.split("\n").filter((l) => l !== "");
+    expect(lines, u.stdout).toHaveLength(2);
+    expect(lines[0]).toMatch(/^UNKNOWN - verify design: /);
+    expect(lines[1]).toBe(skew);
+    expect(u.status, "the skew line does not move the UNKNOWN exit").toBe(2);
+  });
+
+  it("version skew: with no upstream declared stdout is exactly `no upstream sources declared`, skewed sibling or not", () => {
+    const { base, env } = scratch();
+    const js = hostWith({ "trace-render.js": withStamp("trace-render.js", ZERO_STAMP) });
+    for (const config of [null, { mode: "lean" }]) {
+      const product = makeProduct(join(base, `product-${config === null ? "none" : "lean"}`), config);
+      const r = runAt(js, product, env, "check");
+      expect(r.stderr).toBe("");
+      expect(r.stdout).toBe("no upstream sources declared\n");
+      expect(r.status).toBe(0);
+    }
+  });
+
+  it("version skew: `read design DEC-1` prints the same bytes with and without a skewed sibling", () => {
+    const { product, env } = matchingProduct();
+    const alone = runAt(hostWith({}), product, env, "read", "design", "DEC-1");
+    const skewed = runAt(hostWith({ "trace-render.js": withStamp("trace-render.js", ZERO_STAMP) }), product, env, "read", "design", "DEC-1");
+    expect(alone.status).toBe(0);
+    expect(alone.stdout).toContain("BEGIN UNTRUSTED UPSTREAM DATA design@");
+    expect(skewed.stdout).toBe(alone.stdout);
+    expect(skewed.stderr).toBe(alone.stderr);
+    expect(skewed.status).toBe(alone.status);
+    expect(skewed.stdout).not.toContain("runnable-version-skew");
   });
 });
