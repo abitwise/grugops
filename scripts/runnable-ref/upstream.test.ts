@@ -26,6 +26,7 @@ import {
   runFaulted,
   scriptUrl,
 } from "../fault-inject.test-support.js";
+import { RUNNABLE_STAMP_LINE, readRunnableStamp } from "../runnable-stamp.js";
 import {
   CELL_SENTINEL_ID_MANIFEST,
   CELL_SENTINEL_PATH,
@@ -1445,5 +1446,99 @@ describe("upstream.js — injection: the fixture's command-line entry writes the
       expect(r.stderr, args.join(" ")).toMatch(/^Error: Usage: node --experimental-strip-types .+ --injection <empty dir>\.\n$/);
     }
     expect(existsSync(join(base, "x"))).toBe(false);
+  });
+});
+
+// ── Version skew (plan 44-11, WR-03, TRC-02) ─────────────────────────────────────────────────────────────────
+
+describe("upstream.js — version skew: a sibling program from another build is reported, never fixed (plan 44-11, WR-03, TRC-02)", () => {
+  /** The remedy every skew line ends with: the whole RUNNABLE_SET, as one sentence list. */
+  const REMEDY =
+    "remove claim.js, note.js, state-check.js, state-roll.js, trace-render.js and upstream.js and install them again together";
+
+  /** A stamp no real build carries: `sha256:` and 64 zeros. */
+  const ZERO_STAMP = `sha256:${"0".repeat(64)}`;
+
+  /** The text of the committed program `name` in scripts/runnable-ref/. */
+  function committedText(name: string): string {
+    return readFileSync(join(import.meta.dirname, name), "utf8");
+  }
+
+  /** The one stamp line of `text`. */
+  function stampLineOf(text: string): string {
+    const lines = text.split("\n").filter((l) => RUNNABLE_STAMP_LINE.test(l));
+    expect(lines, "PREMISE: the committed program carries exactly one stamp line").toHaveLength(1);
+    return lines[0] as string;
+  }
+
+  /** The build stamp of the committed upstream.js. */
+  function upstreamStamp(): string {
+    const read = readRunnableStamp(committedText("upstream.js"));
+    expect(read.kind, "PREMISE: the committed upstream.js carries one stamp").toBe("stamp");
+    return (read as { stamp: string }).stamp;
+  }
+
+  /** The committed program `name` with its stamp line carrying `stamp` instead. */
+  function withStamp(name: string, stamp: string): string {
+    const text = committedText(name);
+    const line = stampLineOf(text);
+    const edited = text.replace(line, `export const RUNNABLE_SET_STAMP = ${JSON.stringify(stamp)};`);
+    expect(edited, "PREMISE: the stamp line was replaced").not.toBe(text);
+    return edited;
+  }
+
+  /**
+   * A host directory holding the committed upstream.js, its package.json and each named sibling text, as an
+   * install under tools/grugops/ lays them out. Returns the path of the upstream.js copy.
+   */
+  function hostWith(siblings: Readonly<Record<string, string>>): string {
+    const host = mkTmp("grugops-upstream-skew-");
+    copyFileSync(join(import.meta.dirname, "upstream.js"), join(host, "upstream.js"));
+    writeFileSync(join(host, "package.json"), '{"type":"module"}\n');
+    for (const [name, text] of Object.entries(siblings)) writeFileSync(join(host, name), text);
+    return join(host, "upstream.js");
+  }
+
+  /** `js` run with its working directory in `cwd`, under `env`. */
+  function runAt(js: string, cwd: string, env: NodeJS.ProcessEnv, ...args: string[]): Ran {
+    const r = spawnSync(process.execPath, [js, ...args], { encoding: "utf8", cwd, env, timeout: 60_000 });
+    expect(r.error, "the program did not finish in bounded time").toBeUndefined();
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  }
+
+  /** A product declaring one matching sha1 source `design`. */
+  function matchingProduct(): { readonly product: string; readonly env: NodeJS.ProcessEnv; readonly commit: string; readonly dir: string } {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    return { product, env, commit: design.commit, dir: design.dir };
+  }
+
+  it("version skew: a trace-render.js whose stamp differs prints one runnable-version-skew line after the source line, exit 0, and the sibling is unchanged", () => {
+    const { product, env, commit, dir } = matchingProduct();
+    const stale = withStamp("trace-render.js", ZERO_STAMP);
+    const js = hostWith({ "trace-render.js": stale });
+    const host = join(js, "..");
+    const before = [treeDigest(host), treeDigest(product), treeDigest(dir)];
+    const r = runAt(js, product, env, "check");
+    const all = `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+    expect(r.stderr, all).toBe("");
+    expect(r.stdout, all).toBe(
+      `match design ${commit}\n` +
+        `runnable-version-skew trace-render.js: it was built from different authorities (stamp ${ZERO_STAMP}) than ` +
+        `upstream.js (stamp ${upstreamStamp()}); ${REMEDY}\n`,
+    );
+    expect(r.status, all).toBe(0);
+    expect(readFileSync(join(host, "trace-render.js"), "utf8"), "the sibling's bytes are unchanged").toBe(stale);
+    expect([treeDigest(host), treeDigest(product), treeDigest(dir)], "no byte changed during check").toEqual(before);
+  });
+
+  it("version skew: the committed trace-render.js copied unchanged beside upstream.js prints no skew line (control)", () => {
+    const { product, env, commit } = matchingProduct();
+    const js = hostWith({ "trace-render.js": committedText("trace-render.js") });
+    const r = runAt(js, product, env, "check");
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe(`match design ${commit}\n`);
+    expect(r.status).toBe(0);
   });
 });
