@@ -104,6 +104,7 @@ created: "2026-11-25"
 | 2026-11-25 | 35 | 35 | 0 | gsd-secure-phase orchestrator, L1 grep depth (register authored at plan time; auditor short-circuited per ASVS 1) |
 | 2026-11-25 | 35 | 32 | 3 | correction after code review CR-01/CR-02 were reproduced by gsd-verifier: grep depth found the fence code present but could not see that it is forgeable |
 | 2026-11-25 | 47 | 47 | 0 | gap-closure round 1, plans 44-09 to 44-14 (recorded by the plan 44-14 executor from passing test filters; not a secure-phase audit): T-44-15, T-44-19 and T-44-30 re-closed, T-44-35 to T-44-46 added; re-audit by /gsd-secure-phase owed |
+| 2026-11-25 | 47 | 47 | 0 | gsd-secure-phase re-audit of round 1 (gsd-security-auditor, 15 in scope: T-44-15, T-44-19, T-44-30, T-44-35 to T-44-46). Critical and high rows checked beyond grep: the CR-01 and CR-02 reproductions re-run against the committed upstream.js (byte-identical to a fresh tsc build), 27 untested variants and 300,000 fuzzed paths through fenceLines; none defeated a mitigation. Every recorded filter count reproduced. T-44-15 and T-44-30 closed for the automated half only |
 
 Live checks still owed at UAT, outside this L1 register: the UP-05 red-team round against a live agent (T-44-15, T-44-30), Windows git behaviour, and git older than 2.45.
 
@@ -113,7 +114,15 @@ Live checks still owed at UAT, outside this L1 register: the UP-05 red-team roun
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed
+- [x] `threats_open: 0` confirmed (secure-phase re-audit, 2026-11-25)
 - [ ] `status: verified` set in frontmatter
 
-**Approval:** pending — the gap-closure round 1 evidence (plans 44-09 to 44-14) closes T-44-15, T-44-19 and T-44-30 and awaits its re-audit by /gsd-secure-phase
+**Approval:** pending a human. The re-audit is done and `threats_open` is 0. Still owed: sign-off on AR-44-01, AR-44-02, AR-44-04 and AR-44-05; the live UP-05 red-team round (T-44-15, T-44-30); and a run on a real git older than 2.45 (T-44-40, tested only through a wrapper so far, `UNKNOWN - verify`). `status: verified` waits for that sign-off.
+
+## Security Audit 2026-11-25
+
+| Metric | Count |
+|---|---|
+| Threats found | 47 |
+| Closed | 47 |
+| Open | 0 |
