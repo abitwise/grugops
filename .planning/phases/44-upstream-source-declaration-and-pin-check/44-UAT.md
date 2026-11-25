@@ -1,9 +1,9 @@
 ---
-status: partial
+status: complete
 phase: 44-upstream-source-declaration-and-pin-check
 source: [44-VERIFICATION.md]
 started: 2026-11-25T17:20:00Z
-updated: 2026-11-25T20:46:21.109Z
+updated: 2026-11-25T20:58:11.271Z
 ---
 
 ## Current Test
@@ -55,9 +55,9 @@ note: 44-08 SUMMARY open confirmation items 1-6 accepted unchanged.
 
 ### 5. Reader access on the other hosts and on Windows (44-08 SUMMARY items 7-8)
 expected: On Codex CLI, Antigravity CLI, OpenCode, GitHub Copilot CLI, Pi and Windows, the reader either reads at the pin or fails closed with `UNKNOWN - verify`
-result: blocked
-blocked_by: other
-reason: "blocked" (from "1 pass, 3 accept all four, 4 accept 1-6, 5 blocked, Olger"); no other host CLI installed and no Windows host reachable
+result: skipped
+reason: "Deferred follow-up: defer 5, Olger"
+deferred_from: blocked (no other host CLI installed and no Windows host reachable; earlier reply: 1 pass, 3 accept all four, 4 accept 1-6, 5 blocked, Olger)
 note: Not runnable by the agent on 2026-11-25. None of codex, opencode, copilot, pi or agy is installed on this machine, and no Windows host is reachable.
 
 ## Summary
@@ -66,7 +66,13 @@ total: 5
 passed: 4
 issues: 0
 pending: 0
-skipped: 0
-blocked: 1
+skipped: 1
+blocked: 0
 
 ## Gaps
+
+## Deferred Follow-Ups
+
+- test: 5
+  idea: "defer 5, Olger"
+  deferred_at: 2026-11-25
