@@ -460,9 +460,12 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
     expect(step, "no session-start step 4").toBeDefined();
     expect(step).toContain("If `.grugops/factory.config.json` declares `upstream`, run `node tools/grugops/upstream.js check`");
     expect(step).toContain("On `head-moved`, keep working at the pin, and never edit a pin.");
+    // Plan 44-13 (2026-11-25, CR-02): the BLOCKED reason is Workflow 20's fixed `upstream <source>: <cause>`
+    // template, never the printed line, so no reader output enters board state.
     expect(step).toContain(
-      "On `blob-mismatch` or `UNKNOWN - verify`, report each subtask reading that source as `BLOCKED` with the printed reason (Workflow 20).",
+      "On `blob-mismatch` or `UNKNOWN - verify`, report each subtask reading that source as `BLOCKED` with the reason Workflow 20 names.",
     );
+    expect(step).not.toContain("printed reason");
   });
 
   /** Step 3 of `## Session start`. */
