@@ -2437,6 +2437,10 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     bound, reads no grant and renders no spawn verdict.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts` members reports 119
  *   with the three modules tracked (2026-11-25, plan 44-01).
+ *   Its imports since then (plans 44-05 and 44-06; the count is unchanged, as no module was added): `node:crypto`,
+ *   `node:os` and `node:url` beside the three above, and `isEntrypoint` from ../is-entry.js for its one command-line
+ *   entry, `--injection <dir>`, which writes the UP-05 red-team upstream to a scratch directory. Both owner answers
+ *   are still unchanged.
  */
 const NON_TEST_MODULE_COUNT = 119;
 
