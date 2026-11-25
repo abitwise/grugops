@@ -52,7 +52,9 @@
 //            `UNKNOWN - verify` (the line names the reason), or bytes from git that do not hash to the blob id.
 // Outside the BEGIN and END lines, nothing `check` or `read` prints comes from the manifest or a listed file except an
 // ID that matches the upstream ID grammar (CR-02, D-13, D-17): a bad manifest cell is named by its column and line, a
-// listed file by its ID, and a listed path is printed only on the BEGIN line, after it has passed the path grammar.
+// listed file by its ID, and a listed path is printed only on the BEGIN line, after it has passed the path grammar. A
+// git message quoted in a reason has each path the failing call named after `--` replaced by `<listed path>` (plan
+// 44-12, T-44-38).
 //
 // The manifest's listed-path sweep that `check` makes is not repeated here: `read` checks the mode of the one path it
 // prints, so a bad row elsewhere in the manifest is reported by `check` and does not hide a good one from `read`.
@@ -844,10 +846,31 @@ function runGit(sourceReal, gitArgs) {
         errorMessage: error?.message,
     };
 }
-/** The first non-empty line of git's stderr, or the exit status when it printed none. */
-function gitComplaint(run) {
+/**
+ * The first non-empty line of git's stderr, or the exit status when it printed none, with every pathspec of the
+ * failing call replaced by `<listed path>` (plan 44-12, T-44-38, UP-05, D-13, D-17). `gitArgs` is that call's own
+ * argument list; each argument after its first `--` is a pathspec: a listed path, or the entry. git can echo those
+ * arguments in its message, and a listed path that passes the grammar can still read as an order, so none of them may
+ * appear outside the fence. Every such path passes the ASCII path grammar of plan 44-09, so git prints it unquoted and
+ * a plain substring match finds each verbatim echo; the paths are matched in one pass, longest first, so a path that
+ * contains another is replaced whole. The rest of git's line stays, so the human still learns which call failed and
+ * why. Not replaced (the accepted T-44-38 residual): a fragment or another spelling of a path that git might print, and
+ * git's text about the local `.git`, which committed upstream content cannot write. The result is printed through
+ * `printable`, like every reason.
+ */
+function gitComplaint(run, gitArgs) {
     const line = run.stderr.split("\n").map((l) => l.trim()).find((l) => l !== "");
-    return line ?? `exit status ${run.status}`;
+    if (line === undefined)
+        return `exit status ${run.status}`;
+    const dash = gitArgs.indexOf("--");
+    const pathspecs = dash < 0 ? [] : [...new Set(gitArgs.slice(dash + 1))].filter((a) => a !== "");
+    if (pathspecs.length === 0)
+        return line;
+    const alternation = pathspecs
+        .sort((a, b) => b.length - a.length)
+        .map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("|");
+    return line.replace(new RegExp(alternation, "g"), () => "<listed path>");
 }
 /**
  * One git call whose exit status must be one of `allowed`. A launch failure, a timeout, an over-long answer, a signal
@@ -867,7 +890,7 @@ function gitAnswer(sourceReal, gitArgs, allowed = [0]) {
     if (run.status === null)
         unknownBecause(`git ${sub} was stopped before it finished`);
     if (!allowed.includes(run.status))
-        unknownBecause(`git ${sub} failed: ${gitComplaint(run)}`);
+        unknownBecause(`git ${sub} failed: ${gitComplaint(run, gitArgs)}`);
     return run;
 }
 /** git's stdout as text, without its trailing line ends. */
@@ -950,9 +973,10 @@ function gitAnswers(source, index, sweepListed) {
     }
     if (!isDirectory)
         unknownBecause(`path ${source.path} is not a directory`);
-    const top = gitAnswer(real, ["rev-parse", "--show-toplevel"], [0, 128, 129]);
+    const topArgs = ["rev-parse", "--show-toplevel"];
+    const top = gitAnswer(real, topArgs, [0, 128, 129]);
     if (top.status !== 0 || nodePath.resolve(gitText(top)) !== real) {
-        unknownBecause(`${source.path} is not the top of a git checkout${top.status === 0 ? "" : ` (${gitComplaint(top)})`}`);
+        unknownBecause(`${source.path} is not the top of a git checkout${top.status === 0 ? "" : ` (${gitComplaint(top, topArgs)})`}`);
     }
     const format = objectFormatOf(source.commit);
     const checkoutFormat = gitText(gitAnswer(real, ["rev-parse", "--show-object-format"]));
