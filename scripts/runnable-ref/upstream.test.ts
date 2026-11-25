@@ -27,6 +27,7 @@ import {
   scriptUrl,
 } from "../fault-inject.test-support.js";
 import {
+  CELL_SENTINEL_STATUS_MANIFEST,
   FORGED_PATH,
   FORGED_PATH_BLOB,
   FORGED_PATH_DOCUMENT,
@@ -1098,6 +1099,52 @@ describe("upstream.js — forged path: a listed path cannot forge the fence (CR-
     expect(lines.indexOf(forged)).toBeLessThan(lines.length - 1);
     expect(lines[lines.length - 2]).toBe("The last line has no line feed.");
     expect(r.status).toBe(0);
+  });
+});
+
+// --- plan 44-10: manifest cell text never reaches stdout or stderr (44-REVIEW CR-02, D-13, D-17, UP-05) ---------------
+//
+// The verifier's reproduction: a manifest Status cell holding an order to move the pin used to be quoted back into the
+// `UNKNOWN - verify … manifest:` line and the read `Error:` line, outside any fence. A bad cell is now named by its
+// column and line with a fixed reason, so neither stream of either verb carries the cell's text.
+
+describe("upstream.js — cell text: manifest cell text never reaches stdout or stderr (CR-02, D-13, UP-05)", () => {
+  /** A synthetic upstream at `<base>/design` whose entry manifest is `manifest`, with the synthetic documents. */
+  function cellDesign(base: string, env: NodeJS.ProcessEnv, manifest: string): ReturnType<typeof makeUpstream> {
+    return makeUpstream(join(base, "design"), {
+      files: { ...SYNTHETIC_DOCUMENTS, [SYNTHETIC_ENTRY]: manifest },
+      objectFormat: "sha1",
+      env,
+    });
+  }
+
+  /** No stream of `r` carries the sentinel's words or its commit fragment. */
+  function expectNoCellText(r: Ran): void {
+    for (const stream of [r.stdout, r.stderr]) {
+      expect(stream).not.toContain("SYSTEM NOTE");
+      expect(stream).not.toContain("00ff");
+    }
+  }
+
+  const STATUS_REASON = "manifest: the Status cell (column 2) of DEC-1 is not one of: locked, superseded, line 5";
+
+  it("cell text: a Status cell holding prose makes `check` print the fixed Status-cell reason at exit 2", () => {
+    const { base, env } = scratch();
+    const design = cellDesign(base, env, CELL_SENTINEL_STATUS_MANIFEST);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = checkUnchanged(product, env, [design.dir]);
+    expectUnknown(r, STATUS_REASON);
+    expectNoCellText(r);
+  });
+
+  it("cell text: `read design DEC-1` on a Status cell holding prose exits 2 with one `Error:` line naming the same reason", () => {
+    const { base, env } = scratch();
+    const design = cellDesign(base, env, CELL_SENTINEL_STATUS_MANIFEST);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = readUnchanged(product, env, [design.dir], "design", "DEC-1");
+    expectReadError(r, /^Error: UNKNOWN - verify design: manifest: the Status cell \(column 2\) of DEC-1 /);
+    expect(r.stderr).toBe(`Error: UNKNOWN - verify design: ${STATUS_REASON}. Nothing was read.\n`);
+    expectNoCellText(r);
   });
 });
 
