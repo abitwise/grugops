@@ -3,6 +3,26 @@ phase: 44
 review: 44-REVIEW.md
 titles: json
 findings:
+  - id: IN-05
+    severity: info
+    disposition: open
+    title: "`owns.prefixes` is validated but never applied to reads or refs"
+  - id: IN-07
+    severity: info
+    disposition: open
+    title: "Large listed-path sweeps fail with misleading reasons"
+  - id: IN-08
+    severity: info
+    disposition: open
+    title: "The git-message redaction replaces substrings, so a short listed path garbles the rest of git's line"
+  - id: IN-09
+    severity: info
+    disposition: open
+    title: "The `--manifest` refusal branches can never be reached, and the entry-manifest rule omits the blob-mismatch precedence"
+  - id: IN-10
+    severity: info
+    disposition: open
+    title: "No kit text says what to do with a `runnable-version-skew` line, and the contract row misdescribes the program it names"
   - id: CR-01
     severity: critical
     disposition: fixed
@@ -43,40 +63,35 @@ findings:
     severity: info
     disposition: fixed
     title: "`statSync(real)` outside the per-source handler can end the whole `check` report"
-  - id: IN-05
-    severity: info
-    disposition: open
-    title: "`owns.prefixes` is validated but never applied to reads or refs"
   - id: IN-06
     severity: info
     disposition: fixed
     title: "The partial-clone test depends on the host git version"
-  - id: IN-07
-    severity: info
-    disposition: open
-    title: "Large listed-path sweeps fail with misleading reasons"
-open: 4
-total: 13
-recorded: 2026-11-25T11:00:01.717Z
+open: 7
+total: 16
+recorded: 2026-11-25T16:26:16.139Z
 ---
 
 # Phase 44: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | plan 44-09 (057576b2, ad18cc2c); contract text plan 44-14 (4f666db1) |
-| CR-02 | critical | fixed | plan 44-10 (3483329a, 770b4515); kit text plan 44-13 (597f0fc8, e5c60883); contract text plan 44-14 (4f666db1) |
-| WR-01 | warning | fixed | plan 44-12 (e3a3eb3f, 30de3775) |
-| WR-02 | warning | open | - |
-| WR-03 | warning | fixed | plan 44-11 (cf3c11fb, 92f5e8ce); docs plan 44-14 (4f666db1, 4442d0d0) |
-| WR-04 | warning | fixed | plan 44-14 (4f666db1) |
-| IN-01 | info | open | - |
-| IN-02 | info | fixed | plan 44-14 (4f666db1) |
-| IN-03 | info | fixed | plan 44-10 (770b4515) |
-| IN-04 | info | fixed | plan 44-12 (30de3775) |
 | IN-05 | info | open | - |
-| IN-06 | info | fixed | plan 44-12 (5856f551) |
 | IN-07 | info | open | - |
+| IN-08 | info | open | - |
+| IN-09 | info | open | - |
+| IN-10 | info | open | - |
+| CR-01 | critical | fixed | plan 44-09 (057576b2, ad18cc2c); contract text plan 44-14 (4f666db1) (not in the current review) |
+| CR-02 | critical | fixed | plan 44-10 (3483329a, 770b4515); kit text plan 44-13 (597f0fc8, e5c60883); contract text plan 44-14 (4f666db1) (not in the current review) |
+| WR-01 | warning | fixed | plan 44-12 (e3a3eb3f, 30de3775) (not in the current review) |
+| WR-02 | warning | open | - (not in the current review) |
+| WR-03 | warning | fixed | plan 44-11 (cf3c11fb, 92f5e8ce); docs plan 44-14 (4f666db1, 4442d0d0) (not in the current review) |
+| WR-04 | warning | fixed | plan 44-14 (4f666db1) (not in the current review) |
+| IN-01 | info | open | - (not in the current review) |
+| IN-02 | info | fixed | plan 44-14 (4f666db1) (not in the current review) |
+| IN-03 | info | fixed | plan 44-10 (770b4515) (not in the current review) |
+| IN-04 | info | fixed | plan 44-12 (30de3775) (not in the current review) |
+| IN-06 | info | fixed | plan 44-12 (5856f551) (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
