@@ -20,8 +20,10 @@
 // Voice: clear professional voice (CLAUDE.md hard rule).
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 /** The environment every fixture git call runs under, rooted at the scratch home `home`. */
 export function fixtureEnv(home: string): NodeJS.ProcessEnv {
@@ -122,4 +124,86 @@ export const SYNTHETIC_DOCUMENTS: Readonly<Record<string, string>> = Object.free
 /** Every file of the synthetic upstream: the manifest at SYNTHETIC_ENTRY and the documents it lists. */
 export function syntheticFiles(): Record<string, string> {
   return { [SYNTHETIC_ENTRY]: SYNTHETIC_MANIFEST, ...SYNTHETIC_DOCUMENTS };
+}
+
+// --- fixture variants (plan 44-05, D-13, D-20, UP-02, UP-04) ------------------------------------
+
+/**
+ * One more commit in the repository at `dir`: each of `files` written as text, each of `links` (path to link target)
+ * made a symbolic link in place of whatever was there, then everything staged and committed. Returns the new commit.
+ */
+export function commitMore(
+  dir: string,
+  files: Readonly<Record<string, string>>,
+  env: NodeJS.ProcessEnv,
+  links: Readonly<Record<string, string>> = {},
+): string {
+  for (const [path, text] of Object.entries(files)) {
+    const file = join(dir, ...path.split("/"));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, text);
+  }
+  for (const [path, target] of Object.entries(links)) {
+    const file = join(dir, ...path.split("/"));
+    mkdirSync(dirname(file), { recursive: true });
+    rmSync(file, { force: true });
+    symlinkSync(target, file);
+  }
+  fixtureGit(dir, ["add", "-A"], env);
+  fixtureGit(dir, ["commit", "-q", "-m", "synthetic upstream change"], env);
+  return fixtureGit(dir, ["rev-parse", "HEAD"], env);
+}
+
+/** A `--depth 1` clone of `src` at `dest`: only the newest commit of `src` is in it. Returns `dest`. */
+export function cloneShallow(src: string, dest: string, env: NodeJS.ProcessEnv): string {
+  fixtureGit(dirname(dest), ["clone", "-q", "--depth", "1", pathToFileURL(src).href, dest], env);
+  return dest;
+}
+
+/** A bare clone of `src` at `dest`: a repository with no work tree. Returns `dest`. */
+export function makeBare(src: string, dest: string, env: NodeJS.ProcessEnv): string {
+  fixtureGit(dirname(dest), ["clone", "-q", "--bare", src, dest], env);
+  return dest;
+}
+
+/**
+ * A plain folder `name` inside the repository `parentRepo`, holding a copy of every synthetic file but no `.git` of
+ * its own, so `git rev-parse --show-toplevel` run there answers for the parent. Never committed. Returns its path.
+ */
+export function makeNestedFolder(parentRepo: string, name: string): string {
+  const folder = join(parentRepo, name);
+  for (const [path, text] of Object.entries(syntheticFiles())) {
+    const file = join(folder, ...path.split("/"));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, text);
+  }
+  return folder;
+}
+
+/**
+ * A sha256 digest of everything under `dir`, `.git` included: every relative path in sorted order with its kind and,
+ * for a regular file, its bytes, for a symbolic link its target. Two equal digests mean no byte under `dir` changed.
+ */
+export function treeDigest(dir: string): string {
+  const entries: string[] = [];
+  const walk = (abs: string, rel: string): void => {
+    for (const name of readdirSync(abs).sort()) {
+      const child = join(abs, name);
+      const r = rel === "" ? name : `${rel}/${name}`;
+      const st = lstatSync(child);
+      if (st.isDirectory()) {
+        entries.push(`${r}\0dir`);
+        walk(child, r);
+      } else if (st.isSymbolicLink()) {
+        entries.push(`${r}\0link\0${readlinkSync(child)}`);
+      } else if (st.isFile()) {
+        entries.push(`${r}\0file\0${createHash("sha256").update(readFileSync(child)).digest("hex")}`);
+      } else {
+        entries.push(`${r}\0other`);
+      }
+    }
+  };
+  walk(dir, "");
+  entries.sort();
+  return createHash("sha256").update(entries.join("\n")).digest("hex");
 }
