@@ -282,19 +282,43 @@ export function setFsmonitor(dir: string, sentinelPath: string, env: NodeJS.Proc
  * Put first on PATH, it records every git call a program makes. POSIX hosts only. Returns the directory.
  */
 export function recordingGitDir(logPath: string): string {
+  return gitWrapperDir(logPath, "recording-bin", "recordingGitDir", "");
+}
+
+/** `s` as one single-quoted POSIX shell word. */
+function shellQuoted(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * A directory `<dirname(logPath)>/<name>` holding an executable POSIX shell `git` wrapper: it appends its arguments to
+ * `logPath` the way recordingGitDir does, runs `middle` (shell text that may answer and exit), and otherwise runs the
+ * real git found by `command -v git` now, by absolute path. `logPath` is emptied. Returns the directory.
+ */
+function gitWrapperDir(logPath: string, name: string, caller: string, middle: string): string {
   const found = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" });
   const realGit = (found.stdout ?? "").trim();
-  if (found.status !== 0 || !realGit.startsWith("/")) throw new Error(`recordingGitDir: no git on PATH (${found.stderr})`);
-  const bin = join(dirname(logPath), "recording-bin");
+  if (found.status !== 0 || !realGit.startsWith("/")) throw new Error(`${caller}: no git on PATH (${found.stderr})`);
+  const bin = join(dirname(logPath), name);
   mkdirSync(bin, { recursive: true });
-  const q = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
   writeFileSync(
     join(bin, "git"),
-    `#!/bin/sh\n(IFS=$(printf '\\037'); printf '%s\\n' "$*") >> ${q(logPath)}\nexec ${q(realGit)} "$@"\n`,
+    `#!/bin/sh\n(IFS=$(printf '\\037'); printf '%s\\n' "$*") >> ${shellQuoted(logPath)}\n${middle}exec ${shellQuoted(realGit)} "$@"\n`,
   );
   chmodSync(join(bin, "git"), 0o755);
   writeFileSync(logPath, "");
   return bin;
+}
+
+/**
+ * Plan 44-12 (WR-01, T-44-11): a recording `git` wrapper, as recordingGitDir, that answers a call whose arguments are
+ * exactly `-C <dir> version` with `git version <version>` and exit 0, and runs the real git for every other call. It
+ * stands in for a git older than 2.45, which ignores GIT_NO_LAZY_FETCH, without installing one: the program's version
+ * read sees `version`, while every object read is still the real git's. POSIX hosts only. Returns the directory.
+ */
+export function versionedGitDir(logPath: string, version: string): string {
+  const answer = `if [ "$#" -eq 3 ] && [ "$1" = "-C" ] && [ "$3" = "version" ]; then printf '%s\\n' ${shellQuoted(`git version ${version}`)}; exit 0; fi\n`;
+  return gitWrapperDir(logPath, "versioned-bin", "versionedGitDir", answer);
 }
 
 // --- read variants (plan 44-06, D-15, D-16, D-17, UP-02, UP-05) ---------------------------------

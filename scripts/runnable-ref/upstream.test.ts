@@ -70,6 +70,7 @@ import {
   syntheticFiles,
   textOfBytes,
   treeDigest,
+  versionedGitDir,
 } from "./upstream-fixture.test-support.js";
 
 /** The usage line both verbs name in an argument error (plan 44-06 extends it with `read`). */
@@ -1701,4 +1702,62 @@ describe("upstream.js — version skew: a sibling program from another build is 
     expect(skewed.status).toBe(alone.status);
     expect(skewed.stdout).not.toContain("runnable-version-skew");
   });
+});
+
+// --- plan 44-12: the partial-clone guard runs before any object read (WR-01, T-44-11) ------------------------------
+//
+// git older than 2.45 ignores GIT_NO_LAZY_FETCH, so in a partial clone it would fetch a missing object over the
+// network the first time anything reads it, and write it into the upstream `.git`. The guard that refuses a partial
+// clone on such a git must therefore run before every call that reads an object, the `^{commit}` peel included, and
+// must see both ways git marks a partial clone: `remote.<name>.promisor` and `extensions.partialClone`. An old git is
+// played by versionedGitDir, which answers only `version` and runs the real git for every object read (flagged
+// assumption A1: a live run on a real git 2.44 stays `UNKNOWN - verify`).
+
+/** The git calls a recording wrapper logged, each split into its arguments. */
+function recordedCalls(log: string): string[][] {
+  return readFileSync(log, "utf8")
+    .split("\n")
+    .filter((l) => l !== "")
+    .map((l) => l.split("\x1f"));
+}
+
+/** Why a case that puts a POSIX shell `git` wrapper first on PATH does not run on Windows. */
+const POSIX_WRAPPER_ONLY = "the git wrapper is a POSIX shell script, which Windows cannot run as `git` from PATH";
+
+describe("upstream.js — partial clone guard: detection runs before any object read, on either key (plan 44-12, WR-01, T-44-11)", () => {
+  if (process.platform === "win32") console.warn(`SKIPPED partial clone guard on win32: ${POSIX_WRAPPER_ONLY}`);
+
+  const OLDER_GIT_REASON = "partial clone and git older than 2.45; make a full clone or upgrade git";
+
+  it.skipIf(process.platform === "win32")(
+    "partial clone guard: under a git that reports 2.44, a partial clone is refused before `^{commit}` is peeled, no ls-tree or cat-file runs, and nothing is fetched",
+    () => {
+      const { base, env } = scratch();
+      const origin = makeUpstream(join(base, "origin"), { files: syntheticFiles(), objectFormat: "sha1", env });
+      commitMore(origin.dir, { [SYNTHETIC_ENTRY]: MANIFEST_PLUS_DEC4, "decisions/dec-4.md": DOC_DEC4 }, env);
+      const clone = clonePartial(origin.dir, join(base, "design"), env);
+      const pinnedBlob = origin.blobOf(SYNTHETIC_ENTRY);
+      const noLazy = { ...env, GIT_NO_LAZY_FETCH: "1" };
+      expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "PREMISE: the pinned blob is not in the clone").not.toBe(0);
+      const log = join(base, "git-calls.log");
+      const bin = versionedGitDir(log, "2.44.0");
+      const wrapped = { ...env, PATH: `${bin}:${env.PATH ?? ""}` };
+      expect(plainGit(clone, ["version"], wrapped).stdout, "PREMISE: the wrapper reports git 2.44").toBe("git version 2.44.0\n");
+      writeFileSync(log, "");
+      const product = productDeclaring(base, sourceOf("design", "../design", origin));
+      expectUnknown(checkUnchanged(product, wrapped, [clone]), OLDER_GIT_REASON);
+      const calls = recordedCalls(log);
+      const shown = calls.map((c) => c.slice(2).join(" ")).join("\n");
+      expect(calls.some((c) => c[2] === "version"), `CONTROL: the program asked the wrapper for its version\n${shown}`).toBe(true);
+      const config = calls.findIndex((c) => c[2] === "config" && c.includes("--get-regexp"));
+      const peel = calls.findIndex((c) => c.some((a) => a.endsWith("^{commit}")));
+      expect(config, `a config --get-regexp call was made\n${shown}`).toBeGreaterThanOrEqual(0);
+      expect(peel === -1 || config < peel, `the config read comes before any ^{commit} peel\n${shown}`).toBe(true);
+      expect(
+        calls.filter((c) => c[2] === "ls-tree" || c[2] === "cat-file").map((c) => c.slice(2).join(" ")),
+        `no object was listed or read\n${shown}`,
+      ).toEqual([]);
+      expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "check fetched nothing").not.toBe(0);
+    },
+  );
 });
