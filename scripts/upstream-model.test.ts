@@ -675,8 +675,10 @@ describe("manifest: the entry manifest table (D-09, D-10, D-11, D-12)", () => {
   it("manifest: ordering: with two bad rows the first row's line is reported, the same on every parse", () => {
     const text = manifestOf("| DEC-1 | locked | a.md | |", "| DEC-2 | locked | ../x | |", "| dec-3 | draft | b.md | |");
     const want = { reason: "the Path cell (column 3) of DEC-2 is not a manifest path", line: 4 };
-    expect(malformedOf(text)).toEqual(want);
-    expect(malformedOf(text)).toEqual(want);
+    const first = malformedOf(text);
+    const second = malformedOf(text);
+    expect(first).toEqual(want);
+    expect(second).toEqual(first);
   });
 
   it("manifest: a two-step chain that ends at a locked row is `ok`", () => {
