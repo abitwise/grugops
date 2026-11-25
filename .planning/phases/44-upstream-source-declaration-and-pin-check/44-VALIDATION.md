@@ -116,3 +116,13 @@ Statuses read from the phase-gate full-suite run on 2026-11-25 (12,368 tests; th
 | Escalated | 0 |
 
 The gap was the UP-05 fence (CR-01 and CR-02). Plans 44-09 and 44-10 fixed it in the code and added the `forged path`, `cell text` and `code-point sweep` regressions; plans 44-11 to 44-13 added the `version skew`, `partial clone guard`, `git message` and Workflow 17 step 4 checks. Each filter was run on 2026-11-25 by plan 44-14 and passed with no failure. The full suite was not re-run here; the phase gate compares it by test name against the baseline. The live UP-05 red-team round stays a manual verification.
+
+## Validation Audit 2026-11-25
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+Audit after gap-closure round 1. The phase-gate full suite ran at d3a0869d on 2026-11-25: 12,440 tests, 12,437 passed, 2 skipped and 1 failed. The failure is the DI-03 baseline red in `install/installer-fs-census.test.ts`, which no row above covers. Every Per-Task Map command is green, and no requirement is PARTIAL or MISSING. The live UP-05 red-team round stays manual.
