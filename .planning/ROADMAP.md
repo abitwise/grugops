@@ -170,7 +170,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
   4. A missing or unreadable source makes the dependent work `BLOCKED` with a named reason and nothing is guessed; upstream text enters the shared context only as cited `claim` notes, and a synthetic fixture with embedded instructions shows the instructions are not followed (UP-04, UP-05)
   5. A rendered trace shows `upstream:<source>:<id>@<commit>` refs in the Requirement column and never as phantom ticket rows, and the `BR` prefix is reserved for build requests (TRC-02)
 
-**Plans**: 10/14 plans executed (gap-closure round 1 of 4 planned: 44-09 to 44-14)
+**Plans**: 11/14 plans executed (gap-closure round 1 of 4 planned: 44-09 to 44-14)
 
 Plans:
 **Wave 1**
@@ -202,7 +202,7 @@ Plans:
 - [x] 44-10-PLAN.md — Tracer: the verifier's Status-cell reproduction fails closed; every bad cell named by column and line, no manifest text or listed path outside the fence (CR-02, IN-03); `cell text` regressions
 
 **Gap wave 3** *(blocked on gap wave 2 completion)*
-- [ ] 44-11-PLAN.md — Tracer: `upstream.js check` reports a sibling program from another build (`runnable-version-skew`, WR-03, TRC-02)
+- [x] 44-11-PLAN.md — Tracer: `upstream.js check` reports a sibling program from another build (`runnable-version-skew`, WR-03, TRC-02)
 
 **Gap wave 4** *(blocked on gap wave 3 completion)*
 - [ ] 44-12-PLAN.md — Tracer: the partial-clone guard before any object read, on both keys (WR-01); IN-04, IN-06; git messages never echo a listed path (T-44-38)
@@ -279,7 +279,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 44. Upstream source declaration and pin check | v3.1 | 10/14 | In Progress | - |
+| 44. Upstream source declaration and pin check | v3.1 | 11/14 | In Progress | - |
 | 45. Traceability, build requests and architecture as input | v3.1 | 0/TBD | Not started | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
