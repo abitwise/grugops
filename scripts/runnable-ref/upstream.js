@@ -20,6 +20,12 @@
 // When a source has both drift causes, `blob-mismatch` comes before `head-moved`. An `UNKNOWN - verify` line is the
 // only line printed for its source. With no declaration (no config file, or a config with no `upstream` key) stdout
 // holds exactly `no upstream sources declared`.
+//   After the source lines, and only when sources are declared, one line per sibling program of RUNNABLE_SET in this
+// file's directory that was not built with it (plan 44-11, WR-03, TRC-02), in RUNNABLE_SET order:
+//   `runnable-version-skew <program>: <reason>; remove <every RUNNABLE_SET name> and install them again together`
+// The reason is a different stamp, no stamp, more than one stamp, or a present file that could not be inspected or
+// read. An absent sibling, or one with the same stamp, prints nothing. The line is a report for a human: it never
+// changes the exit code, the sibling is only read, and `read` never prints it.
 //   exit 0 → every source matches, or none is declared.
 //   exit 1 → no source is UNKNOWN and at least one drifts: an outcome to act on, never an error.
 //   exit 2 → at least one source is `UNKNOWN - verify`, so an unchecked source never sits behind the drift exit. A run
