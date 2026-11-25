@@ -10161,7 +10161,12 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // story-docs gate's three checks and the cases that read its package.json and ci.yml wiring. The pin moved because a
 // module landed, not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
 // 86 on this tree (2026-11-18, plan 43-03).
-const TRIPWIRE_MODULES = 86;
+//
+// 86 -> 87 (plan 44-02, 2026-11-25): ONE test module, `scripts/upstream-model.test.ts` — the unit cases of the pure
+// upstream authority (the declaration, path, manifest, object id, blob id, fence, ref and pin-decision grammars). The
+// pin moved because a module landed, not to make a red go away. Re-derived rather than incremented: `ls
+// scripts/*.test.ts | wc -l` reports 87 on this tree (2026-11-25, plan 44-02).
+const TRIPWIRE_MODULES = 87;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that
