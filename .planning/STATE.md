@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
 status: executing
-stopped_at: Completed 44-08-PLAN.md
-last_updated: "2026-11-25T13:08:32.119Z"
+stopped_at: Completed 44-09-PLAN.md
+last_updated: "2026-11-25T14:33:23.707Z"
 last_activity: 2026-11-25
 last_activity_desc: Phase 44 execution started
-state_head: 6745dfd9b183c9e3685b1a2d5f9bef0e299306a6
+state_head: 720d5c1f623255d56fb0ac4ca4200c8490da4bc8
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 
 ## Current Position
 
-Phase: 44 (Upstream source declaration and pin check) — READY TO EXECUTE
-Plan: 8 of 8
+Phase: 44 (Upstream source declaration and pin check) — EXECUTING
+Plan: 10 of 14
 Status: Ready to execute
 Last activity: 2026-11-25 — Phase 44 execution started
 
@@ -910,6 +910,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P06 | 16 min | 2 tasks | 6 files |
 | Phase 44 P07 | 28 min | 2 tasks | 22 files |
 | Phase 44 P08 | 16 min | 2 tasks | 7 files |
+| Phase 44 P09 | 6 min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -2549,6 +2550,8 @@ Recent decisions affecting current work:
 - [Phase 44]: 44-07: a new watched workflow owes a docs/audit/29-style-dispositions/<plan>.md file with one added row per derived clause; plan 44-08 owes one for its Workflow 17 and Orchestrator edits
 - [Phase 44]: Workflow 17 session-start step 4 runs upstream.js check and reports subtasks on a blob-mismatch or UNKNOWN - verify source as BLOCKED (Workflow 20); refill is step 5
 - [Phase 44]: AGENTS.md names upstream sources as a read-only third root, reached only through tools/grugops/upstream.js, in a paragraph outside the C-28-015 and C-28-016 anchors
+- [Phase 44]: 44-09: manifest Path and config entry use an ASCII allowlist (segments of 1-128 of A-Z a-z 0-9 . _ -, first char letter/digit/_, 512 chars max), so a path cannot forge the fence blob token (CR-01)
+- [Phase 44]: 44-09: D-17 BEGIN/END text kept byte for byte; fenceLines throws a fixed value-silent message for any out-of-grammar argument
 
 ### Pending Todos
 
@@ -2954,8 +2957,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T10:50:11.697Z
-Stopped at: Completed 44-08-PLAN.md
+Last session: 2026-11-25T14:33:23.645Z
+Stopped at: Completed 44-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
