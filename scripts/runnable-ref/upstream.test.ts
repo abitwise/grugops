@@ -16,7 +16,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -30,6 +30,9 @@ import {
   SYNTHETIC_DOCUMENTS,
   SYNTHETIC_ENTRY,
   SYNTHETIC_MANIFEST,
+  addReplaceRef,
+  cloneAutocrlf,
+  clonePartial,
   cloneShallow,
   commitMore,
   fixtureEnv,
@@ -38,6 +41,8 @@ import {
   makeNestedFolder,
   makeProduct,
   makeUpstream,
+  recordingGitDir,
+  setFsmonitor,
   syntheticFiles,
   treeDigest,
 } from "./upstream-fixture.test-support.js";
@@ -522,5 +527,155 @@ describe("upstream.js — never moves a pin: check writes nothing and accepts no
     expect(two.stdout).toBe(one.stdout);
     expect(two.stderr).toBe(one.stderr);
     expect(two.status).toBe(one.status);
+  });
+});
+
+// --- plan 44-05: the untrusted checkout cannot steer what git reads (D-20, UP-02; research Pitfalls 1-5) ------------
+//
+// Every negative assertion below has its positive control in the same case: the control runs plain git against the
+// same setup and shows the steering is live (the replacement answers, the environment redirects, the hook runs, the
+// blob is fetched). Without the control a pass could mean only that the setup never worked.
+
+/** The upstream manifest with one more locked row, and the document that row lists, for a commit that moves HEAD. */
+const MANIFEST_PLUS_DEC4 = `${SYNTHETIC_MANIFEST}| DEC-4 | locked | decisions/dec-4.md | |\n`;
+const DOC_DEC4 = "# DEC-4\n\nThe main screen has a footer.\n";
+
+/** Plain git under `env` in `dir`, never throwing: its status and its output. */
+function plainGit(dir: string, args: readonly string[], env: NodeJS.ProcessEnv): { status: number | null; stdout: string; stderr: string } {
+  const r = spawnSync("git", ["-C", dir, ...args], { encoding: "utf8", env, timeout: 20_000 });
+  expect(r.error, `git ${args.join(" ")} finished`).toBeUndefined();
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+describe("upstream.js — adversarial git: replace refs, environment redirection, configured commands and lazy fetch (plan 44-05, D-20)", () => {
+  it("adversarial git: a replace ref on the pinned manifest blob does not change the result (`match`); plain git does answer the replacement", () => {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const manifestBlob = design.blobOf(SYNTHETIC_ENTRY);
+    addReplaceRef(design.dir, manifestBlob, design.blobOf("decisions/dec-1.md"), env);
+    expect(fixtureGit(design.dir, ["cat-file", "blob", manifestBlob], env), "CONTROL: plain git answers the replacement").toBe(
+      (SYNTHETIC_DOCUMENTS["decisions/dec-1.md"] as string).trim(),
+    );
+    const product = productDeclaring(base, sourceOf("design", "../design", design, 0, { entry_blob: manifestBlob }));
+    const r = checkUnchanged(product, env, [design.dir]);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe(`match design ${design.commit}\n`);
+    expect(r.status).toBe(0);
+  });
+
+  it("adversarial git: a replace ref on the pinned commit does not change the result (true pin read, head-moved, never blob-mismatch); plain git does answer HEAD's blob", () => {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    // The declared blob is read BEFORE the replace ref exists: fixture git honors replace refs, so reading it after
+    // would declare HEAD's blob and the case would test nothing.
+    const pinnedManifest = design.blobOf(SYNTHETIC_ENTRY);
+    const head = commitMore(design.dir, { [SYNTHETIC_ENTRY]: MANIFEST_PLUS_DEC4, "decisions/dec-4.md": DOC_DEC4 }, env);
+    const headManifest = blobAt(design.dir, head, SYNTHETIC_ENTRY, env);
+    expect(headManifest, "PREMISE: HEAD's manifest blob differs from the pin's").not.toBe(pinnedManifest);
+    addReplaceRef(design.dir, design.commit, head, env);
+    expect(
+      fixtureGit(design.dir, ["rev-parse", `${design.commit}:${SYNTHETIC_ENTRY}`], env),
+      "CONTROL: plain git answers HEAD's manifest blob for the pin",
+    ).toBe(headManifest);
+    const product = productDeclaring(base, sourceOf("design", "../design", design, 0, { entry_blob: pinnedManifest }));
+    const r = checkUnchanged(product, env, [design.dir]);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).not.toContain("blob-mismatch");
+    expect(r.stdout).toBe(`drift design: head-moved (HEAD ${head}, pin ${design.commit})\n`);
+    expect(r.status).toBe(1);
+  });
+
+  it("adversarial git: an inherited GIT_DIR and GIT_WORK_TREE naming another repository give the same output as without them; plain git is redirected", () => {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const other = makeUpstream(join(base, "other"), { files: { "readme.md": "# Other\n" }, objectFormat: "sha1", env });
+    const redirected = { ...env, GIT_DIR: join(other.dir, ".git"), GIT_WORK_TREE: other.dir };
+    expect(
+      plainGit(design.dir, ["rev-parse", "--show-toplevel"], redirected).stdout.trim(),
+      "CONTROL: plain `git -C <design>` answers for the other repository",
+    ).toBe(other.dir);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const clean = checkUnchanged(product, env, [design.dir, other.dir]);
+    const steered = checkUnchanged(product, redirected, [design.dir, other.dir]);
+    expect(clean.stdout).toBe(`match design ${design.commit}\n`);
+    expect(steered.stdout).toBe(clean.stdout);
+    expect(steered.stderr).toBe(clean.stderr);
+    expect(steered.status).toBe(clean.status);
+  });
+
+  it("adversarial git: a `core.fsmonitor` command in the upstream's .git/config never runs during check; the same setup runs it under `git status`", () => {
+    const { base, env } = scratch();
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const sentinel = join(base, "fsmonitor-ran");
+    setFsmonitor(design.dir, sentinel, env);
+    const product = productDeclaring(base, sourceOf("design", "../design", design));
+    const r = checkUnchanged(product, env, [design.dir]);
+    expect(r.stdout).toBe(`match design ${design.commit}\n`);
+    expect(r.status).toBe(0);
+    expect(existsSync(sentinel), "the fsmonitor command did not run during check").toBe(false);
+    plainGit(design.dir, ["status", "--porcelain"], env);
+    expect(existsSync(sentinel), "CONTROL: `git status` runs the configured fsmonitor command").toBe(true);
+  });
+
+  it("adversarial git: a `--filter=blob:none` partial clone whose pinned entry blob was never fetched is UNKNOWN and fetches nothing; plain cat-file does fetch it", () => {
+    const { base, env } = scratch();
+    const origin = makeUpstream(join(base, "origin"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    commitMore(origin.dir, { [SYNTHETIC_ENTRY]: MANIFEST_PLUS_DEC4, "decisions/dec-4.md": DOC_DEC4 }, env);
+    const clone = clonePartial(origin.dir, join(base, "design"), env);
+    const pinnedBlob = origin.blobOf(SYNTHETIC_ENTRY);
+    const noLazy = { ...env, GIT_NO_LAZY_FETCH: "1" };
+    expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "PREMISE: the pinned blob is not in the clone").not.toBe(0);
+    const product = productDeclaring(base, sourceOf("design", "../design", origin));
+    expectUnknown(checkUnchanged(product, env, [clone]), /^git cat-file failed: .+$/);
+    expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "check fetched nothing").not.toBe(0);
+    const control = plainGit(clone, ["cat-file", "-s", pinnedBlob], env);
+    expect(control.status, `CONTROL: cat-file without GIT_NO_LAZY_FETCH fetches the blob (${control.stderr})`).toBe(0);
+    expect(Number(control.stdout.trim())).toBe(Buffer.byteLength(SYNTHETIC_MANIFEST));
+    expect(plainGit(clone, ["cat-file", "-e", pinnedBlob], noLazy).status, "CONTROL: the blob is now present").toBe(0);
+  });
+});
+
+describe("upstream.js — subcommands: the only git subcommands check spawns (plan 44-05, D-20, T-44-10)", () => {
+  it.skipIf(process.platform === "win32")(
+    "subcommands: a recording git first on PATH shows only rev-parse, ls-tree, cat-file, config and version after `-C <dir>`",
+    () => {
+      const { base, env } = scratch();
+      const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+      const origin = makeUpstream(join(base, "origin"), { files: syntheticFiles(), objectFormat: "sha1", env });
+      const partial = clonePartial(origin.dir, join(base, "partial"), env);
+      const product = productDeclaring(base, sourceOf("design", "../design", design, 0), sourceOf("part", "../partial", origin, 1));
+      const log = join(base, "git-calls.log");
+      const bin = recordingGitDir(log);
+      const r = checkUnchanged(product, { ...env, PATH: `${bin}:${env.PATH ?? ""}` }, [design.dir, partial]);
+      expect(r.stdout).toBe(`match design ${design.commit}\nmatch part ${origin.commit}\n`);
+      expect(r.status).toBe(0);
+      const calls = readFileSync(log, "utf8")
+        .split("\n")
+        .filter((l) => l !== "")
+        .map((l) => l.split("\x1f"));
+      expect(calls.length, "CONTROL: the recorder saw the git calls").toBeGreaterThan(0);
+      for (const call of calls) {
+        expect(call[0], call.join(" ")).toBe("-C");
+        expect([design.dir, partial], call.join(" ")).toContain(call[1]);
+      }
+      const seen = [...new Set(calls.map((c) => c[2]))].sort();
+      expect(seen).toEqual(["cat-file", "config", "ls-tree", "rev-parse", "version"]);
+    },
+  );
+});
+
+describe("upstream.js — pinned bytes: the object at the pin is read, never the working file (plan 44-05, UP-02)", () => {
+  it("pinned bytes: a clone with core.autocrlf=true and `* text eol=crlf`, whose working manifest has CRLF ends, checks as `match` against the LF blob pinned in the origin", () => {
+    const { base, env } = scratch();
+    const origin = makeUpstream(join(base, "origin"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const clone = cloneAutocrlf(origin.dir, join(base, "design"), env);
+    const working = readFileSync(join(clone, ...SYNTHETIC_ENTRY.split("/")), "utf8");
+    expect(working.includes("\r\n"), "PREMISE: the working manifest has CRLF line ends").toBe(true);
+    expect(SYNTHETIC_MANIFEST.includes("\r"), "PREMISE: the pinned blob has LF line ends").toBe(false);
+    const product = productDeclaring(base, sourceOf("design", "../design", origin));
+    const r = checkUnchanged(product, env, [clone]);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe(`match design ${origin.commit}\n`);
+    expect(r.status).toBe(0);
   });
 });

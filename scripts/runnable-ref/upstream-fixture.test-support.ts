@@ -21,7 +21,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -206,4 +206,70 @@ export function treeDigest(dir: string): string {
   walk(dir, "");
   entries.sort();
   return createHash("sha256").update(entries.join("\n")).digest("hex");
+}
+
+// --- adversarial git variants (plan 44-05, D-20, UP-02; research Pitfalls 1-5) ------------------
+
+/** A replace ref in `dir` that makes git answer `to` wherever `from` is asked for, unless replace refs are off. */
+export function addReplaceRef(dir: string, from: string, to: string, env: NodeJS.ProcessEnv): void {
+  fixtureGit(dir, ["replace", from, to], env);
+}
+
+/**
+ * A clone of `src` at `dest` with `core.autocrlf=true` and an untracked `.gitattributes` of `* text eol=crlf`, its
+ * tracked files checked out again so every working file has CRLF line ends while the objects keep LF. Returns `dest`.
+ */
+export function cloneAutocrlf(src: string, dest: string, env: NodeJS.ProcessEnv): string {
+  fixtureGit(dirname(dest), ["clone", "-q", "-c", "core.autocrlf=true", src, dest], env);
+  writeFileSync(join(dest, ".gitattributes"), "* text eol=crlf\n");
+  for (const path of fixtureGit(dest, ["ls-files", "-z"], env).split("\0").filter((p) => p !== "")) {
+    rmSync(join(dest, ...path.split("/")));
+  }
+  fixtureGit(dest, ["checkout", "--", "."], env);
+  return dest;
+}
+
+/**
+ * A `--filter=blob:none` partial clone of `src` at `dest`, over the file transport so the filter applies (the origin
+ * is set to allow it). Only the blobs the checkout of the newest commit needs are fetched; every other blob stays at
+ * the promisor remote. Returns `dest`.
+ */
+export function clonePartial(src: string, dest: string, env: NodeJS.ProcessEnv): string {
+  fixtureGit(src, ["config", "uploadpack.allowFilter", "true"], env);
+  fixtureGit(dirname(dest), ["clone", "-q", "--filter=blob:none", pathToFileURL(src).href, dest], env);
+  return dest;
+}
+
+/**
+ * Sets `core.fsmonitor` in `dir`'s own `.git/config` to an executable hook script that creates `sentinelPath` when
+ * git runs it, the way an untrusted checkout could name a command for git to run. The script sits beside the
+ * sentinel, outside `dir`. Returns the script's path.
+ */
+export function setFsmonitor(dir: string, sentinelPath: string, env: NodeJS.ProcessEnv): string {
+  const hook = join(dirname(sentinelPath), "fsmonitor-hook.sh");
+  writeFileSync(hook, `#!/bin/sh\n: > '${sentinelPath.replace(/'/g, "'\\''")}'\nexit 1\n`);
+  chmodSync(hook, 0o755);
+  fixtureGit(dir, ["config", "core.fsmonitor", hook], env);
+  return hook;
+}
+
+/**
+ * A directory holding an executable POSIX shell `git` wrapper that appends its arguments, joined by the unit
+ * separator (0x1F), as one line to `logPath`, then runs the real git found by `command -v git` now, by absolute path.
+ * Put first on PATH, it records every git call a program makes. POSIX hosts only. Returns the directory.
+ */
+export function recordingGitDir(logPath: string): string {
+  const found = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" });
+  const realGit = (found.stdout ?? "").trim();
+  if (found.status !== 0 || !realGit.startsWith("/")) throw new Error(`recordingGitDir: no git on PATH (${found.stderr})`);
+  const bin = join(dirname(logPath), "recording-bin");
+  mkdirSync(bin, { recursive: true });
+  const q = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
+  writeFileSync(
+    join(bin, "git"),
+    `#!/bin/sh\n(IFS=$(printf '\\037'); printf '%s\\n' "$*") >> ${q(logPath)}\nexec ${q(realGit)} "$@"\n`,
+  );
+  chmodSync(join(bin, "git"), 0o755);
+  writeFileSync(logPath, "");
+  return bin;
 }
