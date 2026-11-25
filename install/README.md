@@ -544,7 +544,10 @@ are written only when that agent is chosen.
   `state-roll.js`, `claim.js`, `note.js` and `upstream.js`, then install again. When the build stamp of
   `trace-render.js`, `state-roll.js`, `claim.js`, `note.js` or `upstream.js` differs from the stamp of
   `state-check.js`, or is missing, state-check reports a `runnable-version-skew` finding that names
-  the program
+  the program.
+  In a repository that declares upstream sources, `node tools/grugops/upstream.js check` also
+  prints a `runnable-version-skew` line for each other program built apart from it, at session
+  start. The remedy is the same: remove the six programs and install again.
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,
   the `.grugops/install.json` marker, `memory-bank/plans/`, and `memory-bank/`
 - `.gemini/settings.json` — install never reads or writes it (34.1 D-12: Gemini CLI is
