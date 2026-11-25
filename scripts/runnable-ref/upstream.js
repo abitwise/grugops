@@ -916,9 +916,10 @@ function hexLengthOf(format) {
 /**
  * What git answers for one source, read only from objects at the pin. The path is checked first: the lexical rule,
  * then realpath, then the inside and ancestor test again on the real paths. The checkout must be the top of a git
- * work tree and use the pin's object format. Before any git call that reads an object, a partial clone is refused when
- * the git that runs is older than 2.45, which ignores GIT_NO_LAZY_FETCH and would fetch a missing object over the
- * network (WR-01, T-44-11). The checkout must then hold the pinned commit. The entry's blob at the pin is compared to the
+ * work tree and use the pin's object format. Before any git call that reads an object, a partial clone (a
+ * `remote.<name>.promisor` key not set to false, or an `extensions.partialclone` key) is refused when the git that runs
+ * is older than 2.45, which ignores GIT_NO_LAZY_FETCH and would fetch a missing object over the network (WR-01,
+ * T-44-11). The checkout must then hold the pinned commit. A path whose stat fails is that source's UNKNOWN (IN-04). The entry's blob at the pin is compared to the
  * declared one; only when they agree is the manifest read. With `sweepListed` (the `check` verb) every path it lists is
  * then checked to be a regular file at the pin; `read` checks only the one path it prints.
  */
@@ -938,7 +939,16 @@ function gitAnswers(source, index, sweepListed) {
         unknownBecause(`path ${source.path} resolves inside the product repository`);
     if (isWithin(root, real))
         unknownBecause(`path ${source.path} resolves to a directory that contains the product repository`);
-    if (!nodeFs.statSync(real).isDirectory())
+    // A stat that throws (EACCES, or a race after realpath) is this source's UNKNOWN line, never the end of the whole
+    // report (IN-04, T-44-42). The reason names the configured path, which is product text, and the errno code.
+    let isDirectory;
+    try {
+        isDirectory = nodeFs.statSync(real).isDirectory();
+    }
+    catch (e) {
+        return unknownBecause(`path ${source.path} cannot be inspected (${codeOf(e)})`);
+    }
+    if (!isDirectory)
         unknownBecause(`path ${source.path} is not a directory`);
     const top = gitAnswer(real, ["rev-parse", "--show-toplevel"], [0, 128, 129]);
     if (top.status !== 0 || nodePath.resolve(gitText(top)) !== real) {
@@ -951,14 +961,20 @@ function gitAnswers(source, index, sweepListed) {
     }
     // The partial-clone guard runs here, before the first call that reads an object (WR-01, T-44-11): git older than
     // 2.45 ignores GIT_NO_LAZY_FETCH, so in a partial clone even the `^{commit}` peel below could fetch over the network
-    // and write into the upstream `.git`. Only config and version are asked before it.
-    const promisor = gitAnswer(real, ["config", "--get-regexp", "^remote\\..*\\.promisor$"], [0, 1]);
-    const isPartial = promisor.status === 0 &&
-        gitText(promisor)
+    // and write into the upstream `.git`. Only config and version are asked before it. git marks a partial clone in two
+    // ways, and honors both: a `remote.<name>.promisor` key, and an `extensions.partialclone` key naming the promisor
+    // remote (read even at repository format version 0). One `--get-regexp` reads both; git prints key names in lower
+    // case. A promisor line set to false, no, off or 0 is not partial; any extensions.partialclone line is.
+    const partialKeys = gitAnswer(real, ["config", "--get-regexp", "^(remote\\..*\\.promisor|extensions\\.partialclone)$"], [0, 1]);
+    const isPartial = partialKeys.status === 0 &&
+        gitText(partialKeys)
             .split("\n")
             .filter((l) => l.trim() !== "")
             .some((l) => {
             const space = l.indexOf(" ");
+            const key = space < 0 ? l : l.slice(0, space);
+            if (key === "extensions.partialclone")
+                return true;
             return space < 0 || !/^(false|no|off|0)$/i.test(l.slice(space + 1).trim());
         });
     if (isPartial) {
