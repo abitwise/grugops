@@ -170,7 +170,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
   4. A missing or unreadable source makes the dependent work `BLOCKED` with a named reason and nothing is guessed; upstream text enters the shared context only as cited `claim` notes, and a synthetic fixture with embedded instructions shows the instructions are not followed (UP-04, UP-05)
   5. A rendered trace shows `upstream:<source>:<id>@<commit>` refs in the Requirement column and never as phantom ticket rows, and the `BR` prefix is reserved for build requests (TRC-02)
 
-**Plans**: 8/8 plans executed
+**Plans**: 8/12 plans executed (gap-closure round 1 of 4 planned: 44-09 to 44-12)
 
 Plans:
 **Wave 1**
@@ -192,6 +192,20 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [x] 44-08-PLAN.md — Workflow 17 session-start step, Orchestrator key, AGENTS.md third-root line, config pointer; names for Phases 45/47; open confirmation items
+
+**Gap-closure round 1** (44-VERIFICATION.md gap: the D-17 fence, CR-01 and CR-02; plus WR-01, WR-03, WR-04, IN-02, IN-03, IN-04, IN-06). Waves are sequential: every plan rebuilds or reads the same committed `.js`.
+
+**Gap wave 1**
+- [ ] 44-09-PLAN.md — Tracer: an ASCII manifest path grammar so a path cannot forge the fence's blob id (CR-01); bad cells named by position and no upstream text outside the fence (CR-02); red-team regressions for check and read
+
+**Gap wave 2** *(blocked on gap wave 1 completion)*
+- [ ] 44-10-PLAN.md — Tracer: `upstream.js check` reports a sibling program from another build (`runnable-version-skew`, WR-03, TRC-02); the partial-clone guard before any object read, on both keys (WR-01); IN-04, IN-06
+
+**Gap wave 3** *(blocked on gap wave 2 completion)*
+- [ ] 44-11-PLAN.md — Workflow 20 and Workflow 17 put only the fixed reason `upstream <source>: <cause>` into BLOCKED (CR-02 kit half), with disposition rows
+
+**Gap wave 4** *(blocked on gap wave 3 completion)*
+- [ ] 44-12-PLAN.md — The upstream contract, config reference and install README state the shipped rules (CR-01, CR-02, WR-03, WR-04, IN-02); re-close T-44-15, T-44-19, T-44-30; Nyquist and review dispositions from evidence
 
 **Notes**: The discussion opens with a decision gate: the names (S-06: the sources config key, the consult dial key and values, the build-request statuses) and the upstream export shape (ID grammar, supersession marker, entry manifest), stubbed as a minimal declared manifest if upstream has not settled it. S-02 sets the source location and S-05 the ownership. TRC-02 sits here, not in Phase 45, because the trace renderer's runnable carries a generated copy of `trace-model.ts`: adding the `upstream.js` runnable and changing the trace model in one phase moves the runnable set and embeds once. `AGENTS.md` gains one line for the third root, within its byte budget. Research flag: pin semantics (CRLF, shallow clones, SHA-256 repositories, reads across repositories without a fetch), the injection fence, whether a git read through Bash triggers nested `CLAUDE.md` or `AGENTS.md` loading, and per-host reads outside the repository (`UNKNOWN - verify` on Codex CLI, Antigravity CLI, Copilot CLI and Pi). Budget one adversarial red-team round on the untrusted read path.
 
