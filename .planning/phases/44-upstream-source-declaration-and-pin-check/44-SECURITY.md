@@ -1,9 +1,9 @@
 ---
 phase: "44"
 slug: "upstream-source-declaration-and-pin-check"
-status: verified
+status: open
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 0
+threats_open: 3
 asvs_level: 1
 created: "2026-11-25"
 ---
@@ -43,11 +43,11 @@ created: "2026-11-25"
 | T-44-12 | Spoofing | toplevel check | high | mitigate | `rev-parse --show-toplevel` must equal the source real path | closed |
 | T-44-13 | Elevation of privilege | real-path containment | high | mitigate | `realpath` + `isWithin` both ways in `upstream.ts` | closed |
 | T-44-14 | Denial of service | mixed-result exit | medium | mitigate | Option A in `checkExitCode` (`scripts/upstream-model.ts`); `mixed` case | closed |
-| T-44-15 | Elevation of privilege | read output (indirect prompt injection) | critical | mitigate | D-17 BEGIN/END fence keyed by blob id; injection fixture; live red-team round still owed at UAT | closed |
+| T-44-15 | Elevation of privilege | read output (indirect prompt injection) | critical | mitigate | D-17 BEGIN/END fence keyed by blob id; injection fixture; live red-team round still owed at UAT; OPEN: fence forgeable through a manifest path (CR-01), and raw manifest cells printed unfenced (CR-02); reproduced by the verifier | open |
 | T-44-16 | Information disclosure | read of a symbolic link entry | high | mitigate | mode must be 100644/100755 in `upstream.ts` | closed |
 | T-44-17 | Denial of service | large upstream file | medium | mitigate | 65536-byte ceiling checked via `cat-file -s` before content read | closed |
 | T-44-18 | Spoofing | terminal output | medium | mitigate | `stripControlChars` in `upstream.ts`; NUL refused | closed |
-| T-44-19 | Tampering | forged fence end | high | mitigate | END carries the real blob id; forged-END case in `upstream.test.ts` | closed |
+| T-44-19 | Tampering | forged fence end | high | mitigate | END carries the real blob id; forged-END case in `upstream.test.ts`; OPEN: a manifest path carrying ` blob=<x> — …` puts an attacker blob first on the BEGIN line, so a forged END matches (CR-01) | open |
 | T-44-20 | Information disclosure | upstream text copied into state | high | mitigate | reader writes no file; tree digests before/after in `upstream.test.ts` | closed |
 | T-44-21 | Tampering | path traversal through read | high | mitigate | no path argument; `isManifestPath`; `GIT_LITERAL_PATHSPECS=1` | closed |
 | T-44-22 | Tampering | validator `upstream` arm | high | mitigate | closed key sets (`UPSTREAM_KEYS`) via `parseUpstreamConfig`; `validate.test.ts` | closed |
@@ -58,7 +58,7 @@ created: "2026-11-25"
 | T-44-27 | Elevation of privilege | Workflow 20 access rule | high | mitigate | `agent-factory/workflows/20-upstream-sources.md` names `node tools/grugops/upstream.js` as the only read path; AGENTS.md repeats it | closed |
 | T-44-28 | Repudiation | pin edits | high | mitigate | "named human" rule in Workflow 20 and `agent-factory/contracts/upstream.md` | closed |
 | T-44-29 | Information disclosure | notes citing upstream | medium | mitigate | Workflow 20 forbids copying upstream content into `memory-bank/` | closed |
-| T-44-30 | Tampering | agent following upstream instructions | critical | mitigate | Workflow 20 `## Untrusted upstream text`; reader fence; live red-team round still owed at UAT | closed |
+| T-44-30 | Tampering | agent following upstream instructions | critical | mitigate | Workflow 20 `## Untrusted upstream text`; reader fence; live red-team round still owed at UAT; OPEN: the fence this rule relies on is defeatable (CR-01, CR-02); Workflow 20 steps 2 and 5 copy unfenced `UNKNOWN - verify … manifest:` text into BLOCKED reasons | open |
 | T-44-31 | Spoofing | `BR` as a project id_prefix | low | accept | same pre-existing class as `EPIC`/`ADR`; recorded in Phase 45 notes | closed |
 | T-44-32 | Tampering | registration count pins | medium | mitigate | counts re-derived from gate output with dated comments; gate + freshness chains exit 0 (44-07 SUMMARY) | closed |
 | T-44-33 | Tampering | AGENTS.md anchored audit text | medium | mitigate | paragraph outside both anchors; `check:claim-anchors` passes (44-08 SUMMARY) | closed |
@@ -88,6 +88,7 @@ created: "2026-11-25"
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-25 | 35 | 35 | 0 | gsd-secure-phase orchestrator, L1 grep depth (register authored at plan time; auditor short-circuited per ASVS 1) |
+| 2026-11-25 | 35 | 32 | 3 | correction after code review CR-01/CR-02 were reproduced by gsd-verifier: grep depth found the fence code present but could not see that it is forgeable |
 
 Live checks still owed at UAT, outside this L1 register: the UP-05 red-team round against a live agent (T-44-15, T-44-30), Windows git behaviour, and git older than 2.45.
 
@@ -97,7 +98,7 @@ Live checks still owed at UAT, outside this L1 register: the UP-05 red-team roun
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [x] `threats_open: 0` confirmed
-- [x] `status: verified` set in frontmatter
+- [ ] `threats_open: 0` confirmed
+- [ ] `status: verified` set in frontmatter
 
-**Approval:** pending (human sign-off at UAT)
+**Approval:** blocked — 3 open threats (T-44-15, T-44-19, T-44-30) until CR-01 and CR-02 are fixed
