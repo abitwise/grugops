@@ -70,6 +70,10 @@ import { CHECKPOINTS, DISPOSITIONS } from "./checkpoints.js";
 // free to drift the day a location is added — which is precisely how the form check came to be
 // asked only at the file the reader consults second.
 import { governanceConfigCandidates } from "./context-io.js";
+// (Plan 44-04, UP-01) THE UPSTREAM GRAMMAR IS IMPORTED, NEVER RESTATED. scripts/upstream-model.ts is the one
+// authority on what an `upstream` declaration is, and the host runnable tools/grugops/upstream.js embeds the same
+// module, so the validator and the runnable cannot disagree about which declaration is well formed.
+import { parseUpstreamConfig, sourcePathFindings } from "./upstream-model.js";
 // THE BOARD GRAMMAR IS READ, NEVER RESTATED (DASH-01 / D-06). scripts/board-model.ts is the only
 // sanctioned reader of the board file (BOARD_REL), and agent-factory/contracts/board.md is the
 // normative schema it cites. This file used to carry its own two-line column parser, which made the
@@ -653,7 +657,7 @@ function checkConfig(): void {
       // EXACTLY ONE ARM IS SCOPED. Every other form check — the retired scalar, the checkpoint
       // matrix, the TINT-03 carve-out, the WR-01 boolean, the dial enums, the JSON shape — runs at
       // every position under every base, and `scripts/validate.test.ts` asserts both halves.
-      checkConfigForm(label, raw, resolve(abs) === kitConfigAbs);
+      checkConfigForm(label, raw, resolve(abs) === kitConfigAbs, base);
     }
   }
 }
@@ -671,8 +675,11 @@ function relativeToBase(base: string, abs: string): string {
  * `rel` is the label every finding is reported under, so a reader is told WHICH configuration is
  * malformed — the two positions produce identical findings against identical bytes, differing only
  * in the path they name.
+ *
+ * `base` is the canonical root the position was enumerated under. A `.grugops/factory.config.json` sits directly
+ * under it, so it is the repository root that holds `.grugops/`, and the `upstream` path rule resolves against it.
  */
-function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean): void {
+function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean, base: string): void {
   let cfg: unknown;
   try {
     cfg = JSON.parse(raw);
@@ -836,6 +843,36 @@ function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean): vo
           );
         }
       }
+    }
+  }
+
+  // ── The `upstream` declaration — form-checked through the IMPORTED grammar (Plan 44-04, UP-01) ─────
+  // WHAT IS THE SAME AS THE `checkpoints` ARM: it is ACTIVE-WHEN-PRESENT and LENIENT-WHEN-ABSENT. A config with no
+  // `upstream` key reads no upstream source, which is the v3.0.0 behavior and never a finding. Only a PRESENT
+  // declaration is judged, and an unknown key at any level is refused by name with the allowed set quoted back, so
+  // a misspelled key never reads as a working declaration (T-44-22).
+  //
+  // WHAT DIFFERS, AND WHY.
+  //   1. No rule is written here. The grammar (the closed key sets, the id and object-id forms, the area vocabulary,
+  //      one owner per area and prefix) lives in scripts/upstream-model.ts, which the host runnable embeds. This arm
+  //      reports that module's findings under this position's label and adds nothing of its own.
+  //   2. The path rule needs a base. A source path is resolved against the repository root, the directory that holds
+  //      `.grugops/`, which is this position's `base`. It must be relative, use "/" separators, and land outside the
+  //      repository without containing it (D-19): a source inside the repository, or one that contains it, would
+  //      have a host auto-load the source's CLAUDE.md or AGENTS.md (T-44-23). The path rule runs only once the
+  //      declaration is otherwise well formed, as the runnable applies it.
+  //
+  // Like every arm except the required-key loop, this one runs at every governance position under every base.
+  if ("upstream" in cfgObj) {
+    const declared = parseUpstreamConfig(cfgObj);
+    if (declared.kind === "invalid") {
+      for (const finding of declared.findings) err(`${rel}: ${finding}`);
+    } else if (declared.kind === "ok") {
+      declared.sources.forEach((source, i) => {
+        for (const finding of sourcePathFindings(base, source.path, `upstream.sources[${i}].path`)) {
+          err(`${rel}: ${finding}`);
+        }
+      });
     }
   }
 
