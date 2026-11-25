@@ -1,5 +1,6 @@
 // runnable-exit-contract.test.ts — EXIT-1 for the host runnables: the three of phase 37 (plan 37-20, D-12, D-17,
-// 37-GAP-PLANNING-BRIEF.md §1 EXIT-1 and §2.1), claim.js (plan 41-05, D-08) and note.js (plan 41-12).
+// 37-GAP-PLANNING-BRIEF.md §1 EXIT-1 and §2.1), claim.js (plan 41-05, D-08), note.js (plan 41-12) and upstream.js
+// (plan 44-01, D-12).
 //
 // THE RULE. Every runnable whose header promises exit 2 for could-not-run maps any throw that escapes every inner
 // catch to exit 2, an empty stdout and one stderr line that starts `Error: ` and ends with the runnable's own
@@ -22,6 +23,11 @@
 //
 // CLAIM.JS TAKES NO POSITIONAL ROOT. Its first positional is a task, so its rows pass `--root`. No loop below hands a
 // positional root to every runnable: the census reads source text only, and each other row names its own program.
+//
+// UPSTREAM.JS (plan 44-01, D-12, 2026-11-25). Its one command, `check`, writes nothing and prints every stdout line in
+// one write at the end, so its row passes `--root` at a scratch directory holding an empty `.grugops/` directory: the
+// run reaches that single write (the none-declared line) and the injected throw there must be exit 2 with nothing on
+// stdout. The census below then covers upstream.ts and upstream.js like every other runnable.
 //
 // NOTE.JS TAKES NO ROOT AT ALL. Its store is the working directory's, so its rows run through runNote, with the fixture
 // as the working directory and the ambient root names blank, so the dial comes from the fixture.
@@ -65,7 +71,7 @@ import {
 } from "../fault-inject.test-support.js";
 
 const HERE = import.meta.dirname;
-const RUNNABLES = ["trace-render", "state-check", "state-roll", "claim", "note"] as const;
+const RUNNABLES = ["trace-render", "state-check", "state-roll", "claim", "note", "upstream"] as const;
 type Runnable = (typeof RUNNABLES)[number];
 
 /** Each runnable's could-not-run sentence for an unexpected throw: the last words of its one stderr line. */
@@ -75,6 +81,7 @@ const STOPPED: Record<Runnable, { readonly opens: string; readonly ends: string 
   "state-roll": { opens: "Error: the roll stopped unexpectedly (", ends: " The roll did not finish.\n" },
   claim: { opens: "Error: the queue tool stopped unexpectedly (", ends: " The command did not finish.\n" },
   note: { opens: "Error: the note tool stopped unexpectedly (", ends: " The command did not finish.\n" },
+  upstream: { opens: "Error: the upstream reader stopped unexpectedly (", ends: " The command did not finish.\n" },
 };
 
 const ctxio: typeof import("../context-io.js") = await import(pathToFileURL(join(HERE, "..", "context-io.js")).href);
@@ -103,6 +110,7 @@ const HOST: Record<Runnable, string> = {
   "state-roll": hostCopy("state-roll"),
   claim: hostCopy("claim"),
   note: hostCopy("note"),
+  upstream: hostCopy("upstream"),
 };
 
 /** Run a runnable unfaulted (a fixture premise). */
@@ -451,6 +459,21 @@ describe("EXIT-1: note.js, an unexpected throw past every inner catch is exit 2,
     expectStopped("note", r);
     expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
     expect(r.stderr).not.toContain("stands");
+    expect(treeDigest(root)).toEqual(before);
+  });
+});
+
+describe("EXIT-1: upstream.js, an unexpected throw past every inner catch is exit 2 (plan 44-01, D-12)", () => {
+  it("check: a throw at its one stdout write is exit 2 with nothing on stdout, and nothing was written", () => {
+    const root = mkTmp("grugops-exit-contract-upstream-");
+    mkdirSync(join(root, GRUGOPS_DIR_REL));
+    const plain = runPlain("upstream", "check", "--root", root);
+    expect(plain.stdout, "PREMISE: the run reaches its single stdout write").toBe("no upstream sources declared\n");
+    expect(plain.status, "PREMISE: the unfaulted run exits 0").toBe(0);
+    const before = treeDigest(root);
+    const r = runWith("upstream", ["check", "--root", root], STDOUT_THROW);
+    expectStopped("upstream", r);
+    expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
     expect(treeDigest(root)).toEqual(before);
   });
 });

@@ -2406,8 +2406,39 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts`
  *   members reports 116 with this module tracked (2026-11-18, plan 43-03).
+ *
+ * 116 -> 117 (plan 44-01, UP-01, UP-06, D-13), ONE MODULE:
+ *   - `scripts/upstream-model.ts` — the one pure authority for upstream sources: the `upstream` declaration grammar,
+ *     the source path rule, the entry manifest grammar, the upstream ref, the git blob id, the fence lines and the pin
+ *     decision. It imports `createHash` from `node:crypto`, `resolve` from `node:path`, `normalizeDocument` from
+ *     ./board-model.js, `isWithin` from ./context-io.js and `UPSTREAM_REF_PREFIX` from ./trace-model.js.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no section
+ *     bound (its manifest reader finds one table header line, not a section), reads no grant and renders no spawn
+ *     verdict. Its committed `.js` twin landed in the same commit as the module.
+ *   Re-derived rather than incremented: see the 118 -> 119 line below; the three modules landed in one commit.
+ *
+ * 117 -> 118 (plan 44-01, UP-01, UP-03, D-08, D-20), ONE MODULE:
+ *   - `scripts/runnable-ref/upstream.ts` — the host upstream reader, installed to `tools/grugops/upstream.js`. Its
+ *     hand-written part holds argv, the root checks, the one git launcher, the exit codes and the output lines; its
+ *     region, a `runnable` row of scripts/generate-runnable-embeds.ts EMBED_SPECS, carries generated copies of the
+ *     upstream authority, the output sanitizer, the root-chain owner and the non-blocking reader. It imports `node:`
+ *     builtins and nothing else.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: any copy of a parser or a section predicate sits inside a fresh generated region
+ *     of an EMBED_SPECS target (admittedGeneratedCopy); outside that region it declares no function named for the
+ *     frontmatter parser, builds no section bound, reads no grant and renders no spawn verdict. Its committed `.js`
+ *     twin landed in the same commit as the module.
+ *
+ * 118 -> 119 (plan 44-01, UP-01, D-13), ONE MODULE:
+ *   - `scripts/runnable-ref/upstream-fixture.test-support.ts` — the TEST-ONLY builder of synthetic upstream git
+ *     repositories (invented IDs) for scripts/runnable-ref/upstream.test.ts, counted by file shape like the other
+ *     `.test-support.ts` harnesses and excluded from emit, so it has no `.js` twin. It imports `node:child_process`,
+ *     `node:fs` and `node:path` and nothing else.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no section
+ *     bound, reads no grant and renders no spawn verdict.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts` members reports 119
+ *   with the three modules tracked (2026-11-25, plan 44-01).
  */
-const NON_TEST_MODULE_COUNT = 116;
+const NON_TEST_MODULE_COUNT = 119;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -3056,7 +3087,12 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 73 → 74 (plan 43-03, STORY-05): `scripts/check-story-docs.ts`, the story-docs gate. Both readers must agree
     // on its import set like every other module both can see. Re-derived: the scoped walk over `scripts/` minus
     // tests reports 74 with the module tracked (2026-11-18).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(74);
+    // 74 → 75 (plan 44-01, UP-01): `scripts/upstream-model.ts`, the upstream authority; the two plan-44-01 modules
+    // under scripts/runnable-ref/ sit outside this flat reader. It imports `normalizeDocument` from ./board-model.js,
+    // `isWithin` from ./context-io.js and `UPSTREAM_REF_PREFIX` from ./trace-model.js, and both readers must agree on
+    // that import set like every other module both can see. Re-derived: `ls scripts/*.ts` minus the tests and the
+    // `.d.ts` files reports 75 with the module tracked (2026-11-25).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(75);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3095,7 +3131,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 71 → 72 (plan 40-01): `check-role-rules.ts`, three specs per module as ever (2026-11-01).
     // 72 → 73 (plan 42-02): `role-skills-reader.ts`, three specs per module as ever (2026-11-16).
     // 73 → 74 (plan 43-03): `check-story-docs.ts`, three specs per module as ever (2026-11-18).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(74 * 3);
+    // 74 → 75 (plan 44-01): `upstream-model.ts`, three specs per module as ever (2026-11-25).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(75 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3336,7 +3373,9 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 73 (2026-11-16).
       // 73 → 74 (plan 43-03): `check-story-docs.ts`, the same module the flat reader gained; both pins move in
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 74 (2026-11-18).
-    ).toBe(74);
+      // 74 → 75 (plan 44-01, UP-01): `upstream-model.ts`, the same module the flat reader gained; both pins move in
+      // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 75 (2026-11-25).
+    ).toBe(75);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against

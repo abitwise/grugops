@@ -346,13 +346,16 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
       });
   };
 
-  it("each of the five runnable targets holds exactly one stamp line inside its region, and the five stamps are equal", () => {
+  // 2026-11-25, plan 44-01 (UP-01, D-08): six runnable targets; the new one is the host upstream reader,
+  // scripts/runnable-ref/upstream.ts, and the one generation that added it moved every stamp.
+  it("each of the six runnable targets holds exactly one stamp line inside its region, and the six stamps are equal", () => {
     expect(RUNNABLES.map((s) => s.target)).toEqual([
       "scripts/runnable-ref/state-check.ts",
       "scripts/runnable-ref/trace-render.ts",
       "scripts/runnable-ref/state-roll.ts",
       "scripts/runnable-ref/claim.ts",
       "scripts/runnable-ref/note.ts",
+      "scripts/runnable-ref/upstream.ts",
     ]);
     const stamps = RUNNABLES.map((s) => {
       const text = readFileSync(join(ROOT, s.target), "utf8");
@@ -371,7 +374,11 @@ describe("the build stamp in every committed region (plan 37-24, D-17, WR-05, AU
       const js = join(ROOT, s.target.replace(/\.ts$/, ".js"));
       const text = readFileSync(js, "utf8");
       expect(readRunnableStamp(text), js).toEqual({ kind: "stamp", stamp: own });
-      expect(text).toContain('export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);');
+      // 2026-11-25, plan 44-01 (UP-01, D-08): the generated line, copied from the committed upstream.js; upstream.js
+      // joins the set in the generator's order.
+      expect(text).toContain(
+        'export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);',
+      );
       const self = s.target.split("/").pop()?.replace(/\.ts$/, ".js") ?? "";
       expect(text.split("\n").filter((l) => l.startsWith("export const RUNNABLE_SELF = "))).toEqual([
         `export const RUNNABLE_SELF = ${JSON.stringify(self)};`,
@@ -546,7 +553,12 @@ describe("the build stamp moves with every authority and cannot be hand-written 
     expect(ok.status, ok.stdout + ok.stderr).toBe(0);
   });
 
-  it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 5", () => {
+  // 2026-11-25, plan 44-01 (UP-01, D-08): count 6. upstream.js is generated and stamped by plan 44-01, and plan 44-03
+  // adds its installer row (`tools/grugops/upstream.js`). Until then it is the one NAMED member of RUNNABLE_SET the
+  // installer does not install, asserted both ways below, so this case turns red the moment plan 44-03 lands the row,
+  // and that plan empties NOT_YET_INSTALLED. No other target may be missing from the installer.
+  it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 6", () => {
+    const NOT_YET_INSTALLED: readonly string[] = ["scripts/runnable-ref/upstream.js"];
     // The RUNNABLES rows are read from install/install.ts's syntax tree: the array literal bound to `RUNNABLES`.
     // install.ts runs on import, so it is never imported here.
     const installTs = join(ROOT, "install", "install.ts");
@@ -571,7 +583,12 @@ describe("the build stamp moves with every authority and cannot be hand-written 
     expect(rows.length, "PREMISE: the rows were read").toBeGreaterThan(3);
     const sources = new Set(RUNNABLES.map((s) => s.target.replace(/\.ts$/, ".js")));
     const installed = rows.filter(([src]) => sources.has(src)).map(([, dest]) => dest.split("/").pop() as string);
-    expect(rows.filter(([src]) => sources.has(src)).map(([src]) => src).sort(), "every target's .js is installed").toEqual([...sources].sort());
+    for (const pending of NOT_YET_INSTALLED) expect(sources.has(pending), `PREMISE: ${pending} is an EMBED_SPECS target's .js`).toBe(true);
+    expect(
+      rows.filter(([src]) => sources.has(src)).map(([src]) => src).sort(),
+      "every target's .js except the named pending one is installed, and the pending one is not (plan 44-03 adds it)",
+    ).toEqual([...sources].filter((src) => !NOT_YET_INSTALLED.includes(src)).sort());
+    const expectedSet = [...installed, ...NOT_YET_INSTALLED.map((src) => src.split("/").pop() as string)];
 
     for (const s of RUNNABLES) {
       const line = committedRegion(s.target)
@@ -581,9 +598,9 @@ describe("the build stamp moves with every authority and cannot be hand-written 
       const m = /^export const RUNNABLE_SET = Object\.freeze\((\[.*\]) as const\);$/.exec(line[0] as string);
       expect(m, s.target).not.toBeNull();
       const set = JSON.parse((m as RegExpExecArray)[1] as string) as string[];
-      expect(set).toHaveLength(5);
-      expect([...set].sort(), `${s.target}: RUNNABLE_SET against the installer`).toEqual([...installed].sort());
-      expect([...installed].sort(), "the other direction").toEqual([...set].sort());
+      expect(set).toHaveLength(6);
+      expect([...set].sort(), `${s.target}: RUNNABLE_SET against the installer`).toEqual([...expectedSet].sort());
+      expect([...expectedSet].sort(), "the other direction").toEqual([...set].sort());
     }
   });
 });
@@ -591,10 +608,11 @@ describe("the build stamp moves with every authority and cannot be hand-written 
 // ── Module rows (plan 38-02, research Pitfall 9) ───────────────────────────────────────────────────────────────
 
 describe("a module row is generated and fresh but never stamped (plan 38-02)", () => {
-  it("EMBED_SPEC_COUNT is 6: five runnables and one module, install/state-migrate.ts", () => {
-    expect(EMBED_SPEC_COUNT).toBe(6);
-    expect(EMBED_SPECS.length).toBe(6);
-    expect(RUNNABLES).toHaveLength(5);
+  // 2026-11-25, plan 44-01 (UP-01, D-08): seven rows; the new runnable is the host upstream reader.
+  it("EMBED_SPEC_COUNT is 7: six runnables and one module, install/state-migrate.ts", () => {
+    expect(EMBED_SPEC_COUNT).toBe(7);
+    expect(EMBED_SPECS.length).toBe(7);
+    expect(RUNNABLES).toHaveLength(6);
     expect(MODULES.map((s) => s.target)).toEqual(["install/state-migrate.ts"]);
   });
 
