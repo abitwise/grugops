@@ -30,6 +30,7 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `environments` | array of strings | `["dev","staging","prod"]` | Deployment environments the factory recognizes. |
 | `production_requires_human_confirmation` | boolean | `true` | Must stay `true`: agents never deploy to production alone; a named human always confirms. |
 | `blocked_escalation_days` | integer | `2` | Days a work item may stay blocked before it is escalated. |
+| `upstream` | object (key: `sources`) | absent (no upstream source) | Read-only upstream design sources outside this repository, each pinned by a commit and by the blob of its entry manifest, and read only through `node tools/grugops/upstream.js`. See *`upstream` sub-fields* below. |
 
 ### `default_stack` sub-fields
 
@@ -251,6 +252,27 @@ Delete the `autonomy` key and write the two cells its row names. That reproduces
 
 The installer never performs this edit for you. When it meets a configuration carrying the retired key it names the key, points at this table and leaves the file untouched — a tool that rewrites your declared intent without asking is the opposite of this project's posture.
 
+### `upstream` sub-fields
+
+The `upstream` object declares design sources that live in other repositories, such as a design package this repository builds from. grugops reads a declared source only through `node tools/grugops/upstream.js`, which asks git for objects at the pinned commit and never reads the source's working tree. `upstream` takes one key, `sources`; any other key, including `escalation_days`, is refused by name because this version does not read it.
+
+`upstream.sources` is a non-empty array. Each source has exactly the six keys below, and all six are required. Any other key on a source is refused by name, with the allowed set quoted back.
+
+| Key | Form | Meaning |
+|-----|------|---------|
+| `id` | lowercase letters, digits and hyphens, starting with a letter, at most 32 characters; unique across `sources` | The source's name. It is the `<source>` part of an `upstream:<source>:<ID>@<commit>` ref. |
+| `path` | relative path with `/` separators | Where the source repository sits on disk, resolved against the repository root (the directory that holds `.grugops/`), never against `.grugops/` itself. It must point outside this repository and must not contain it. An absolute path, a drive letter, a leading `~` and a backslash are each refused. There is no machine-local override. |
+| `commit` | full-length lowercase hex object id, 40 or 64 characters | The pinned commit of the source repository. |
+| `entry` | relative path inside the source repository | The entry manifest that lists the source's upstream IDs. No leading `/`, no backslash, no empty, `.` or `..` segment, no control character, and no segment that starts with `-`. |
+| `entry_blob` | full-length lowercase hex object id, the same length as `commit` | The git blob id of `entry` at the pinned commit. `commit` and `entry_blob` both use the source repository's object format: 40 characters for SHA-1, 64 for SHA-256. |
+| `owns` | object with exactly the keys `areas` and `prefixes` | What the source decides. `owns.areas` is a non-empty subset of `product`, `ux`, `visual`, `audio`, `architecture` and `content`, and each area belongs to one source. `owns.prefixes` is a non-empty list of upstream ID prefixes such as `DEC`, each a capital letter followed by up to 15 capital letters or digits, and each prefix belongs to one source. |
+
+The structure validator checks this shape through the same module the runnable uses, so the two cannot disagree. A path that lands inside the repository, or on a directory that contains it, is refused because a host would then load the source's `CLAUDE.md` or `AGENTS.md` as if it were this repository's own.
+
+`node tools/grugops/upstream.js check` reports each source as `match`, `drift` or `UNKNOWN - verify`.
+
+Only a named human edits a pin, in a commit. The runnable never moves one, and the git history of the configuration file is the record of every pin move.
+
 ## Config-dial contract (lean → enterprise)
 
 This is the escalation contract for the gate / test-first / security dials. Each row states the key, its allowed values, the **lean default** (what zero-config gives you), and the **Enterprise escalation** (the direction a regulated team turns the dial). Phase 10 documents this contract; the behaviour behind each key is wired in later milestones (BDD/TDD, UI/E2E, ASVS) — turning a dial up does not, by itself, change behaviour until that capability ships.
@@ -279,6 +301,8 @@ grugops runs with zero configuration. When no `factory.config.json` is present, 
 - every `checkpoints` cell at its documented default (see the roster above)
 
 The same holds for the gate / test-first / security / memory dials documented above: every one of the keys enumerated here — `bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`, `context.compaction`, and every cell of the `checkpoints` object — degrades to its documented lean default when the key, its enclosing object, or the whole file is absent. The enumeration is the inventory; no separate count is kept beside it, because a hand-maintained numeral drifts the moment a key is added and this sentence had already drifted once. A missing key is never an error; it is read as its lean default. So a missing `context.compaction` reads as `aggressive`, exactly the read-at-use, default-on-absent precedent the compactor relies on (D-06). (The safety floors are not one key. The canonical floor list is `SAFETY_FLOORS` in `scripts/audit-model.ts`, and the roster table in *`checkpoints` sub-fields* above marks each floor-tier member; each defaults to `block`, so none of them is lowered by an absent configuration. Two values are refused outright rather than dialled: `quality.test_integrity` has no `off` in any mode, and `checkpoints.test_integrity` refuses `off` for the same TINT-03 reason. The carve-out behind `context.compaction` is un-dialable on that same trace-integrity argument — D-05.)
+
+A missing `upstream` object means grugops reads no upstream source, which is the behavior of a repository that declares none.
 
 The same read-at-use, default-on-absent rule covers the `queue` object: a missing `queue.wip_limit`, `queue.claim_cap`, or `queue.stale_ttl_minutes` key — or the whole `queue` object — degrades to its lean default (`3 / 2 / 30`). A missing queue key is never an error; the coordinator reads it as the lean default, exactly as it reads a missing `context.compaction` as `aggressive`.
 
