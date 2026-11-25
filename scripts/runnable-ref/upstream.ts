@@ -75,7 +75,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:ab0b4efd75f0d7f57969f6d73f61c7e2c9ba40fced1ab95de3be89efc446095b";
+export const RUNNABLE_SET_STAMP = "sha256:3fa955d68b73c543594b1023fba36b4029ab4ce9a99e862aa81bf39b60a01453";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"] as const);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -264,6 +264,8 @@ export const UPSTREAM_SOURCE_ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
 export const UPSTREAM_OBJECT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 export const UPSTREAM_ID_RE = /^[A-Z][A-Z0-9]{0,15}-\d{1,9}$/;
 export const UPSTREAM_PREFIX_RE = /^[A-Z][A-Z0-9]{0,15}$/;
+export const UPSTREAM_PATH_SEGMENT_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
+export const UPSTREAM_PATH_MAX_LENGTH = 512;
 const UPSTREAM_DELIMITER_RE = /^\|(?:[ \t]*:?-{3,}:?[ \t]*\|){4}$/;
 export interface UpstreamSource {
   readonly id: string;
@@ -489,11 +491,8 @@ export function sourcePathFindings(repoRoot: string, pathValue: string, label: s
   return findings;
 }
 export function isManifestPath(p: string): boolean {
-  if (p === "" || p.startsWith("/") || p.includes("\\") || upstreamHasControlChar(p)) return false;
-  for (const segment of p.split("/")) {
-    if (segment === "" || segment === "." || segment === ".." || segment.startsWith("-")) return false;
-  }
-  return true;
+  if (p === "" || p.length > UPSTREAM_PATH_MAX_LENGTH) return false;
+  return p.split("/").every((segment) => UPSTREAM_PATH_SEGMENT_RE.test(segment));
 }
 export function parseManifest(text: string): UpstreamManifestResult {
   const lines = normalizeDocument(text).split("\n");
@@ -528,7 +527,7 @@ export function parseManifest(text: string): UpstreamManifestResult {
     if (status !== "locked" && status !== "superseded") {
       return malformed(`status ${upstreamQuote(status)} of ${id} is not one of: ${UPSTREAM_STATUSES.join(", ")}`, line);
     }
-    if (!isManifestPath(path)) return malformed(`path ${upstreamQuote(path)} of ${id} is not a manifest path`, line);
+    if (!isManifestPath(path)) return malformed(`the Path cell (column 3) of ${id} is not a manifest path`, line);
     if (status === "locked" && successor !== "") return malformed(`${id} is locked and must not name a successor`, line);
     if (status === "superseded" && successor === "") return malformed(`${id} is superseded and must name its successor`, line);
     const row: UpstreamManifestRow = Object.freeze({

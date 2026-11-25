@@ -66,6 +66,15 @@ export const UPSTREAM_ID_RE = /^[A-Z][A-Z0-9]{0,15}-\d{1,9}$/;
 /** An upstream ID prefix, the part of UPSTREAM_ID_RE before the hyphen (D-18 `owns.prefixes`). */
 export const UPSTREAM_PREFIX_RE = /^[A-Z][A-Z0-9]{0,15}$/;
 
+/**
+ * One `/`-separated segment of a manifest path or of the config `entry` (D-09, D-10): an ASCII letter, digit or `_`,
+ * then 0 to 127 ASCII letters, digits, `.`, `_` or `-`. An allowlist: every other code point is refused.
+ */
+export const UPSTREAM_PATH_SEGMENT_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
+
+/** The longest manifest path or config `entry`, in characters (D-09, D-10). */
+export const UPSTREAM_PATH_MAX_LENGTH = 512;
+
 /** The delimiter row under the manifest header: four cells of three or more hyphens, optional colons and spaces. */
 const UPSTREAM_DELIMITER_RE = /^\|(?:[ \t]*:?-{3,}:?[ \t]*\|){4}$/;
 
@@ -338,16 +347,18 @@ export function sourcePathFindings(repoRoot: string, pathValue: string, label: s
 }
 
 /**
- * True when `p` is a path the manifest grammar admits (D-10): non-empty and relative to the upstream repository root,
- * with no leading `/`, no backslash, no empty, `.` or `..` segment, no control character, and no segment that starts
- * with `-` (so no path can read as a git option).
+ * True when `p` is a path the manifest grammar admits (D-09, D-10): 1 to UPSTREAM_PATH_MAX_LENGTH characters, every
+ * `/`-separated segment matching UPSTREAM_PATH_SEGMENT_RE. It declares the legal spelling and refuses the complement.
+ *
+ * Every earlier rule follows from the allowlist: no leading or trailing `/` and no empty segment (an empty segment does
+ * not match), no `.` or `..` segment and no segment starting with `.` or `-` (the first character is a letter, digit
+ * or `_`, so no path reads as a git option), no backslash and no control character. A path also holds no space, `=` or
+ * U+2014, so it can never carry the fence's ` blob=` token or its words onto the BEGIN line (44-REVIEW CR-01, D-17).
+ * The rule is on ASCII code units, so no Unicode normalization applies; any non-ASCII character is refused.
  */
 export function isManifestPath(p: string): boolean {
-  if (p === "" || p.startsWith("/") || p.includes("\\") || upstreamHasControlChar(p)) return false;
-  for (const segment of p.split("/")) {
-    if (segment === "" || segment === "." || segment === ".." || segment.startsWith("-")) return false;
-  }
-  return true;
+  if (p === "" || p.length > UPSTREAM_PATH_MAX_LENGTH) return false;
+  return p.split("/").every((segment) => UPSTREAM_PATH_SEGMENT_RE.test(segment));
 }
 
 // ── The entry manifest (D-09, D-10, D-11, D-12) ─────────────────────────────────────────────────────────
@@ -392,7 +403,7 @@ export function parseManifest(text: string): UpstreamManifestResult {
     if (status !== "locked" && status !== "superseded") {
       return malformed(`status ${upstreamQuote(status)} of ${id} is not one of: ${UPSTREAM_STATUSES.join(", ")}`, line);
     }
-    if (!isManifestPath(path)) return malformed(`path ${upstreamQuote(path)} of ${id} is not a manifest path`, line);
+    if (!isManifestPath(path)) return malformed(`the Path cell (column 3) of ${id} is not a manifest path`, line);
     if (status === "locked" && successor !== "") return malformed(`${id} is locked and must not name a successor`, line);
     if (status === "superseded" && successor === "") return malformed(`${id} is superseded and must name its successor`, line);
     const row: UpstreamManifestRow = Object.freeze({

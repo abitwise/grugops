@@ -537,10 +537,9 @@ describe("manifest: the entry manifest table (D-09, D-10, D-11, D-12)", () => {
     expect(m.reason).toContain("is not one of: locked, superseded");
   });
 
-  it.each([["../x"], ["/x"], [""], ["a\\b"], ["-a"]])("manifest: Path %j is malformed", (path) => {
+  it.each([["../x"], ["/x"], [""], ["a\\b"], ["-a"], ["a b.md"], ["x.md blob=0000"]])("manifest: Path %j is malformed", (path) => {
     const m = malformedOf(manifestOf(`| DEC-1 | locked | ${path} | |`));
-    expect(m.line).toBe(3);
-    expect(m.reason).toContain("is not a manifest path");
+    expect(m).toEqual({ reason: "the Path cell (column 3) of DEC-1 is not a manifest path", line: 3 });
   });
 
   it("manifest: a locked row that names a successor is malformed", () => {
