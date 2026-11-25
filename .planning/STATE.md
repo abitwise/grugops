@@ -4,17 +4,17 @@ milestone: v3.1
 milestone_name: Upstream design, consultation and one-command install
 current_phase: 44
 current_phase_name: Upstream source declaration and pin check
-status: executing
-stopped_at: Completed 44-13-PLAN.md
-last_updated: "2026-11-25T15:23:51.637Z"
+status: verifying
+stopped_at: Completed 44-14-PLAN.md
+last_updated: "2026-11-25T15:36:25.285Z"
 last_activity: 2026-11-25
 last_activity_desc: Phase 44 execution started
-state_head: 654a874a0b5fc86dd54ded1e6b57f03048ba6ea5
+state_head: 883ea7f91c09100baf5ce6c625d76a28ed47261f
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
   percent: 0
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-24 at the v3.1 milestone start)
 
 Phase: 44 (Upstream source declaration and pin check) — EXECUTING
 Plan: 14 of 14
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-25 — Phase 44 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -915,6 +915,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P11 | 11min | 2 tasks | 15 files |
 | Phase 44 P12 | 9 min | 3 tasks | 4 files |
 | Phase 44 P13 | 12 min | 2 tasks | 6 files |
+| Phase 44 P14 | 10 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -2566,6 +2567,9 @@ Recent decisions affecting current work:
 - [Phase 44]: 44-12: gitComplaint replaces each argument after the failing call's first -- with <listed path>, one pass, longest first; the T-44-38 residual is accepted
 - [Phase 44]: A BLOCKED reason for an untrusted upstream source is the fixed template `upstream <source>: <cause>` (cause blob-mismatch or UNKNOWN - verify); no reader-printed text enters board state (CR-02, D-14, D-17)
 - [Phase 44]: Workflow 20 step 2 states the reader guarantee as in the upstream.ts header: no manifest or listed-file text outside the fence except a grammar-checked ID
+- [Phase 44]: 44-14: the upstream contract quotes each reason the reader prints, copied from the committed code and paired in the SUMMARY; the D-17 BEGIN and END text is unchanged
+- [Phase 44]: 44-14: the contract states the first-violation order as the code applies it (cell checks row by row in column order, then the successor-listed and chain checks) and names the <listed path> redaction's limit
+- [Phase 44]: 44-14: nyquist_compliant set true from the named passing filters; the validate.test.ts ticket-frontmatter census failure (4 tests, outside those filters, no scripts/ change in 44-14) is logged open in deferred-items.md
 
 ### Pending Todos
 
@@ -2971,8 +2975,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T15:23:51.573Z
-Stopped at: Completed 44-13-PLAN.md
+Last session: 2026-11-25T15:36:25.203Z
+Stopped at: Completed 44-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

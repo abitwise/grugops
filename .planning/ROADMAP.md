@@ -170,7 +170,7 @@ Full phase details + milestone summary: `milestones/v3.0-ROADMAP.md` · requirem
   4. A missing or unreadable source makes the dependent work `BLOCKED` with a named reason and nothing is guessed; upstream text enters the shared context only as cited `claim` notes, and a synthetic fixture with embedded instructions shows the instructions are not followed (UP-04, UP-05)
   5. A rendered trace shows `upstream:<source>:<id>@<commit>` refs in the Requirement column and never as phantom ticket rows, and the `BR` prefix is reserved for build requests (TRC-02)
 
-**Plans**: 13/14 plans executed (gap-closure round 1 of 4 planned: 44-09 to 44-14)
+**Plans**: 14/14 plans executed (gap-closure round 1 of 4 planned: 44-09 to 44-14)
 
 Plans:
 **Wave 1**
@@ -211,7 +211,7 @@ Plans:
 - [x] 44-13-PLAN.md — Workflow 20 and Workflow 17 put only the fixed reason `upstream <source>: <cause>` into BLOCKED (CR-02 kit half), with disposition rows
 
 **Gap wave 6** *(blocked on gap wave 5 completion)*
-- [ ] 44-14-PLAN.md — The upstream contract, config reference and install README state the shipped rules (CR-01, CR-02, WR-03, WR-04, IN-02); re-close T-44-15, T-44-19, T-44-30; Nyquist and review dispositions from evidence
+- [x] 44-14-PLAN.md — The upstream contract, config reference and install README state the shipped rules (CR-01, CR-02, WR-03, WR-04, IN-02); re-close T-44-15, T-44-19, T-44-30; Nyquist and review dispositions from evidence
 
 **Notes**: The discussion opens with a decision gate: the names (S-06: the sources config key, the consult dial key and values, the build-request statuses) and the upstream export shape (ID grammar, supersession marker, entry manifest), stubbed as a minimal declared manifest if upstream has not settled it. S-02 sets the source location and S-05 the ownership. TRC-02 sits here, not in Phase 45, because the trace renderer's runnable carries a generated copy of `trace-model.ts`: adding the `upstream.js` runnable and changing the trace model in one phase moves the runnable set and embeds once. `AGENTS.md` gains one line for the third root, within its byte budget. Research flag: pin semantics (CRLF, shallow clones, SHA-256 repositories, reads across repositories without a fetch), the injection fence, whether a git read through Bash triggers nested `CLAUDE.md` or `AGENTS.md` loading, and per-host reads outside the repository (`UNKNOWN - verify` on Codex CLI, Antigravity CLI, Copilot CLI and Pi). Budget one adversarial red-team round on the untrusted read path.
 
@@ -279,7 +279,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 44. Upstream source declaration and pin check | v3.1 | 13/14 | In Progress | - |
+| 44. Upstream source declaration and pin check | v3.1 | 14/14 | In Progress | - |
 | 45. Traceability, build requests and architecture as input | v3.1 | 0/TBD | Not started | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
