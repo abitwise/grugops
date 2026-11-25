@@ -65,14 +65,44 @@ table, and the table's header line is exactly:
 - ID grammar: an uppercase letter, up to 15 uppercase letters or digits, a hyphen, then 1 to 9
   digits, such as `DEC-12`. The manifest never supplies a pattern of its own.
 - `Status` is `locked` or `superseded`. A locked row leaves `Superseded by` empty. A superseded
-  row names a successor the manifest lists, and every chain of successors ends at a locked row.
-- `Path` is relative to the upstream repository root, with `/` separators. It has no leading `/`,
-  no backslash, no empty, `.` or `..` segment, no control character and no segment that starts
-  with `-`.
+  row names a successor that matches the ID grammar and that the manifest lists, and every chain
+  of successors ends at a locked row.
+- `Path` is relative to the upstream repository root: `/`-separated segments of 1 to 128
+  ASCII letters, digits, `.`, `_` or `-`, each starting with a letter, a digit or `_`, and at most
+  512 characters in all. So a path holds no space, no `=` and no character outside ASCII, such as
+  U+2014. The `entry` in the declaration uses the same form.
+- Every listed `Path` names a regular file (mode 100644 or 100755) in the tree at the pinned
+  commit. A missing path, a directory, a symbolic link or a submodule makes `check` report
+  `UNKNOWN - verify <source>: the file listed for <ID> (manifest line <n>, column 3) is not a regular file at the pin`,
+  so every subtask that reads the source goes `BLOCKED` (Workflow 20).
+- The entry manifest itself is a regular file at the pin, at most 65536 bytes, with no NUL byte,
+  and UTF-8 text. A manifest that breaks one of these makes the source `UNKNOWN - verify` at
+  exit 2, in `check` and in `read`, with one of these reasons:
+  `entry <entry> is not a regular file at the pin`,
+  `entry <entry> is <n> bytes, over the per-read ceiling of 65536 bytes; ask upstream to split it`,
+  `entry <entry> is not a text file (it holds a NUL byte)` or `entry <entry> is not UTF-8 text`.
+  The same conditions on a listed file are a `read` refusal at exit 1 (§ Reads).
 - A byte order mark is dropped and CRLF is read as LF before the table is parsed.
 - An unlisted ID is not citable. A superseded ID is not citable as current; cite its successor.
-- A malformed manifest makes `check` report `UNKNOWN - verify <source>: manifest: <reason>, line <n>`.
-  The reason and the line name the first violation. Nothing is guessed around it.
+- A malformed manifest makes `check` report `UNKNOWN - verify <source>: manifest: <reason>, line <n>`
+  at exit 2. Nothing is guessed around it. Rows are checked in line order, and the cells of a row
+  in column order (ID, Status, Path, Superseded by); the first violation is reported. Whether each
+  successor is listed, and whether each chain ends at a locked row, is checked after every row
+  passes.
+- A reason never quotes a cell. It names a bad cell by its column, and the only manifest text it
+  carries is an ID that matches the ID grammar. The cell reasons are:
+  - `the ID cell (column 1) does not match the upstream ID grammar`
+  - `ID <ID> is listed more than once`
+  - `the Status cell (column 2) of <ID> is not one of: locked, superseded`
+  - `the Path cell (column 3) of <ID> is not a manifest path`
+  - `<ID> is locked and must not name a successor`
+  - `<ID> is superseded and must name its successor`
+  - `the Superseded by cell (column 4) of <ID> does not match the upstream ID grammar`
+  - `the Superseded by cell (column 4) of <ID> names an ID the manifest does not list`
+  - `the supersession chain from <ID> never reaches a locked row`
+
+  A reason about the table's shape (the header, the delimiter row, a row's cells) names the line
+  and quotes no cell either.
 
 An example with invented IDs:
 
@@ -104,10 +134,16 @@ one line per cause:
 | `match <source> <commit>` | The pinned commit is present, the blob of `entry` at the pin equals `entry_blob`, and the manifest parses. |
 | `drift <source>: blob-mismatch (declared <entry_blob>, at the pin <blob>)` | The blob of `entry` at the pin differs from `entry_blob` (UP-06). |
 | `drift <source>: head-moved (HEAD <head>, pin <commit>)` | The checkout's HEAD differs from the pin. The line is informational: a newer upstream exists for a human to consider. |
-| `UNKNOWN - verify <source>: <reason>` | The source cannot be checked: for example a missing path, no git, a pinned commit absent from a shallow clone, or a malformed manifest. It is the only line printed for its source. |
+| `UNKNOWN - verify <source>: <reason>` | The source cannot be checked. Examples are a missing path, no git, a pinned commit absent from a shallow clone, and a malformed manifest. Others are a listed file that is not a regular file at the pin, and a partial clone on a git older than 2.45. That clone is refused before any object is read. It is the only line printed for its source. |
 | `no upstream sources declared` | The config has no `upstream` key, or there is no config file. It is the only line. |
+| `runnable-version-skew <program>: <reason>; remove claim.js, note.js, state-check.js, state-roll.js, trace-render.js and upstream.js and install them again together` | A program built with upstream.js sits beside it: claim.js, note.js, state-check.js, state-roll.js or trace-render.js. It has another build stamp, no stamp or more than one stamp, or it could not be inspected or read. An older trace-render.js drops `upstream:` refs from the trace. |
 
 When a source has both drift causes, `blob-mismatch` comes before `head-moved`.
+
+A `runnable-version-skew` line follows the source lines, one per program, in the order claim.js,
+note.js, state-check.js, state-roll.js, trace-render.js. It appears only when sources are declared, `read` never prints it, and it never changes the
+exit code. An absent program, or one with the same build stamp, prints nothing. The remedy is the
+one the line names: remove the six programs and install them again together.
 
 - Exit 2 when any source is `UNKNOWN - verify`, so an unchecked source never hides behind the
   drift exit.
@@ -136,23 +172,39 @@ Exit 0 prints, in order:
 
 - Both fence lines carry the file's blob id. A file cannot hold its own blob id, so a forged END
   line inside the text never equals the real one.
+- The BEGIN line holds exactly one `blob=`, because a path cannot hold a space or `=`, and
+  neither can a source id, a commit or a blob id. Only `END UNTRUSTED UPSTREAM DATA blob=<that blob>`,
+  with the blob id the BEGIN line names, closes the fence.
 - Every control character in the text is removed except TAB and LF. An escape sequence or a CR
   in upstream text never reaches the terminal.
 - A `head-moved` source still reads, at the pin.
 
 Exit 1 prints exactly one line, `refused <source> <ID or --manifest>: <reason>`, and no file text.
-The reasons are:
+In the reasons below, `<L>` is `the file listed for <ID>` for an ID and `the entry manifest` for
+`--manifest`. The reasons are:
 
 - `<ID> is not listed in the manifest at the pin`
-- `<path> is not a regular file at the pin`: a symbolic link, a directory or a submodule
-- `<path> is over the per-read ceiling (<n> bytes; the ceiling is 65536); ask upstream to split it`
-- `<path> is not a text file (it contains a NUL byte)`
-- `<path> is not UTF-8 text`
+- `<L> is not a regular file at the pin`: a symbolic link, a directory or a submodule
+- `<L> is over the per-read ceiling (<n> bytes; the ceiling is 65536); ask upstream to split it`
+- `<L> is not a text file (it contains a NUL byte)`
+- `<L> is not UTF-8 text`
 - `blob-mismatch (declared <entry_blob>, at the pin <blob>)`
+
+The entry manifest is checked at the pin before any of these refusals, so for `--manifest` a
+manifest that is not a regular file, is over the ceiling, holds a NUL byte or is not UTF-8 makes
+the source `UNKNOWN - verify` at exit 2 (§ The entry manifest).
 
 Exit 2 prints nothing on stdout and one `Error:` line on stderr. The causes are a bad argument, no
 declaration, an undeclared source, and bytes from git that do not hash to the blob id. A source in
 `UNKNOWN - verify` prints `Error: UNKNOWN - verify <source>: <reason>. Nothing was read.`
+
+Outside the BEGIN and END lines, `check` and `read` print no text taken from the manifest or an
+upstream file, except an ID that matches the ID grammar. A bad manifest cell is named by its
+column and line, a listed file by its ID, and a listed path is printed only on the BEGIN line. A
+git message quoted in a reason has every listed path replaced by `<listed path>`: each path the
+failing git call named after its `--`, a listed path or the entry. The replacement matches each
+path as the call named it, so a part of a path, or a path that git prints in another form, is not
+replaced.
 
 The per-read ceiling is 65536 bytes (64 KiB), counted in the stored bytes at the pin. A file over
 it is refused by name and never truncated. The ceiling is a constant, not a config key. A refusal
