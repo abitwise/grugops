@@ -61,10 +61,11 @@
 // `shell: false`, a 20 s timeout and stdout as bytes, under the caller's environment with every `GIT_*` variable
 // removed (an inherited GIT_DIR would answer for another repository) and four switches added: GIT_NO_REPLACE_OBJECTS=1
 // (a replace ref would substitute the pinned commit or blob), GIT_NO_LAZY_FETCH=1 (a partial clone would fetch over the
-// network), GIT_LITERAL_PATHSPECS=1 and GIT_TERMINAL_PROMPT=0. It uses only `rev-parse`, `ls-tree`, `cat-file`,
-// `config` and `version`, never `status`, `diff`, `log`, `show` or anything that refreshes the index, because those can
-// run commands the untrusted source's own git config names. The blob bytes git returns are hashed here and compared to
-// the blob id, so a substituted object is caught even if a switch is not honored.
+// network; git older than 2.45 ignores it, so a partial clone on such a git is refused before any call that reads an
+// object, plan 44-12), GIT_LITERAL_PATHSPECS=1 and GIT_TERMINAL_PROMPT=0. It uses only `rev-parse`, `ls-tree`,
+// `cat-file`, `config` and `version`, never `status`, `diff`, `log`, `show` or anything that refreshes the index,
+// because those can run commands the untrusted source's own git config names. The blob bytes git returns are hashed
+// here and compared to the blob id, so a substituted object is caught even if a switch is not honored.
 //
 // BUILTINS ONLY. A host runs this file with no kit and no node_modules, so it imports `node:` builtins and nothing
 // else. The hand-written part below imports them as namespaces, so the names the generated region imports never
@@ -967,7 +968,9 @@ interface PinnedSource {
 /**
  * What git answers for one source, read only from objects at the pin. The path is checked first: the lexical rule,
  * then realpath, then the inside and ancestor test again on the real paths. The checkout must be the top of a git
- * work tree, use the pin's object format and hold the pinned commit. The entry's blob at the pin is compared to the
+ * work tree and use the pin's object format. Before any git call that reads an object, a partial clone is refused when
+ * the git that runs is older than 2.45, which ignores GIT_NO_LAZY_FETCH and would fetch a missing object over the
+ * network (WR-01, T-44-11). The checkout must then hold the pinned commit. The entry's blob at the pin is compared to the
  * declared one; only when they agree is the manifest read. With `sweepListed` (the `check` verb) every path it lists is
  * then checked to be a regular file at the pin; `read` checks only the one path it prints.
  */
@@ -995,16 +998,9 @@ function gitAnswers(source: UpstreamSource, index: number, sweepListed: boolean)
   if (checkoutFormat !== format) {
     unknownBecause(`the pin is ${source.commit.length}-hex but the checkout uses ${hexLengthOf(checkoutFormat)}-hex object ids`);
   }
-  const verified = gitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}^{commit}`], [0, 1]);
-  if (verified.status !== 0) {
-    unknownBecause(`pinned commit ${source.commit} is not in the checkout (shallow clone or not fetched)`);
-  }
-  const pinned = gitText(verified);
-  if (pinned.length !== source.commit.length) {
-    unknownBecause(`the pin is ${source.commit.length}-hex but the checkout uses ${pinned.length}-hex object ids`);
-  }
-  if (pinned !== source.commit) unknownBecause(`pinned object ${source.commit} is not a commit`);
-
+  // The partial-clone guard runs here, before the first call that reads an object (WR-01, T-44-11): git older than
+  // 2.45 ignores GIT_NO_LAZY_FETCH, so in a partial clone even the `^{commit}` peel below could fetch over the network
+  // and write into the upstream `.git`. Only config and version are asked before it.
   const promisor = gitAnswer(real, ["config", "--get-regexp", "^remote\\..*\\.promisor$"], [0, 1]);
   const isPartial =
     promisor.status === 0 &&
@@ -1023,6 +1019,16 @@ function gitAnswers(source: UpstreamSource, index: number, sweepListed: boolean)
       unknownBecause("partial clone and git older than 2.45; make a full clone or upgrade git");
     }
   }
+
+  const verified = gitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}^{commit}`], [0, 1]);
+  if (verified.status !== 0) {
+    unknownBecause(`pinned commit ${source.commit} is not in the checkout (shallow clone or not fetched)`);
+  }
+  const pinned = gitText(verified);
+  if (pinned.length !== source.commit.length) {
+    unknownBecause(`the pin is ${source.commit.length}-hex but the checkout uses ${pinned.length}-hex object ids`);
+  }
+  if (pinned !== source.commit) unknownBecause(`pinned object ${source.commit} is not a commit`);
 
   const entryAnswer = gitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}:${source.entry}`], [0, 1]);
   if (entryAnswer.status !== 0) unknownBecause(`entry ${source.entry} is not in the pinned commit`);
