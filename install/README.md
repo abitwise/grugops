@@ -531,13 +531,18 @@ are written only when that agent is chosen.
     and the in-script admission tier, binds no `human:<name>` stamp to a human, and prints a
     task's current notes with `read`
 
+  `tools/grugops/upstream.js` reads the upstream sources declared in `.grugops/factory.config.json`:
+  `node tools/grugops/upstream.js check` checks each declared source at its pinned commit, reading
+  git objects only, and changes no file. Install writes no permission or read rule for a declared
+  source, so this program is the one way an agent reads it.
+
   Install never overwrites a copy that is already there, so an updated program reaches your
   repository only after you remove the old copy and install again.
   A repository installed before a program shipped gets it by installing again.
-  The five programs are built together from one copy of the state model and carry one
+  These six programs are built together from one copy of the state model and carry one
   build stamp, so update them together: remove `state-check.js`, `trace-render.js`,
-  `state-roll.js`, `claim.js` and `note.js`, then install again. When the build stamp of
-  `trace-render.js`, `state-roll.js`, `claim.js` or `note.js` differs from the stamp of
+  `state-roll.js`, `claim.js`, `note.js` and `upstream.js`, then install again. When the build stamp of
+  `trace-render.js`, `state-roll.js`, `claim.js`, `note.js` or `upstream.js` differs from the stamp of
   `state-check.js`, or is missing, state-check reports a `runnable-version-skew` finding that names
   the program
 - **seeded per-repo state** (skip-if-exists, never clobbered): `.grugops/factory.config.json`,

@@ -557,8 +557,11 @@ describe("the build stamp moves with every authority and cannot be hand-written 
   // adds its installer row (`tools/grugops/upstream.js`). Until then it is the one NAMED member of RUNNABLE_SET the
   // installer does not install, asserted both ways below, so this case turns red the moment plan 44-03 lands the row,
   // and that plan empties NOT_YET_INSTALLED. No other target may be missing from the installer.
+  // 2026-11-25, plan 44-03 (UP-02, D-08): the installer row `tools/grugops/upstream.js` landed, so NOT_YET_INSTALLED is
+  // empty and every target's .js is installed. The list stays, empty, so a future runnable added before its installer
+  // row has one named place to wait.
   it("RUNNABLE_SET equals the installer's destination names for the EMBED_SPECS targets' .js, two-sided, count 6", () => {
-    const NOT_YET_INSTALLED: readonly string[] = ["scripts/runnable-ref/upstream.js"];
+    const NOT_YET_INSTALLED: readonly string[] = [];
     // The RUNNABLES rows are read from install/install.ts's syntax tree: the array literal bound to `RUNNABLES`.
     // install.ts runs on import, so it is never imported here.
     const installTs = join(ROOT, "install", "install.ts");
@@ -586,7 +589,7 @@ describe("the build stamp moves with every authority and cannot be hand-written 
     for (const pending of NOT_YET_INSTALLED) expect(sources.has(pending), `PREMISE: ${pending} is an EMBED_SPECS target's .js`).toBe(true);
     expect(
       rows.filter(([src]) => sources.has(src)).map(([src]) => src).sort(),
-      "every target's .js except the named pending one is installed, and the pending one is not (plan 44-03 adds it)",
+      "every target's .js except any named pending one is installed, and a pending one is not",
     ).toEqual([...sources].filter((src) => !NOT_YET_INSTALLED.includes(src)).sort());
     const expectedSet = [...installed, ...NOT_YET_INSTALLED.map((src) => src.split("/").pop() as string)];
 

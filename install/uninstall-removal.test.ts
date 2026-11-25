@@ -112,8 +112,10 @@ const AGENTS = "AGENTS.md";
 // the derived set (measured: the assertion printed 8).
 // RUNNABLE_PATH_COUNT 8 -> 9 on 2026-11-05 (plan 41-09, RUN-05, D-35): the host note writer tools/grugops/note.js entered
 // the derived set (measured: the assertion printed 9).
+// RUNNABLE_PATH_COUNT 9 -> 10 on 2026-11-25 (plan 44-03, UP-02, D-08): the host upstream reader tools/grugops/upstream.js
+// entered the derived set (measured: the assertion printed 10).
 const KIT_PATH_COUNT = 28;
-const RUNNABLE_PATH_COUNT = 9;
+const RUNNABLE_PATH_COUNT = 10;
 const REMOVED_BY_NAME = [...KIT_PATHS, ...RUNNABLE_PATHS, AGENTS];
 
 /** The link install itself makes at `rel` (linkOrCopy's symlinkSync(src, dest)): the kit source path. */

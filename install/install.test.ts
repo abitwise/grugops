@@ -6378,9 +6378,10 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // file that lets Node load the programs on a commonjs host. Still seven programs; two non-program rows.
     // 9 -> 10 on 2026-11-04, plan 41-03 (RUN-05): tools/grugops/claim.js, the host queue tool, so eight programs.
     // 10 -> 11 on 2026-11-05, plan 41-09 (RUN-05, D-35): tools/grugops/note.js, the host note writer, so nine programs.
-    expect(RUNNABLE_RELS.length).toBe(11);
-    expect(mirror.length).toBe(11);
-    expect(PROGRAM_RELS.length).toBe(9);
+    // 11 -> 12 on 2026-11-25, plan 44-03 (UP-02, D-08): tools/grugops/upstream.js, the host upstream reader, so ten programs.
+    expect(RUNNABLE_RELS.length).toBe(12);
+    expect(mirror.length).toBe(12);
+    expect(PROGRAM_RELS.length).toBe(10);
     // Sources too — a mirrored dest removed on the strength of the WRONG source's bytes would be a
     // byte-identity check that proves nothing. Through the same declared-versus-parsed helper, so
     // this half can no longer come back short while its own integer still passes.
@@ -6390,7 +6391,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     // 8 -> 9 on 2026-10-27, plan 37-40 (D-21, G-37-2): the package file's kit source install/runnable-package.json.
     // 9 -> 10 on 2026-11-04, plan 41-03 (RUN-05): the host queue tool's kit source scripts/runnable-ref/claim.js.
     // 10 -> 11 on 2026-11-05, plan 41-09 (RUN-05, D-35): the host note writer's kit source scripts/runnable-ref/note.js.
-    expect(srcSideInstall.length).toBe(11);
+    // 11 -> 12 on 2026-11-25, plan 44-03 (UP-02, D-08): the host upstream reader's kit source scripts/runnable-ref/upstream.js.
+    expect(srcSideInstall.length).toBe(12);
     // The path SHAPES the old hand-written source-side regex used to encode inline. Kept as
     // explicit assertions so routing both halves through one parser lost none of what it checked:
     // every program source lives under the runnable reference directory and every dest under the one
@@ -6401,7 +6403,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const programRows = rows.filter(([, d]) => d.endsWith(".js"));
     // 7 -> 8 on 2026-11-04, plan 41-03 (RUN-05): tools/grugops/claim.js.
     // 8 -> 9 on 2026-11-05, plan 41-09 (RUN-05, D-35): tools/grugops/note.js.
-    expect(programRows.length).toBe(9);
+    // 9 -> 10 on 2026-11-25, plan 44-03 (UP-02, D-08): tools/grugops/upstream.js, the host upstream reader.
+    expect(programRows.length).toBe(10);
     for (const [s] of programRows) expect(s.startsWith("scripts/runnable-ref/")).toBe(true);
     expect(rows.filter(([, d]) => !d.endsWith(".js")).sort()).toEqual([
       ["LICENSE", LICENSE_REL],
@@ -6839,7 +6842,9 @@ describe("install.js / uninstall.js — single-installer contract (folds install
   // run to their success line (exit 0). The keys are checked two-sided against PROGRAM_RELS, so a new program
   // without a row is red, and so is a stale row. claim.js joined on 2026-11-04 (plan 41-03): it takes no
   // positional root, so its row passes `--root`. note.js joined on 2026-11-05 (plan 41-09, D-35): `add` with no
-  // folder reaches its own usage line, exit 2, before it reads anything.
+  // folder reaches its own usage line, exit 2, before it reads anything. upstream.js joined on 2026-11-25 (plan 44-03,
+  // UP-02): `check --root` on a target whose seeded config declares no source prints its none-declared line, exit 0
+  // (measured on Node 26.12.1; with the package file removed it throws at its first import, exit 1, like the rest).
   const PACKAGE_KIT_REL = "install/runnable-package.json";
   const COMMONJS_HOST = '{"name":"host","version":"1.0.0","type":"commonjs"}\n';
   const TYPELESS_HOST = '{"name":"host","version":"1.0.0"}\n';
@@ -6855,6 +6860,7 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     "state-roll.js": { args: (t) => [t, "--dry-run"], status: 0, text: "Nothing to roll" },
     "claim.js": { args: (t) => ["now-running", "--root", t], status: 0, text: "rendered" },
     "note.js": { args: () => ["add"], status: 2, text: "Usage: node note.js add" },
+    "upstream.js": { args: (t) => ["check", "--root", t], status: 0, text: "no upstream sources declared" },
   };
   /** Each program of PROGRAM_RELS run with Node alone (cwd the target, PATH only), in the table's order. */
   function runPrograms(target: string): Array<{ rel: string; name: string; status: number | null; out: string }> {
@@ -6882,7 +6888,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(Object.keys(OWN_BODY).sort()).toEqual(PROGRAM_RELS.map((rel) => basename(rel)).sort());
     // 7 -> 8 on 2026-11-04, plan 41-03 (RUN-05): tools/grugops/claim.js.
     // 8 -> 9 on 2026-11-05, plan 41-09 (RUN-05, D-35): tools/grugops/note.js.
-    expect(PROGRAM_RELS.length).toBe(9);
+    // 9 -> 10 on 2026-11-25, plan 44-03 (UP-02, D-08): tools/grugops/upstream.js.
+    expect(PROGRAM_RELS.length).toBe(10);
   });
 
   it("tools/grugops/package.json: an install into a commonjs host writes the kit file there, leaves the host's package.json byte for byte, and every program runs its own body (D-21, G-37-2)", () => {
@@ -8203,7 +8210,9 @@ describe("file ownership (Gap B, WR-05, plan 33.1-28)", () => {
     // list; the plant takes its bytes too. Measured by this test's failing run (expected 20).
     // 20 -> 21 on 2026-11-05, plan 41-09 (RUN-05, D-35): the host note writer `tools/grugops/note.js` entered the derived
     // list; the plant takes its bytes too. Measured by this test's failing run (expected 21).
-    expect(rec.files.length, JSON.stringify(rec.files)).toBe(21);
+    // 21 -> 22 on 2026-11-25, plan 44-03 (UP-02, D-08): the host upstream reader `tools/grugops/upstream.js` entered the
+    // derived list; the plant takes its bytes too. Measured by this test's failing run (expected 22).
+    expect(rec.files.length, JSON.stringify(rec.files)).toBe(22);
     const grugopsNamedDirs = rec.dirs.filter((d) => d.split("/").pop()!.startsWith("grugops"));
     expect(grugopsNamedDirs.length).toBeGreaterThan(1); // tools/grugops and the skill directories
     const plant = (): string => {
@@ -11851,6 +11860,104 @@ describe("launch agents: install sets no default agent on any host (quick task 2
     for (const h of HOST_TOOLS.filter((x) => x.launchAgent !== null)) {
       expect(existsSync(join(target, ...h.launchAgent!.split("/"))), `${h.id}: ${h.launchAgent}`).toBe(true);
     }
+  });
+});
+
+// ── upstream reader on a host (plan 44-03, 2026-11-25, UP-02, D-08, D-20) ────────────────────────────────────────
+// The sanctioned upstream reader reaches a host repository through its RUNNABLES row, runs there with Node alone, and
+// leaves with its ledger record. The installer is never a second access path to a declared source: D-20 says the
+// reader is the only one, so no host permission, read or external-directory rule may name the source's path.
+describe("upstream reader on a host (UP-02, D-20)", () => {
+  const UPSTREAM_REL = "tools/grugops/upstream.js";
+  const SOURCE_PATH = "../design-x";
+
+  it("a fresh install lays down tools/grugops/upstream.js byte-identical to its source, and `check` runs on the host with Node alone", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    const r = runInstall(target, home, "--claude");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const installed = join(target, ...UPSTREAM_REL.split("/"));
+    expect(existsSync(installed), `${UPSTREAM_REL} was not installed\n${r.stdout}`).toBe(true);
+    expect(readFileSync(installed)).toEqual(readFileSync(join(REPO_ROOT, "scripts", "runnable-ref", "upstream.js")));
+    const check = spawnSync("node", [join("tools", "grugops", "upstream.js"), "check"], {
+      encoding: "utf8",
+      cwd: target,
+      env: { PATH: process.env.PATH ?? "" },
+    });
+    expect(check.error).toBeUndefined();
+    expect(check.stderr).toBe("");
+    expect(check.stdout).toBe("no upstream sources declared\n");
+    expect(check.status).toBe(0);
+  });
+
+  it("uninstall removes an unedited tools/grugops/upstream.js", () => {
+    const target = makeFixture();
+    const home = mkTmp();
+    expect(runInstall(target, home, "--claude").status).toBe(0);
+    const installed = join(target, ...UPSTREAM_REL.split("/"));
+    expect(existsSync(installed), "premise: the reader was installed").toBe(true);
+    const u = runUninstall(target, home);
+    expect(u.status, u.stdout + u.stderr).toBe(0);
+    expect(existsSync(installed), `${UPSTREAM_REL} survived the uninstall\n${u.stdout}`).toBe(false);
+  });
+
+  it("an install for every agent writes no rule naming a declared upstream source: opencode.json keeps only the kit-path external_directory entry (D-20)", () => {
+    const target = mkTmp();
+    spawnSync("git", ["init", "-q", target], { encoding: "utf8" });
+    // A synthetic declaration; the source need not exist, because the installer must not act on it at all.
+    const configRel = ".grugops/factory.config.json";
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    const declaration = {
+      upstream: {
+        sources: [
+          {
+            id: "design",
+            path: SOURCE_PATH,
+            commit: "0123456789abcdef0123456789abcdef01234567",
+            entry: "export/manifest.md",
+            entry_blob: "89abcdef0123456789abcdef0123456789abcdef",
+            owns: { areas: ["product"], prefixes: ["DEC"] },
+          },
+        ],
+      },
+    };
+    writeFileSync(join(target, ...configRel.split("/")), `${JSON.stringify(declaration, null, 2)}\n`);
+    // A scratch HOME with the kit home under it, so the OpenCode install writes its external_directory rule.
+    const home = mkTmp();
+    const r = spawnSync("node", [INSTALL_JS, "--yes", ...ALL_AGENT_FLAGS], {
+      encoding: "utf8",
+      env: { ...process.env, INSTALL_MODE: "copy", GRUGOPS_SRC: REPO_ROOT, HOME: home, GRUGOPS_HOME: join(home, ".grugops"), TARGET: target },
+    });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+
+    const configPath = join(target, ...OPENCODE_CONFIG_REL.split("/"));
+    expect(existsSync(configPath), `premise: the OpenCode install wrote ${OPENCODE_CONFIG_REL}\n${r.stdout}`).toBe(true);
+    const config = JSON.parse(readFileSync(configPath, "utf8")) as { permission?: { external_directory?: Record<string, unknown> } };
+    const external = config.permission?.external_directory ?? {};
+    expect(Object.keys(external), JSON.stringify(config)).toHaveLength(1);
+    expect(Object.keys(external)[0]).not.toContain("design-x");
+
+    // Every file in the target (but .git) and in the scratch HOME, the installer's whole writing reach.
+    const walk = (root: string, rel = ""): string[] => {
+      const out: string[] = [];
+      for (const ent of readdirSync(join(root, rel), { withFileTypes: true })) {
+        const childRel = rel === "" ? ent.name : `${rel}/${ent.name}`;
+        if (rel === "" && ent.name === ".git") continue;
+        if (ent.isDirectory()) out.push(...walk(root, childRel));
+        else if (ent.isFile()) out.push(childRel);
+      }
+      return out;
+    };
+    const naming: string[] = [];
+    for (const [root, label] of [[target, "target"], [home, "home"]] as const) {
+      for (const rel of walk(root)) {
+        if (root === target && rel === configRel) continue;
+        if (readFileSync(join(root, ...rel.split("/")), "utf8").includes("design-x")) naming.push(`${label}:${rel}`);
+      }
+    }
+    expect(naming).toEqual([]);
+    // The control: the declaration itself still names the source, so the absence above is not a blind search.
+    expect(readFileSync(join(target, ...configRel.split("/")), "utf8")).toContain("design-x");
   });
 });
 

@@ -6029,6 +6029,9 @@ const RUNNABLES = [
     ["scripts/runnable-ref/claim.js", "tools/grugops/claim.js"],
     // The host note writer (plan 41-09, 2026-11-05, D-35): Workflow 16 writes each note through this path.
     ["scripts/runnable-ref/note.js", "tools/grugops/note.js"],
+    // The host upstream reader (plan 44-03, 2026-11-25, UP-02, D-08): Workflow 20 and the Workflow 17 session
+    // start run it through this path.
+    ["scripts/runnable-ref/upstream.js", "tools/grugops/upstream.js"],
     // The MIT license asks that its notice go with every copy of the software. The programs above are
     // copies that stay in the user's repository, and a license in the kit home does not travel with it.
     // So the license goes next to them, by the same rule (quick task 261018-hs8, Task 4). NOTICE is not

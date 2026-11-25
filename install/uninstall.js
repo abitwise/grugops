@@ -2550,6 +2550,8 @@ const RUNNABLES_MIRROR = [
     ["scripts/runnable-ref/claim.js", "tools/grugops/claim.js"],
     // The host note writer (plan 41-09, 2026-11-05, D-35), in install.ts's order.
     ["scripts/runnable-ref/note.js", "tools/grugops/note.js"],
+    // The host upstream reader (plan 44-03, 2026-11-25, UP-02, D-08), in install.ts's order.
+    ["scripts/runnable-ref/upstream.js", "tools/grugops/upstream.js"],
     // The MIT license for the programs above, copied beside them (quick task 261018-hs8, Task 4).
     ["LICENSE", "tools/grugops/LICENSE"],
     // The `{"type":"module"}` package file that lets Node load the programs above on a commonjs host (plan 37-40, D-21).
