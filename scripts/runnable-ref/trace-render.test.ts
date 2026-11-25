@@ -209,6 +209,31 @@ describe("trace-render.js — notes in two context roots become one trace file p
   });
 });
 
+// Plan 44-02 (TRC-02). The committed trace-render.js embeds classifyRef from scripts/trace-model.ts, so an upstream ref
+// lands in the citing ticket's Requirement column and a BR (build request) ref is a Requirement link, never a row.
+describe("upstream refs (TRC-02)", () => {
+  const UPSTREAM = "upstream:design:DEC-1@0123456789abcdef0123456789abcdef01234567";
+
+  it("a note with [ABC-1, an upstream ref, BR-3] renders ABC-1 alone, with both refs under Requirement", () => {
+    const root = repo();
+    plant(root, CONTEXT_REL, "taskU", "u1", noteText("u1", ["ABC-1", UPSTREAM, "BR-3"]));
+    const r = run(root);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toContain("unsealed 0");
+    const tree = snapshot(root);
+    expect([...tree.keys()]).toEqual([TRACEABILITY_REL, `${TRACE_DIR_REL}/ABC-1.md`]);
+    const ticket = tree.get(`${TRACE_DIR_REL}/ABC-1.md`) as string;
+    expect(ticket).toContain(`## Requirement\n\n- ${UPSTREAM}\n- BR-3\n`);
+    expect(ticket).toContain("## Code\n\nNone recorded.\n");
+    expect(existsSync(join(root, TRACE_DIR_REL, "DEC-1.md"))).toBe(false);
+    expect(existsSync(join(root, TRACE_DIR_REL, "BR-3.md"))).toBe(false);
+    const index = tree.get(TRACEABILITY_REL) as string;
+    const rows = index.split("\n").filter((l) => l.includes("](traceability/"));
+    expect(rows).toEqual(["| ABC-1 | [ABC-1](traceability/ABC-1.md) |"]);
+  });
+});
+
 describe("trace-render.js — skipped notes and unreadable tasks are counted and named, never rendered", () => {
   it("an unsealed note and an unparseable note are counted under their arms and give no trace file", () => {
     const root = twoRootRepo();

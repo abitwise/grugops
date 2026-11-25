@@ -71,6 +71,48 @@ describe("classifyRef: the trace slot each ref shape fills (D-06)", () => {
   });
 });
 
+// Plan 44-02 (TRC-02). An upstream ref `upstream:<source>:<ID>@<commit>` is a Requirement link, decided by its prefix
+// before any other rule, and `BR` (a build request) is a reserved prefix, so neither ever forms a ticket row. Routing is
+// the prefix's only job: whether the ref names a real ID at a real pin is the upstream authority's question
+// (scripts/upstream-model.ts), so the two malformed `upstream:` shapes below still route to Requirement and never to Code.
+const UPSTREAM_PIN = "0123456789abcdef0123456789abcdef01234567";
+
+describe("classifyRef: upstream refs and the BR prefix (TRC-02, plan 44-02)", () => {
+  it.each([
+    [`upstream:design:DEC-12@${UPSTREAM_PIN}`, "Requirement", false],
+    ["upstream:design/DEC-12", "Requirement", false],
+    ["upstream:design:DEC-12@abc.md", "Requirement", false],
+    ["BR-3", "Requirement", false],
+    ["DEC-012", null, true],
+  ] as const)("%s is classified as %s (isTicketRef %s)", (ref, column, ticket) => {
+    expect(classifyRef(ref, isTicketId)).toBe(column);
+    expect(isTicketRef(ref, isTicketId)).toBe(ticket);
+  });
+
+  it("an upstream ref that ends in a file extension is Requirement, never Code", () => {
+    expect(classifyRef("upstream:design:DEC-12@abc.md", isTicketId)).not.toBe("Code");
+    expect(classifyRef("upstream:design/DEC-12", isTicketId)).not.toBe("Code");
+  });
+
+  it("a note carrying [GRUG-1, upstream:design:DEC-1@<40 hex>] yields one GRUG-1 row whose Requirement holds the upstream ref", () => {
+    const upstream = `upstream:design:DEC-1@${UPSTREAM_PIN}`;
+    expect(buildTraceRows([{ refs: ["GRUG-1", upstream] }], isTicketId)).toEqual([
+      { id: "GRUG-1", Requirement: [upstream], Code: [], Tests: [], UAT: [], Release: [] },
+    ]);
+  });
+
+  it("BR-3 is a Requirement link and never a row of its own", () => {
+    const rows = buildTraceRows([{ refs: ["GRUG-1", "BR-3"] }, { refs: ["BR-3"] }], isTicketId);
+    expect(rows).toEqual([{ id: "GRUG-1", Requirement: ["BR-3"], Code: [], Tests: [], UAT: [], Release: [] }]);
+  });
+
+  it("KNOWN RESIDUAL: a raw upstream ID without the `upstream:` namespace still forms a ticket row", () => {
+    // Pinned so the residual stays visible. Workflow 20 requires the namespaced form `upstream:<source>:<ID>@<commit>`,
+    // and phase 45 (TRC-03) owns detecting a raw upstream ID. When TRC-03 lands, this case is expected to change.
+    expect(buildTraceRows([{ refs: ["DEC-012"] }], isTicketId).map((r) => r.id)).toEqual(["DEC-012"]);
+  });
+});
+
 describe("buildTraceRows: one row per ticket, refs merged first-seen without duplicates", () => {
   it("a note carrying [ABC-012, #41, fx.spec.ts, REL-0007] yields one ABC-012 row with those cells", () => {
     const rows = buildTraceRows([{ refs: ["ABC-012", "#41", "fx.spec.ts", "REL-0007"] }], isTicketId);
@@ -607,16 +649,21 @@ const AGREEMENT_CORPUS: readonly string[] = [
   "ABC-1 ",
   "ABC--1",
   "ABC-1/x",
+  // Plan 44-02 (TRC-02): BR joined the reserved prefixes, and BR-3 is the member that exercises it. The board admits
+  // it, the trace refuses it as a ticket, so the agreement below still holds and the ticket answer is unchanged.
+  "BR-3",
 ];
 
 /** The trace's reserved structural prefixes, as the trace model states them (never a ticket). */
-const RESERVED = ["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT"];
+// Plan 44-02 (TRC-02): BR (a build request) added, matching RESERVED_PREFIXES in trace-model.ts after plan 44-01.
+const RESERVED = ["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT", "BR"];
 const reservedPrefix = (x: string): boolean => RESERVED.includes(x.slice(0, x.lastIndexOf("-")));
 
 describe("AUTH-1 agreement: the trace's ticket test is the board grammar's, minus the reserved prefixes (plan 37-22, WR-01)", () => {
-  it("the corpus has 18 members, and isTicketRef(x) is isTicketId(x) and not reserved for every one", () => {
-    expect(AGREEMENT_CORPUS).toHaveLength(18);
-    expect(new Set(AGREEMENT_CORPUS).size).toBe(18);
+  // Plan 44-02, 2026-11-25: 18 to 19 members, re-derived after adding BR-3 above.
+  it("the corpus has 19 members, and isTicketRef(x) is isTicketId(x) and not reserved for every one", () => {
+    expect(AGREEMENT_CORPUS).toHaveLength(19);
+    expect(new Set(AGREEMENT_CORPUS).size).toBe(19);
     for (const x of AGREEMENT_CORPUS) {
       const label = x.length > 40 ? `${x.slice(0, 12)}...(${x.length} chars)` : JSON.stringify(x);
       expect(isTicketRef(x, isTicketId), label).toBe(isTicketId(x) && !reservedPrefix(x));

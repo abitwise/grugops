@@ -1223,3 +1223,30 @@ describe("read (WR-12)", () => {
     expect(readdirSync(root)).toEqual([]);
   });
 });
+
+describe("upstream refs (UP-05)", () => {
+  // Plan 44-02 (UP-05, D-11). Upstream text enters the shared context only as a cited `claim` note: the note names the
+  // upstream ID by its full ref `upstream:<source>:<ID>@<commit>`, and note.js stores and reads that ref unchanged.
+  // The source id, ID and commit below are invented (public repository rule).
+  const UPSTREAM = "upstream:design:DEC-1@0123456789abcdef0123456789abcdef01234567";
+
+  it("add admits a claim note carrying an upstream ref, and read prints the ref unchanged", () => {
+    const root = repo();
+    const head = ["--kind", "claim", "--by", "software-engineer", "--confidence", "high"];
+    const added = note(root, "add", "t1", ...head, "--ref", "ABC-1", "--ref", UPSTREAM, "--body", "The main screen has one column.");
+    const id = notedId(added, "t1");
+    expect(fenceOf(root, "t1", id)).toContain(`kind: claim\n`);
+    expect(fenceOf(root, "t1", id)).toContain(`refs:\n  - ABC-1\n  - ${UPSTREAM}\n`);
+
+    const before = treeDigest(root);
+    const r = note(root, "read", "t1");
+    expect(treeDigest(root), "read wrote nothing").toEqual(before);
+    expect(r.status, described(r)).toBe(0);
+    expect(r.stderr).toBe("");
+    const lines = r.stdout.slice(0, -1).split("\n");
+    expect(lines[0]).toBe("read t1: 1 current, 0 superseded, 0 skipped");
+    expect(lines).toContain(`note ${id}`);
+    expect(lines).toContain("  kind: claim");
+    expect(lines).toContain(`  refs: ABC-1, ${UPSTREAM}`);
+  });
+});
