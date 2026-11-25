@@ -187,6 +187,15 @@ export function runnableSpecs(set: readonly EmbedSpec[]): readonly EmbedSpec[] {
  * sibling (the rule in the header above). The seal, the note grammar and every admission rule reach the program through
  * this row alone, so there is one authority (D-35). `appendNote` is the root and the combiner is not, so the program
  * has the in-script tier and no route that trusts a `human:NAME` stamp.
+ * Plan 44-01 (2026-11-25) adds the row of the host upstream reader, scripts/runnable-ref/upstream.ts (UP-01, D-08), a
+ * runnable, so upstream.js joins RUNNABLE_SET and the build stamp. Its authorities are listed so that every importer
+ * follows the siblings it imports: the state directory from install/state-layout.ts, the output sanitizer from
+ * scripts/state-rules.ts, the upstream ref prefix from scripts/trace-model.ts, the one text fold from
+ * scripts/board-model.ts, the root-chain owner, the boundary predicate and the non-blocking reader from
+ * scripts/context-io.ts (the claim.ts set, for the config read), and last scripts/upstream-model.ts, which imports
+ * UPSTREAM_REF_PREFIX, normalizeDocument and isWithin from those row siblings. The upstream-model roots include what
+ * plans 44-05 and 44-06 call, so those plans need no generator change. The same generation carries the TRC-02 routing
+ * rule of scripts/trace-model.ts into the trace renderer and the state checker.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -419,6 +428,37 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
     ],
   },
   {
+    target: "scripts/runnable-ref/upstream.ts",
+    authorities: [
+      { module: "install/state-layout.ts", roots: ["GRUGOPS_DIR_REL"] },
+      { module: "scripts/state-rules.ts", roots: ["stripControlChars"] },
+      { module: "scripts/trace-model.ts", roots: ["UPSTREAM_REF_PREFIX"] },
+      { module: "scripts/board-model.ts", roots: ["normalizeDocument"] },
+      {
+        module: "scripts/context-io.ts",
+        roots: ["rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL", "readRegularFileOrNull"],
+      },
+      {
+        module: "scripts/upstream-model.ts",
+        roots: [
+          "parseUpstreamConfig",
+          "sourcePathFindings",
+          "isManifestPath",
+          "parseManifest",
+          "upstreamRef",
+          "objectFormatOf",
+          "gitBlobId",
+          "fenceLines",
+          "pinState",
+          "checkExitCode",
+          "formatCheckLine",
+          "UPSTREAM_READ_MAX_BYTES",
+          "UPSTREAM_NONE_DECLARED_LINE",
+        ],
+      },
+    ],
+  },
+  {
     target: "install/state-migrate.ts",
     kind: "module",
     authorities: [
@@ -470,8 +510,9 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
  * 2026-10-28, plan 38-02: four rows; the fourth is the migrate planner, install/state-migrate.ts, of kind `module`.
  * 2026-11-04, plan 41-03: five rows; the new one is the host queue tool, scripts/runnable-ref/claim.ts (RUN-05, D-01).
  * 2026-11-05, plan 41-07: six rows; the new one is the host note writer, scripts/runnable-ref/note.ts (RUN-02, D-35).
+ * 2026-11-25, plan 44-01: seven rows; the new one is the host upstream reader, scripts/runnable-ref/upstream.ts (UP-01, D-08).
  */
-export const EMBED_SPEC_COUNT = 6;
+export const EMBED_SPEC_COUNT = 7;
 
 /** Names the generator never embeds, each with the reason it gives. */
 const REFUSED_NAMES: Readonly<Record<string, string>> = Object.freeze({

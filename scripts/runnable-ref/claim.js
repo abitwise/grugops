@@ -69,8 +69,8 @@ import * as nodePath from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:f675debc523bddbaf4fa8fa932afc23032304324ea2f1f8158da580cd1465323";
-export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js"]);
+export const RUNNABLE_SET_STAMP = "sha256:ab0b4efd75f0d7f57969f6d73f61c7e2c9ba40fced1ab95de3be89efc446095b";
+export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "claim.js";
 // from install/state-layout.ts
 export const GRUGOPS_DIR_REL = ".grugops";

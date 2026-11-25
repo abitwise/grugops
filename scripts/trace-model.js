@@ -19,6 +19,12 @@
 // buildTraceRows and planCompleteTraceTree take scripts/board-model.ts isTicketId as a parameter, and
 // traceFileNameRefusals checks every planned file name before the render's first write.
 //
+// Plan 44-01 (2026-11-25, TRC-02, D-11) routes upstream refs: classifyRef sends every ref that starts with
+// UPSTREAM_REF_PREFIX (`upstream:`) to the Requirement column before any other rule runs, so a namespaced upstream ref
+// is never dropped and never becomes a ticket row. It also adds `BR` to the reserved structural prefixes, so a build
+// request (`BR-<n>`, D-07) is a Requirement link and never a phantom ticket row. scripts/upstream-model.ts owns the
+// full ref grammar; this module owns only the routing prefix, and still imports nothing.
+//
 // WHO USES IT. It is embedded, by scripts/generate-runnable-embeds.ts, into the host runnable
 // scripts/runnable-ref/trace-render.ts (this plan) and into state-check (plan 37-09), so the render and the
 // freshness comparison run the same code. scripts/trace-render.ts imports it for its own monolithic render
@@ -220,8 +226,17 @@ export const HAND_TRACE_PATTERNS = Object.freeze([
  * beside TRACEABILITY_REL in install/state-layout.ts.
  */
 export const TRACE_LINK_DIR = "traceability";
-/** Structural prefixes that are never a ticket: requirements, decisions, risks, releases, incidents, UAT. */
-const RESERVED_PREFIXES = new Set(["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT"]);
+/**
+ * Structural prefixes that are never a ticket: requirements, decisions, risks, releases, incidents, UAT, and build
+ * requests. A build request (`BR-<n>`, named by D-07) is structural, never a ticket (plan 44-01, D-11).
+ */
+const RESERVED_PREFIXES = new Set(["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT", "BR"]);
+/**
+ * The routing prefix of an upstream ref (`upstream:<source>:<id>@<commit>`, D-11). classifyRef sends every ref that
+ * starts with it to the Requirement column (TRC-02). scripts/upstream-model.ts owns the full ref grammar and imports
+ * this constant to build it, so the prefix has one spelling.
+ */
+export const UPSTREAM_REF_PREFIX = "upstream:";
 /**
  * `<PREFIX>-<number>`: letters and digits starting with a letter, one hyphen, digits. It decides no ticket: it
  * only picks the column of a ref that is not one (the UAT, REL and requirement prefixes, and the
@@ -249,9 +264,11 @@ function isCodeRef(ref) {
 export const TRACE_COLUMNS = Object.freeze(["Requirement", "Code", "Tests", "UAT", "Release"]);
 /**
  * The column one ref belongs to, or null for a ticket identifier (the board grammar's answer, `isTicketId`) and
- * for a ref no rule classifies.
+ * for a ref no rule classifies. An upstream ref (UPSTREAM_REF_PREFIX) is a Requirement link, decided first (TRC-02).
  */
 export function classifyRef(ref, isTicketId) {
+    if (ref.startsWith(UPSTREAM_REF_PREFIX))
+        return "Requirement";
     const m = ID_SHAPE.exec(ref);
     const prefix = m ? m[1].toUpperCase() : "";
     if (prefix === "UAT")
