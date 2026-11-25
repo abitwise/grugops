@@ -14,7 +14,7 @@ Decompose each request into subtasks and route each to the right role agent over
 Any incoming request — every `/grugops` starts here.
 
 ## Reads
-- `.grugops/factory.config.json` first: `mode`, `cadence`, `checkpoints`, `wip_limits`, `queue`, `quality`, `nfr` and `compliance_regime`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
+- `.grugops/factory.config.json` first: `mode`, `cadence`, `checkpoints`, `wip_limits`, `queue`, `quality`, `nfr`, `compliance_regime` and `upstream`. With no config file present, this role runs lean on the documented defaults in `agent-factory/README.md`.
 - `memory-bank/plans/board.md` for column state and WIP, and `memory-bank/00-index.md` on start.
 - `memory-bank/plans/traceability.md` and the per-ticket trace files it links.
 - `agent-factory/checklists/definition-of-ready.md`, the pull gate.

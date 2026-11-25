@@ -271,6 +271,8 @@ The structure validator checks this shape through the same module the runnable u
 
 `node tools/grugops/upstream.js check` reports each source as `match`, `drift` or `UNKNOWN - verify`.
 
+The manifest, the refs, the reads and host access are specified in `agent-factory/contracts/upstream.md`, and the procedure for checking, reading and citing a source is Workflow 20 (`agent-factory/workflows/20-upstream-sources.md`).
+
 Only a named human edits a pin, in a commit. The runnable never moves one, and the git history of the configuration file is the record of every pin move.
 
 ## Config-dial contract (lean → enterprise)

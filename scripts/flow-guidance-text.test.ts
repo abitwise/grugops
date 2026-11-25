@@ -440,15 +440,29 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
     expect(start).toContain("Reclaiming it could hand a slow agent's task to a second agent.");
   });
 
-  it("orders session start as read, sweep, re-spawn, refill", () => {
+  it("orders session start as read, sweep, re-spawn, upstream check, refill", () => {
+    // Moved 4 -> 5 steps by plan 44-08 (D-14): the upstream pin check enters as step 4, before the refill.
     const ordered = section(WF17, "Session start")
       .split("\n")
       .filter((l) => /^\d+\. /.test(l));
-    expect(ordered).toHaveLength(4);
+    expect(ordered).toHaveLength(5);
     expect(ordered[0]).toContain("`now-running.md`");
     expect(ordered[1]).toContain("claim.js sweep");
     expect(ordered[2]).toContain("Re-spawn the adapter named in `by`");
-    expect(ordered[3]).toContain("`## Keep capacity full`");
+    expect(ordered[3]).toContain("`node tools/grugops/upstream.js check`");
+    expect(ordered[4]).toContain("`## Keep capacity full`");
+  });
+
+  it("session start step 4 reports the pin check and routes untrusted sources to BLOCKED per Workflow 20 (D-14)", () => {
+    const step = section(WF17, "Session start")
+      .split("\n")
+      .find((l) => l.startsWith("4. "));
+    expect(step, "no session-start step 4").toBeDefined();
+    expect(step).toContain("If `.grugops/factory.config.json` declares `upstream`, run `node tools/grugops/upstream.js check`");
+    expect(step).toContain("On `head-moved`, keep working at the pin, and never edit a pin.");
+    expect(step).toContain(
+      "On `blob-mismatch` or `UNKNOWN - verify`, report each subtask reading that source as `BLOCKED` with the printed reason (Workflow 20).",
+    );
   });
 
   /** Step 3 of `## Session start`. */
