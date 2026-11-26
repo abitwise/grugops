@@ -1,5 +1,5 @@
 // upstream-model.ts — the one authority for upstream sources (phase 44, plan 44-01, UP-01, UP-03, UP-06, D-01, D-02,
-// D-09, D-10, D-11, D-12, D-13, D-16, D-17, D-18, D-19).
+// D-09, D-10, D-11, D-12, D-13, D-16, D-17, D-18, D-19; plan 45-06, 44 D-06: `upstream.escalation_days`).
 //
 // WHAT IT IS. The pure part of reading an upstream design source: the grammar of the `upstream` declaration in
 // .grugops/factory.config.json (D-01, D-02, D-18), the lexical rule for a source's `path` (D-19), the grammar of the
@@ -39,8 +39,14 @@ export const UPSTREAM_NONE_DECLARED_LINE = "no upstream sources declared";
 /** The closed vocabulary of areas a source can own (D-18). Adding an area is a recorded decision. */
 export const UPSTREAM_AREAS = Object.freeze(["product", "ux", "visual", "audio", "architecture", "content"] as const);
 
-/** The keys of the `upstream` object (D-01). `escalation_days` joins in phase 45 with its behavior (D-06). */
-export const UPSTREAM_KEYS = Object.freeze(["sources"] as const);
+/** The keys of the `upstream` object (D-01). `escalation_days` joined in phase 45 with its behavior (plan 45-06, D-06). */
+export const UPSTREAM_KEYS = Object.freeze(["sources", "escalation_days"] as const);
+
+/** The keys of the `upstream` object that must be present (D-01). `escalation_days` is optional (44 D-06). */
+export const UPSTREAM_REQUIRED_KEYS = Object.freeze(["sources"] as const);
+
+/** The days a carried build request may wait before it is overdue, when `escalation_days` is absent (44 D-06). */
+export const UPSTREAM_ESCALATION_DAYS_DEFAULT = 10;
 
 /** The keys of one source, a closed set; every key is required (D-02). */
 export const UPSTREAM_SOURCE_KEYS = Object.freeze(["id", "path", "commit", "entry", "entry_blob", "owns"] as const);
@@ -93,7 +99,7 @@ export interface UpstreamSource {
 /** What the config declares: nothing, a valid set of sources, or the findings that refuse it. */
 export type UpstreamConfigResult =
   | { readonly kind: "absent" }
-  | { readonly kind: "ok"; readonly sources: readonly UpstreamSource[] }
+  | { readonly kind: "ok"; readonly sources: readonly UpstreamSource[]; readonly escalationDays: number }
   | { readonly kind: "invalid"; readonly findings: readonly string[] };
 
 /** One row of the entry manifest; `line` is its 1-based line in the normalized text. */
@@ -151,15 +157,23 @@ function upstreamQuote(value: unknown): string {
   return typeof value === "string" ? JSON.stringify(value) : String(JSON.stringify(value) ?? typeof value);
 }
 
-/** The findings for the keys of `obj`: each unknown key refused by name with the allowed set, each missing key named. */
-function upstreamKeyFindings(obj: Record<string, unknown>, allowed: readonly string[], label: string): string[] {
+/**
+ * The findings for the keys of `obj`: each unknown key refused by name with the allowed set, each missing required key
+ * named. `required` defaults to the whole allowed set; only the `upstream` object passes a smaller one (plan 45-06).
+ */
+function upstreamKeyFindings(
+  obj: Record<string, unknown>,
+  allowed: readonly string[],
+  label: string,
+  required: readonly string[] = allowed,
+): string[] {
   const findings: string[] = [];
   for (const key of Object.keys(obj)) {
     if (!allowed.includes(key)) {
       findings.push(`${label}.${key} is not a known key; the allowed keys are: ${allowed.join(", ")}`);
     }
   }
-  for (const key of allowed) {
+  for (const key of required) {
     if (!Object.prototype.hasOwnProperty.call(obj, key)) findings.push(`${label}.${key} is required`);
   }
   return findings;
@@ -177,9 +191,23 @@ export function parseUpstreamConfig(config: unknown): UpstreamConfigResult {
   if (!Object.prototype.hasOwnProperty.call(config, "upstream")) return { kind: "absent" };
   const upstream = config.upstream;
   if (!upstreamIsObject(upstream)) {
-    return { kind: "invalid", findings: [`upstream must be an object whose only key is "sources"`] };
+    return {
+      kind: "invalid",
+      findings: [`upstream must be an object with the key "sources" and, optionally, "escalation_days"`],
+    };
   }
-  const findings = upstreamKeyFindings(upstream, UPSTREAM_KEYS, "upstream");
+  const findings = upstreamKeyFindings(upstream, UPSTREAM_KEYS, "upstream", UPSTREAM_REQUIRED_KEYS);
+  // `escalation_days` (44 D-06, plan 45-06): optional; when present, a safe integer of at least 1. No fraction and no
+  // rounding rule exist, so a value is either the threshold or refused by name.
+  let escalationDays = UPSTREAM_ESCALATION_DAYS_DEFAULT;
+  if (Object.prototype.hasOwnProperty.call(upstream, "escalation_days")) {
+    const days = upstream.escalation_days;
+    if (typeof days === "number" && Number.isSafeInteger(days) && days >= 1) {
+      escalationDays = days;
+    } else {
+      findings.push(`upstream.escalation_days ${upstreamQuote(days)} must be a whole number of days, at least 1`);
+    }
+  }
   if (!Object.prototype.hasOwnProperty.call(upstream, "sources")) return { kind: "invalid", findings };
   const rawSources = upstream.sources;
   if (!Array.isArray(rawSources) || rawSources.length === 0) {
@@ -288,7 +316,7 @@ export function parseUpstreamConfig(config: unknown): UpstreamConfigResult {
   });
 
   if (findings.length > 0) return { kind: "invalid", findings };
-  return { kind: "ok", sources: Object.freeze(sources) };
+  return { kind: "ok", sources: Object.freeze(sources), escalationDays };
 }
 
 /**
