@@ -234,7 +234,7 @@ const DECIDER_MANIFEST = {
         "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
         "scripts/check-diff-disposition.js": "2f9362840df4b4810c2af8293ef91cb3ce25a547d8387f3aa1dfae83dc04804d",
         "scripts/check-role-rules.js": "3d479c9108f6617ca024d12129d422947a0470088e1d05239c745475ac2e2dea",
-        "scripts/checkpoints.js": "18df4d3cd10d9970884fd9bb497dbcf960118e612d808da8ec271a0d0a60aed1",
+        "scripts/checkpoints.js": "4b86da9fff3a7ab36ead80c3f325805b3da63e5809c04a2634321311a699928b",
         "scripts/context-io.js": "3318167c6b66997c93038bc80f937b6a095f3e0bb0f8e2363cdc7df4007db4a2",
         "scripts/dead-vocabulary.js": "30bcf47c67b0713c3d1fd42aff76cf60cd74ece10b6cd2c7490602ce7eaf37bc",
         "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",

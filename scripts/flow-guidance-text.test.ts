@@ -18,6 +18,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { APPROVED_STEP_VERBS } from "./check-imperative-lexicon.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const WF17 = readFileSync(join(ROOT, "agent-factory/workflows/17-task-claim.md"), "utf8");
@@ -1829,5 +1830,64 @@ describe("architecture as input (plan 45-02, ARCH-01, ARCH-02)", () => {
         .filter((l) => l.includes("Workflow 20"));
       expect(lines, role).toHaveLength(1);
     }
+  });
+});
+
+describe("build requests in Workflow 20 (plan 45-10, BR-03, BR-05, BR-06)", () => {
+  const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
+  const WF20_REL = "agent-factory/workflows/20-upstream-sources.md";
+  const WF20 = read(WF20_REL);
+  const EXEMPTION = "exempt from `blocked_escalation_days`";
+  // The closed step-verb list, read from the gate that owns it. That gate reads only `## Steps`, so this
+  // case holds `## Build requests` to the same list.
+  const VERBS = new Set(APPROVED_STEP_VERBS);
+  const body = section(WF20, "Build requests");
+  const numbered = body.split("\n").filter((l) => /^\d+\. /.test(l));
+  const brStep = (n: number): string => {
+    const line = numbered.find((l) => l.startsWith(`${n}. `));
+    expect(line, `no build-request step ${n}`).toBeDefined();
+    return line as string;
+  };
+
+  it("(a) `## Build requests` holds 13 contiguous steps, each opening with a closed-list verb", () => {
+    expect(WF20.split("\n").filter((l) => l === "## Build requests")).toHaveLength(1);
+    expect(numbered.map((l) => Number(l.slice(0, l.indexOf("."))))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    for (const l of numbered) {
+      const verb = l.replace(/^\d+\. /, "").split(" ")[0];
+      expect(VERBS.has(verb), `step "${l.slice(0, 40)}" opens with "${verb}"`).toBe(true);
+    }
+    expect(body).toContain("agent-factory/contracts/build-request.md");
+    expect(brStep(2)).toContain("upstream.js requests");
+  });
+
+  it("(b) step 7 (carried) and step 13 (withdrawing a carried request) need a named human (D-06)", () => {
+    expect(brStep(7)).toContain("named human");
+    expect(brStep(13)).toContain("named human");
+  });
+
+  it("(c) the exemption paragraph is per bullet, and an absent request ages as usual (BR-06, Pitfall 8)", () => {
+    const paragraph = body.split("\n").find((l) => l.includes(EXEMPTION));
+    expect(paragraph, "no exemption paragraph").toBeDefined();
+    for (const needle of ["blocked_escalation_days", "upstream.escalation_days", "per bullet", "absent request ages as usual"]) {
+      expect(paragraph, needle).toContain(needle);
+    }
+  });
+
+  it("(d) exactly one kit file states the exemption, and it is Workflow 20 (stated once)", () => {
+    const kitRoot = join(ROOT, "agent-factory");
+    const markdown = (readdirSync(kitRoot, { recursive: true, encoding: "utf8" }) as string[])
+      .filter((rel) => rel.endsWith(".md"))
+      .map((rel) => `agent-factory/${rel.split("\\").join("/")}`);
+    expect(markdown.length).toBeGreaterThan(50);
+    expect(markdown.filter((rel) => read(rel).includes(EXEMPTION))).toEqual([WF20_REL]);
+  });
+
+  it("(e) a stop bullet refuses an agent's carried or answered record without a named human's word", () => {
+    const stops = bullets(section(WF20, "Stop conditions"));
+    const human = stops.filter((b) => b.includes("named human's word") && b.includes("write nothing"));
+    expect(human).toHaveLength(1);
+    expect(human[0]).toContain("`carried`");
+    expect(human[0]).toContain("`answered`");
+    expect(stops.filter((b) => b.startsWith("- `requests` prints a `refused` line"))).toHaveLength(1);
   });
 });

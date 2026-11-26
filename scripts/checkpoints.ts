@@ -385,8 +385,21 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  * THE TAGGING LIST WAS RE-WALKED: the bullet is UNTAGGED, because no dial value may lower a floor
  * (ARCH-02). A tag would say a checkpoint value could let the work proceed past the conflict, which
  * is false. Neither the roster nor any site count moves.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (45-10, 2026-11-26): 56 -> 58. Plan `45-10` gave
+ * `agent-factory/workflows/20-upstream-sources.md` (Workflow 20) a `## Build requests` procedure,
+ * and its `## Stop conditions` gained two bullets. The two existing `Error:` and exit-code bullets now
+ * name `requests` too, which moves no count. The derivation printed "the live stop corpus holds 58
+ * bullet(s) against the recorded 56" before this line moved. THE TAGGING LIST WAS RE-WALKED, and
+ * both new bullets are UNTAGGED:
+ *   - an agent asks to record `carried` or `answered`, or to withdraw a carried request, without a
+ *     named human's word: write nothing and ask the human. No dial value lets an agent stand in for
+ *     a named human, so a tag would say a checkpoint value could, which is false;
+ *   - `requests` prints a `refused` line: a refused file is a real error, surfaced to a human and
+ *     never read as absent, the same shape as the existing untagged `Error:` stop.
+ * Neither the roster nor any site count moves.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 56;
+export const WORKFLOW_STOP_BULLET_COUNT = 58;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the

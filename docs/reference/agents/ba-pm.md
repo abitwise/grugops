@@ -8,7 +8,7 @@ Cut a product idea down to a defensible MVP of testable, measurable tickets.
 | Tier | core |
 | Capabilities | read edit shell |
 | Skills | none declared |
-| Workflows | [Bootstrap greenfield](../../../agent-factory/workflows/00-bootstrap-greenfield.md), [Idea to epics](../../../agent-factory/workflows/02-idea-to-epics.md), [Epic to tickets](../../../agent-factory/workflows/03-epic-to-tickets.md), [UAT pack](../../../agent-factory/workflows/06-uat-pack.md), [Backlog refinement](../../../agent-factory/workflows/07-backlog-refinement.md), [Sprint planning](../../../agent-factory/workflows/08-sprint-planning.md), [Sprint review](../../../agent-factory/workflows/10-sprint-review.md) |
+| Workflows | [Bootstrap greenfield](../../../agent-factory/workflows/00-bootstrap-greenfield.md), [Idea to epics](../../../agent-factory/workflows/02-idea-to-epics.md), [Epic to tickets](../../../agent-factory/workflows/03-epic-to-tickets.md), [UAT pack](../../../agent-factory/workflows/06-uat-pack.md), [Backlog refinement](../../../agent-factory/workflows/07-backlog-refinement.md), [Sprint planning](../../../agent-factory/workflows/08-sprint-planning.md), [Sprint review](../../../agent-factory/workflows/10-sprint-review.md), [upstream sources](../../../agent-factory/workflows/20-upstream-sources.md) |
 | Source | [agent-factory/roles/ba-pm.md](../../../agent-factory/roles/ba-pm.md) |
 
 ## Adapters per host
