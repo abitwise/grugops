@@ -2445,8 +2445,31 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *   `node:os` and `node:url` beside the three above, and `isEntrypoint` from ../is-entry.js for its one command-line
  *   entry, `--injection <dir>`, which writes the UP-05 red-team upstream to a scratch directory. Both owner answers
  *   are still unchanged.
+ *
+ * 119 -> 120 (plan 45-01, BR-01, BR-04, D-05, D-12), ONE MODULE:
+ *   - `scripts/build-request-model.ts` — the one pure authority for a build-request file: the closed five-key
+ *     frontmatter grammar of `memory-bank/plans/build-requests/BR-<n>.md`, its value-silent refusal codes, and the
+ *     `upstream.js requests` report lines and exit code. It imports `normalizeDocument` from ./board-model.js,
+ *     `isCalendarDate` from ./state-rules.js, and `UPSTREAM_SOURCE_ID_RE` and `UPSTREAM_OBJECT_ID_RE` from
+ *     ./upstream-model.js, and nothing else; the host reader embeds it through the generator.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser (its reader is
+ *     parseBuildRequestDocument, which reads a five-key region and not the agent frontmatter grammar), builds no
+ *     section bound (plan 45-03 reads the body sections through the one section owner), reads no grant and renders no
+ *     spawn verdict. Its committed `.js` twin landed in the same commit as the module.
+ *
+ * 120 -> 121 (plan 45-01, D-02), ONE MODULE:
+ *   - `scripts/upstream-git.ts` — the one git launcher and object reader for upstream sources, moved with no behavior
+ *     change out of the hand-written part of scripts/runnable-ref/upstream.ts so the structure validator can call the
+ *     same read (plan 45-08). It imports `spawnSync` from `node:child_process`, `realpathSync` and `statSync` from
+ *     `node:fs`, `resolve` from `node:path`, `isWithin` from ./context-io.js, and the manifest grammar, the path rule,
+ *     the blob id and their types from ./upstream-model.js; the host reader embeds it through the generator.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no section
+ *     bound, reads no grant and renders no spawn verdict. Its committed `.js` twin landed in the same commit as the
+ *     module.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts` members reports 121
+ *   with both modules tracked (2026-11-26, plan 45-01).
  */
-const NON_TEST_MODULE_COUNT = 119;
+const NON_TEST_MODULE_COUNT = 121;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -3100,7 +3123,11 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `isWithin` from ./context-io.js and `UPSTREAM_REF_PREFIX` from ./trace-model.js, and both readers must agree on
     // that import set like every other module both can see. Re-derived: `ls scripts/*.ts` minus the tests and the
     // `.d.ts` files reports 75 with the module tracked (2026-11-25).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(75);
+    // 75 → 77 (plan 45-01, BR-04, D-02): `scripts/build-request-model.ts`, the build-request authority, and
+    // `scripts/upstream-git.ts`, the git read moved out of the host reader. Both readers must agree on each module's
+    // import set like every other module both can see. Re-derived: `ls scripts/*.ts` minus the tests and the `.d.ts`
+    // files reports 77 with both modules tracked (2026-11-26).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(77);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3140,7 +3167,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 72 → 73 (plan 42-02): `role-skills-reader.ts`, three specs per module as ever (2026-11-16).
     // 73 → 74 (plan 43-03): `check-story-docs.ts`, three specs per module as ever (2026-11-18).
     // 74 → 75 (plan 44-01): `upstream-model.ts`, three specs per module as ever (2026-11-25).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(75 * 3);
+    // 75 → 77 (plan 45-01): `build-request-model.ts` and `upstream-git.ts`, three specs per module as ever (2026-11-26).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(77 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3383,7 +3411,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 74 (2026-11-18).
       // 74 → 75 (plan 44-01, UP-01): `upstream-model.ts`, the same module the flat reader gained; both pins move in
       // one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 75 (2026-11-25).
-    ).toBe(75);
+      // 75 → 77 (plan 45-01, BR-04, D-02): `build-request-model.ts` and `upstream-git.ts`, the same two modules the flat
+      // reader gained; both pins move in one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests
+      // reports 77 (2026-11-26).
+    ).toBe(77);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against

@@ -2108,6 +2108,19 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
       "out of the test description `manifest: status %j is malformed`. Both name the Status column " +
       "and cell positions of an UPSTREAM ENTRY MANIFEST (locked / superseded), not a ticket key; " +
       "the file parses manifests with parseManifest and never reads a ticket document",
+    // ── The one plan 45-01 added, READ BEFORE IT WAS EXEMPTED. The host reader already named `column`
+    //    in its generated copy of the upstream manifest reasons; plan 45-01 embedded the build-request
+    //    grammar, whose key list supplies `status`, and that tipped the conjunction. It reads no ticket.
+    "runnable-ref/upstream.ts":
+      "the host upstream reader. The census resolves `column` out of the generated region's copies of " +
+      "the upstream manifest reasons (`the ID cell (column 1) does not match the upstream ID grammar`, " +
+      "`the Path cell (column 3) of …`, and the moved git read's `(manifest line …, column 3)`), where " +
+      "each column is an UPSTREAM ENTRY-MANIFEST table column, and `status` out of the generated copy of " +
+      "BUILD_REQUEST_KEYS (`id, status, source, pin, raised`) and the build-request grammar's own " +
+      "`status` key checks, where status is a BUILD-REQUEST lifecycle key (open / carried / answered / " +
+      "withdrawn). Every one of those literals sits inside the generated region, copied from " +
+      "scripts/upstream-model.ts, scripts/upstream-git.ts and scripts/build-request-model.ts; the file " +
+      "hands no ticket document to any parser",
   });
 
   /**
@@ -2122,8 +2135,12 @@ describe("exactly ONE ticket-frontmatter reader exists in scripts/ (32-12, widen
    * `column` into `runnable-ref/upstream.test.ts` and `upstream-model.test.ts`, which already named
    * `status`, so the census started naming both. Each was read before it was exempted; see their
    * entries for what supplies each spelling.
+   *
+   * 10 → 11 (plan 45-01, BR-04, 2026-11-26): `runnable-ref/upstream.ts` embeds the build-request grammar,
+   * whose BUILD_REQUEST_KEYS literal supplies `status` beside the `column` its upstream manifest reasons
+   * already carried, so the census started naming it. It was read before it was exempted; see its entry.
    */
-  const NOT_A_SECOND_AUTHORITY_COUNT = 10;
+  const NOT_A_SECOND_AUTHORITY_COUNT = 11;
 
   /**
    * THE CENSUS AS A FUNCTION OF ITS INPUT, so the boundary and degenerate cases below are asked the

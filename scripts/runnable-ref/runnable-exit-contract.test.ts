@@ -29,7 +29,9 @@
 // run reaches that single write (the none-declared line) and the injected throw there must be exit 2 with nothing on
 // stdout. The census below then covers upstream.ts and upstream.js like every other runnable. Its second command, `read`
 // (plan 44-06, D-15), also writes nothing and prints its whole answer in one write, so its row reads one manifest-listed
-// file of a synthetic upstream built at test time and injects the throw at that write.
+// file of a synthetic upstream built at test time and injects the throw at that write. Its third command, `requests`
+// (plan 45-01, BR-04, 2026-11-26), also writes nothing and prints in one write, so its row passes `--root` at a scratch
+// directory holding an empty `.grugops/` directory: the run reaches that write (the `no build requests` line).
 //
 // NOTE.JS TAKES NO ROOT AT ALL. Its store is the working directory's, so its rows run through runNote, with the fixture
 // as the working directory and the ambient root names blank, so the dial comes from the fixture.
@@ -506,6 +508,19 @@ describe("EXIT-1: upstream.js, an unexpected throw past every inner catch is exi
     expectStopped("upstream", r);
     expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
     expect([treeDigest(root), treeDigest(design.dir)]).toEqual(before);
+  });
+
+  it("requests: a throw at its one stdout write is exit 2 with nothing on stdout, and nothing was written (plan 45-01)", () => {
+    const root = mkTmp("grugops-exit-contract-upstream-requests-");
+    mkdirSync(join(root, GRUGOPS_DIR_REL));
+    const plain = runPlain("upstream", "requests", "--root", root);
+    expect(plain.stdout, "PREMISE: the run reaches its single stdout write").toBe("no build requests\n");
+    expect(plain.status, "PREMISE: the unfaulted run exits 0").toBe(0);
+    const before = treeDigest(root);
+    const r = runWith("upstream", ["requests", "--root", root], STDOUT_THROW);
+    expectStopped("upstream", r);
+    expect(r.stderr).toContain(`stopped unexpectedly (${INJECTED_STDOUT_MESSAGE}).`);
+    expect(treeDigest(root)).toEqual(before);
   });
 });
 
