@@ -63,6 +63,8 @@ import {
   BUDGET_COUNT,
   BUDGETS,
   BUILD_REQUESTS_REL,
+  CONTEXT_ARCHIVE_REL,
+  CONTEXT_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   NFR_CATALOG_REL,
@@ -74,6 +76,8 @@ import {
   TRACEABILITY_REL,
 } from "../install/state-layout.js";
 import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "./check-platform-shapes.js";
+// (Plan 45-08) Synthetic upstream checkouts and the recording git, for the citation cases.
+import { recordingGitDir } from "./runnable-ref/upstream-fixture.test-support.js";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
 // tree, and a second implementation of it is the defect this phase exists to delete, not a
@@ -228,9 +232,12 @@ function out(r: SpawnSyncReturns<string>): string {
 
 // Build a hermetic kit copy from fixtures/good (agent-factory + AGENTS.md + .claude-plugin),
 // optionally including the state tree at STATE_ROOT_REL. Returns the new temp root.
-function copyGoodKit(includePlans: boolean): string {
-  const d = mkdtempSync(join(tmpdir(), "grugops-val-"));
-  tmpDirs.push(d);
+// (Plan 45-08) `into` copies into a given directory instead of a new temp root, so a case can place an upstream
+// checkout beside the product; the caller owns its cleanup.
+function copyGoodKit(includePlans: boolean, into?: string): string {
+  const d = into ?? mkdtempSync(join(tmpdir(), "grugops-val-"));
+  if (into === undefined) tmpDirs.push(d);
+  else mkdirSync(d, { recursive: true });
   cpSync(join(FIX, "good", "agent-factory"), join(d, "agent-factory"), {
     recursive: true,
   });
@@ -4515,5 +4522,211 @@ describe("validate-agent-factory.js — the upstream declaration (UP-01, D-01, D
     expect(r.status).not.toBe(0);
     const lines = out(r).split("\n").filter((l) => l.includes(".grugops/factory.config.json:"));
     expect(lines.join("\n")).toContain("upstream.sources[0].path");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// (Plan 45-08, TRC-01, TRC-03, 45 D-01..D-04) THE `## Upstream` STATEMENT AND THE CITATION CHECK.
+//
+// Both checks run only when the state root's own `.grugops/factory.config.json` declares `upstream`; with no such key
+// the validator reads no note and runs no git (v3.0.0 behavior). The decisions are upstreamStatementOf and
+// upstreamCitationFindings in scripts/upstream-model.ts; these cases drive them through the validator's exit code and
+// output. Notes are written sealed, as scripts/runnable-ref/trace-render.test.ts writes them. Every ID, ticket, path
+// and commit here is invented (ABC-001, DEC-1), as in scripts/runnable-ref/upstream-fixture.test-support.ts.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** A product repository in its own parent directory, so an upstream checkout can sit beside it at `../design`. */
+function citationProduct(): { parent: string; root: string } {
+  const parent = mkdtempSync(join(tmpdir(), "grugops-val-cite-"));
+  tmpDirs.push(parent);
+  const root = copyGoodKit(true, join(parent, "product"));
+  // The fixture board has no Backlog column; a ticket there is the plan's case of open work not yet started.
+  appendTo(root, BOARD_REL, "\n## Backlog (WIP unlimited)\n");
+  // One dispatch row per registry host, so the good kit's one baseline WARNING (no per-host table) is gone and every
+  // WARNING a case counts is its own.
+  appendTo(root, "agent-factory/packaging/adapters.md", `\n${HOST_TOOLS.map((t) => `| **${t.name}** | x |`).join("\n")}\n`);
+  return { parent, root };
+}
+
+/** One ticket the ticket grammar admits, with a traceability row so the trace warning stays out of the count. */
+function citeTicket(root: string, id: string, column: string, body = ""): void {
+  const status = column.toLowerCase().replace(/\s+/g, "-");
+  plant(root, `${TICKETS_REL}/${id}.md`, `---\ncolumn: ${column}\nstatus: ${status}\n---\n# ${id} citation fixture ticket\n${body}`);
+  appendTo(root, TRACEABILITY_REL, `| ${id} | t | | | | | | | | |\n`);
+}
+
+/** The text of a sealed note carrying `refs` (the trace-render.test.ts noteText form, with `supersedes` and `at`). */
+function citeNoteText(name: string, refs: readonly string[], o: { supersedes?: string; at?: string } = {}): string {
+  const fence =
+    `id: ${name}\n` +
+    "kind: artifact-ref\n" +
+    "by: ba-pm\n" +
+    `at: ${o.at ?? "2026-10-22T10:00:00Z"}\n` +
+    "verified_by: \n" +
+    "confidence: high\n" +
+    "refs:\n" +
+    refs.map((r) => `  - ${r}`).join("\n") +
+    "\n" +
+    `supersedes: ${o.supersedes ?? ""}\n`;
+  const rest = "---\n\n" + "a ticket note carrying citation refs.\n";
+  return "---\n" + fence + `${cio.NOTE_SEAL_KEY}: ${cio.noteSeal("---\n" + fence + rest)}\n` + rest;
+}
+
+/** Plant a sealed note under `<root>/<contextRel>/<task>/notes/<name>.md`. */
+function citeNote(
+  root: string,
+  task: string,
+  name: string,
+  refs: readonly string[],
+  o: { supersedes?: string; at?: string; contextRel?: string } = {},
+): void {
+  plant(root, `${o.contextRel ?? CONTEXT_REL}/${task}/notes/${name}.md`, citeNoteText(name, refs, o));
+}
+
+/** The state root's own config, declaring `sources` (or no `upstream` key when null). */
+function declareUpstream(root: string, sources: readonly Record<string, unknown>[] | null): void {
+  const config = sources === null ? { checkpoints: {} } : { upstream: { sources } };
+  plant(root, ".grugops/factory.config.json", `${JSON.stringify(config, null, 2)}\n`);
+}
+
+/** A declared source whose checkout is never read in the statement cases (the commit and blob are invented). */
+function inventedSource(): Record<string, unknown> {
+  return {
+    id: "design",
+    path: "../design",
+    commit: "c".repeat(40),
+    entry: "export/manifest.md",
+    entry_blob: "b".repeat(40),
+    owns: { areas: ["product", "ux"], prefixes: ["DEC", "Q"] },
+  };
+}
+
+/** Run the validator over one tree with `env` added to the environment. */
+function runCitation(root: string, flag?: string, env: NodeJS.ProcessEnv = {}): SpawnSyncReturns<string> {
+  const args = flag ? [VALIDATOR_JS, flag] : [VALIDATOR_JS];
+  return spawnSync("node", args, {
+    encoding: "utf8",
+    env: { ...process.env, ...env, VALIDATE_KIT_ROOT: root, VALIDATE_ROOT: root },
+  });
+}
+
+/** The output lines carrying `tag` (ERROR or WARNING), untagged. */
+function citationLines(r: SpawnSyncReturns<string>, tag: "ERROR" | "WARNING"): string[] {
+  return out(r)
+    .split("\n")
+    .filter((l) => new RegExp(`^\\s*${tag}\\s`).test(l))
+    .map((l) => l.replace(new RegExp(`^\\s*${tag}\\s+`), ""));
+}
+
+const NO_ERRORS_LINE = (n: number): string => `NO ERRORS, ${n} UNKNOWN - verify: an unread source is not a pass\n`;
+
+describe("upstream statement (plan 45-08, TRC-01)", () => {
+  it("no upstream key: tickets, notes and a stray entry change nothing, and no git process runs", () => {
+    const { parent, root } = citationProduct();
+    declareUpstream(root, null);
+    citeTicket(root, "ABC-001", "Backlog");
+    citeTicket(root, "ABC-002", "In Development", "\n## Upstream\nnone (build-internal)\nextra\n");
+    citeNote(root, "task-a", "n1", ["ABC-001", "upstream:design:DEC-9@" + "c".repeat(40)]);
+    plant(root, `${CONTEXT_REL}/stray.txt`, "not a task\n");
+    const env: NodeJS.ProcessEnv = {};
+    const log = join(parent, "git-calls.log");
+    if (process.platform !== "win32") env.PATH = `${recordingGitDir(log)}:${process.env.PATH ?? ""}`;
+    const withNotes = runCitation(root, undefined, env);
+    expect(withNotes.stdout, out(withNotes)).toBe("ALL CHECKS PASSED\n");
+    expect(withNotes.status).toBe(0);
+    if (process.platform !== "win32") expect(readFileSync(log, "utf8"), "git calls").toBe("");
+    rmSync(join(root, CONTEXT_REL), { recursive: true, force: true });
+    const withoutNotes = runCitation(root, undefined, env);
+    expect(withNotes.stdout).toBe(withoutNotes.stdout);
+    expect(withNotes.stderr).toBe(withoutNotes.stderr);
+  });
+
+  it("declared: a Backlog ticket with no ref and no section is one WARNING naming it and Workflow 03 step 8", () => {
+    const { root } = citationProduct();
+    declareUpstream(root, [inventedSource()]);
+    citeTicket(root, "ABC-001", "Backlog");
+    const r = runCitation(root);
+    const warnings = citationLines(r, "WARNING");
+    expect(warnings, out(r)).toHaveLength(1);
+    expect(warnings[0]).toContain("ABC-001");
+    expect(warnings[0]).toContain("Workflow 03 step 8");
+    expect(citationLines(r, "ERROR"), out(r)).toEqual([]);
+    expect(r.status).toBe(0);
+    expect(runCitation(root, "--strict").status).toBe(1);
+  });
+
+  it("declared: the same ticket stating `none (build-internal)` under `## Upstream` has no finding", () => {
+    const { root } = citationProduct();
+    declareUpstream(root, [inventedSource()]);
+    citeTicket(root, "ABC-001", "Backlog", "\n## Upstream\nnone (build-internal)\n");
+    const r = runCitation(root);
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    expect(r.status).toBe(0);
+  });
+
+  it("declared: an upstream ref on a current note together with the statement is one ERROR", () => {
+    const { root } = citationProduct();
+    declareUpstream(root, [inventedSource()]);
+    citeTicket(root, "ABC-001", "Backlog", "\n## Upstream\nnone (build-internal)\n");
+    citeNote(root, "task-a", "n1", ["ABC-001", "upstream:design:DEC-1@" + "c".repeat(40)]);
+    const r = runCitation(root);
+    const errors = citationLines(r, "ERROR");
+    expect(errors, out(r)).toHaveLength(1);
+    expect(errors[0]).toContain("ABC-001");
+    expect(errors[0]).toContain("keep one of the two");
+    expect(r.status).toBe(1);
+  });
+
+  for (const [why, body, rule] of [
+    ["two `## Upstream` headings", "\n## Upstream\nnone (build-internal)\n\n## Upstream\nnone (build-internal)\n", "appears more than once"],
+    ["`none` with extra text", "\n## Upstream\nnone (build-internal)\nand more\n", "holds other text"],
+  ] as const) {
+    it(`declared: ${why} is one ERROR naming the rule`, () => {
+      const { root } = citationProduct();
+      declareUpstream(root, [inventedSource()]);
+      citeTicket(root, "ABC-001", "Backlog", body);
+      const r = runCitation(root);
+      const errors = citationLines(r, "ERROR");
+      expect(errors, out(r)).toHaveLength(1);
+      expect(errors[0]).toContain("ABC-001");
+      expect(errors[0]).toContain(rule);
+    });
+  }
+
+  it("declared: a `## Upstream` line inside a fenced block counts as absent", () => {
+    const { root } = citationProduct();
+    declareUpstream(root, [inventedSource()]);
+    citeTicket(root, "ABC-001", "Backlog", "\n```\n## Upstream\nnone (build-internal)\n```\n");
+    const r = runCitation(root);
+    const warnings = citationLines(r, "WARNING");
+    expect(warnings, out(r)).toHaveLength(1);
+    expect(warnings[0]).toContain("ABC-001");
+    expect(warnings[0]).toContain("Workflow 03 step 8");
+  });
+
+  it("declared: a Done ticket with neither a ref nor the statement has no finding", () => {
+    const { root } = citationProduct();
+    declareUpstream(root, [inventedSource()]);
+    citeTicket(root, "ABC-001", "Done");
+    const r = runCitation(root);
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    expect(r.status).toBe(0);
+  });
+
+  it("declared: a regular file in the context root is one UNKNOWN line naming it, and suppresses the missing-statement warning", () => {
+    const { root } = citationProduct();
+    declareUpstream(root, [inventedSource()]);
+    citeTicket(root, "ABC-001", "Backlog");
+    plant(root, `${CONTEXT_REL}/stray.txt`, "not a task\n");
+    const r = runCitation(root);
+    const warnings = citationLines(r, "WARNING");
+    expect(warnings, out(r)).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^UNKNOWN - verify notes: the notes of task stray\.txt could not be read \(.+\)$/);
+    expect(citationLines(r, "ERROR"), out(r)).toEqual([]);
+    expect(r.stdout).toBe(NO_ERRORS_LINE(1));
+    expect(r.status).toBe(0);
+    const strict = runCitation(root, "--strict");
+    expect(strict.stdout, out(strict)).toBe(NO_ERRORS_LINE(1));
+    expect(strict.status).toBe(0);
   });
 });
