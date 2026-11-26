@@ -91,6 +91,10 @@ import {
 } from "./upstream-model.js";
 // (Plan 45-08, TRC-01) WHICH REF IS AN UPSTREAM CITATION is the trace grammar's prefix, imported, never retyped.
 import { UPSTREAM_REF_PREFIX } from "./trace-model.js";
+// (Plan 45-08, TRC-03, 45 D-02) THE ONE GIT READ. The manifest of a source at a commit is read only through
+// scripts/upstream-git.ts, the one launcher (scrubbed environment, no replace refs, no lazy fetch, the partial-clone
+// guard, the re-hash). This file writes no git argument and starts no process of its own.
+import { upstreamGitManifestAt } from "./upstream-git.js";
 // THE BOARD GRAMMAR IS READ, NEVER RESTATED (DASH-01 / D-06). scripts/board-model.ts is the only
 // sanctioned reader of the board file (BOARD_REL), and agent-factory/contracts/board.md is the
 // normative schema it cites. This file used to carry its own two-line column parser, which made the
@@ -1123,7 +1127,10 @@ function checkCitations(): void {
         .flatMap((n) => n.refs.filter((r) => r.startsWith(UPSTREAM_REF_PREFIX))),
       statement: upstreamStatementOf(t.text),
     })),
-    manifestAt: (): UpstreamManifestAt => ({ kind: "unknown", reason: "not read in this check" }),
+    // Read once per (source, commit): upstreamCitationFindings caches each answer. `root` is the canonical repository
+    // root the source paths resolve against, as the config arm checked them.
+    manifestAt: (source, commit): UpstreamManifestAt =>
+      upstreamGitManifestAt(declared.root, source, declared.sources.indexOf(source), commit),
     notesComplete,
   });
   for (const f of findings) {
