@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-05-PLAN.md
-last_updated: "2026-11-26T11:52:13.050Z"
+stopped_at: Completed 45-06-PLAN.md
+last_updated: "2026-11-26T12:11:56.293Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: a9cb55a0dceb78afb34134a44f8884b9ca5e23ce
+state_head: 9d93740db6fb1c98191fca6b9cd444296b84c095
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 19
+  completed_plans: 20
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 6 of 11
+Plan: 7 of 11
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -922,6 +922,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P03 | 22min | 3 tasks | 25 files |
 | Phase 45 P04 | 20 min | 2 tasks | 30 files |
 | Phase 45 P05 | 15min | 2 tasks | 23 files |
+| Phase 45 P06 | 17 min | 3 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -2589,6 +2590,10 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-04: build-request budget is per file, 8 KiB (BUDGETS.buildRequestBytes), research assumption A5; confirm at 45-10 UAT
 - [Phase 45]: 45-04: validator and state-check parse every build-request record with the one grammar; misnamed records refused unopened, non-regular records stay the budget's finding
 - [Phase 45]: 45-05: install --migrate on an installed v3 repository does not seed the build-request folder (its already-migrated arm exits before the install run); the next plain install adds it, and an absent folder is no finding. Open for the 45-10 UAT: whether --migrate should seed
+- [Phase 45]: 45-06: only refs starting with upstream: are citations; other note refs are ignored by upstreamCitationFindings
+- [Phase 45]: 45-06: a malformed ## Upstream statement is an error on every ticket; a missing statement is a warning only for a ticket not Done while every note was read
+- [Phase 45]: 45-06: UNKNOWN citation lines name no ticket, are counted per (source, commit, reason) and follow the ticket findings
+- [Phase 45]: 45-06: a commit outside UPSTREAM_OBJECT_ID_RE or of another length than the pin is refused before git runs and is never quoted
 
 ### Pending Todos
 
@@ -2996,8 +3001,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T11:52:12.789Z
-Stopped at: Completed 45-05-PLAN.md
+Last session: 2026-11-26T12:11:56.018Z
+Stopped at: Completed 45-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
