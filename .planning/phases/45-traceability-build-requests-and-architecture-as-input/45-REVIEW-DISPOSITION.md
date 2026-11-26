@@ -13,7 +13,7 @@ findings:
     title: "Build-request numbering has no guard against two parallel BA/PM subtasks taking the same number"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The unblock rule ignores a ticket's other blockers"
   - id: WR-04
     severity: warning
@@ -59,7 +59,7 @@ findings:
     severity: info
     disposition: open
     title: "The ADR status vocabulary mixes cases"
-open: 13
+open: 12
 total: 14
 recorded: 2026-11-26T13:43:50.671Z
 ---
@@ -70,7 +70,7 @@ recorded: 2026-11-26T13:43:50.671Z
 |---------|----------|-------------|--------|
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
+| WR-03 | warning | fixed | commit 9ba0b91e (Workflow 20 step 12 and Board moves: a ticket leaves Blocked only when no other bullet remains) |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | IN-01 | info | open | - |
