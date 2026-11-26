@@ -59,13 +59,46 @@ Filled by the planner per task; requirement-level map from research:
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
+### Planned per-task map (from the 45-NN-PLAN.md verify blocks)
+
+| Task | Wave | Requirement | Test type | Automated command | File exists | Status |
+|------|------|-------------|-----------|-------------------|-------------|--------|
+| 45-01 T1 (tracer) | 1 | BR-01, BR-04 | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t requests` | ✅ file, new describe | ⬜ pending |
+| 45-01 T2 | 1 | TRC-03 (D-02) | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts` | ✅ | ⬜ pending |
+| 45-01 T3 | 1 | pins | unit + guards | `npx vitest run scripts/runnable-ref/runnable-exit-contract.test.ts scripts/generate-runnable-embeds.test.ts scripts/runnable-ref/state-check.test.ts scripts/check-foundation-guards.test.ts` and `node scripts/check-foundation-guards.js` | ✅ | ⬜ pending |
+| 45-02 T1 | 1 | ARCH-01, ARCH-02 | text gates | `npm run check:imperative-lexicon && … && npm run check:diff-disposition` and `npx vitest run scripts/checkpoints.test.ts scripts/floor-invariance.test.ts` | ✅ | ⬜ pending |
+| 45-02 T2 | 1 | ARCH-01, ARCH-02 | text | `npx vitest run scripts/flow-guidance-text.test.ts -t "architecture as input"` and `node scripts/check-foundation-guards.js` | ✅ file, new describe | ⬜ pending |
+| 45-03 T1 | 2 | BR-01, BR-03, BR-05 | checkpoint:decision | human answer recorded in 45-03-SUMMARY | — | ⬜ pending |
+| 45-03 T2 | 2 | BR-01, BR-03, BR-05 | unit (TDD) | `npx vitest run scripts/build-request-model.test.ts` | ❌ W0 (created by this task) | ⬜ pending |
+| 45-03 T3 | 2 | BR-06 | unit (TDD) | `npx vitest run scripts/build-request-model.test.ts` and `npm run freshness:runnable-embeds` | ❌ W0 | ⬜ pending |
+| 45-04 T1 | 3 | BR-07 | unit + integration | `npx vitest run scripts/runnable-ref/state-check.test.ts scripts/validate.test.ts -t budget` | ✅ | ⬜ pending |
+| 45-04 T2 | 3 | BR-01, BR-03 | unit + integration | `npx vitest run scripts/validate.test.ts scripts/runnable-ref/state-check.test.ts -t build-request` | ✅ | ⬜ pending |
+| 45-05 T1 | 3 | BR-07 | integration | `npx vitest run install/install.test.ts install/migrate-v3-states.test.ts` | ✅ | ⬜ pending |
+| 45-05 T2 | 3 | BR-02 | integration | `npx vitest run install/installer-cross-version.test.ts -t "build requests across versions"` | ✅ file; ❌ W0 fixture `install/fixtures/v3.0-blocked-board/` (created by this task) | ⬜ pending |
+| 45-06 T1 | 4 | BR-06 | unit | `npx vitest run scripts/upstream-model.test.ts -t escalation` | ✅ | ⬜ pending |
+| 45-06 T2 | 4 | TRC-01, TRC-03 | unit | `npx vitest run scripts/upstream-model.test.ts -t citation` | ✅ | ⬜ pending |
+| 45-06 T3 | 4 | TRC-03, BR-05 | integration | `npx vitest run scripts/upstream-git.test.ts` | ❌ (created by this task) | ⬜ pending |
+| 45-07 T1 | 5 | BR-03, BR-04, BR-06 | unit + integration | `npx vitest run scripts/build-request-model.test.ts` and `npx vitest run scripts/runnable-ref/upstream.test.ts -t requests` | ✅ | ⬜ pending |
+| 45-07 T2 | 5 | BR-05 | integration | `npx vitest run scripts/runnable-ref/upstream.test.ts -t requests` | ✅ | ⬜ pending |
+| 45-08 T1 | 5 | TRC-01 | unit + fixture | `npx vitest run scripts/validate.test.ts -t "upstream statement"` | ✅ | ⬜ pending |
+| 45-08 T2 | 5 | TRC-03 | integration | `npx vitest run scripts/validate.test.ts -t citation` | ✅ | ⬜ pending |
+| 45-09 T1 | 6 | BR-01, BR-03, BR-04, BR-07 | text gates | `npx vitest run scripts/check-imperative-lexicon.test.ts scripts/trace-instructions.test.ts scripts/generate-catalog.test.ts` | ✅ | ⬜ pending |
+| 45-09 T2 | 6 | TRC-01, TRC-03, BR-02 | text gates | `npm run check:claim-anchors && npm run check:public-docs` | ✅ | ⬜ pending |
+| 45-10 T1 | 7 | BR-03, BR-05, BR-06, ARCH-02 | text | `npx vitest run scripts/flow-guidance-text.test.ts -t "build requests in Workflow 20"` | ✅ file, new describe | ⬜ pending |
+| 45-10 T2 | 7 | BR-06 | text | `npx vitest run scripts/config-governance-consistency.test.ts scripts/tier-kit-text.test.ts` | ✅ | ⬜ pending |
+| 45-11 T1 | 8 | TRC-01, BR-06 | text gates | `npx vitest run scripts/tier-kit-text.test.ts scripts/checkpoints.test.ts` | ✅ | ⬜ pending |
+| 45-11 T2 | 8 | BR-02, BR-04 | text + full gate sweep | `npx vitest run scripts/flow-guidance-text.test.ts` and the guard and freshness chains | ✅ | ⬜ pending |
+
+Sampling continuity: every task above has an automated command except the 45-03 decision checkpoint, which is followed directly by two TDD tasks; no three consecutive tasks lack an automated verify.
+
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `scripts/build-request-model.test.ts` — BR-01, BR-03, BR-05
-- [ ] a small committed v3.0-shaped state fixture under `install/fixtures/` — BR-02 (`pre-v3-chess` is pre-v3, not v3.0, so it does not serve)
-- [ ] BR file builders in a test-support module (no framework install needed)
+- [ ] `scripts/build-request-model.test.ts` — BR-01, BR-03, BR-05 (plan 45-03 Task 2, RED first)
+- [ ] a small committed v3.0-shaped state fixture under `install/fixtures/` — BR-02 (`pre-v3-chess` is pre-v3, not v3.0, so it does not serve) (plan 45-05 Task 2: `install/fixtures/v3.0-blocked-board/`)
+- [ ] BR file builders in a test-support module (no framework install needed) (plan 45-03 Task 2: `scripts/build-request-fixture.test-support.ts`)
+- [ ] `scripts/upstream-git.test.ts` — TRC-03, BR-05 git facts (plan 45-06 Task 3, RED first)
 
 ---
 

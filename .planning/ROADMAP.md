@@ -227,7 +227,35 @@ Plans:
   4. The human sees a carry list of open build requests to take upstream, and grugops writes nothing into the upstream repository; a request is answered only when a human sets a new pin, and the answer enters the shared context as a `claim` citing the upstream ID and pin (BR-04, BR-05)
   5. When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`) and a deviation becomes a build request; a conflict with a grugops floor (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) becomes a build request plus a human stop, and the floor does not move (ARCH-01, ARCH-02)
 
-**Plans**: TBD
+**Plans**: 11 plans
+
+Plans:
+**Wave 1**
+- [ ] 45-01-PLAN.md — Tracer: an open build request reaches the carry list through `upstream.js requests`; the hardened git read moves to `scripts/upstream-git.ts` with no behavior change
+- [ ] 45-02-PLAN.md — Architecture as input: Workflow 00 step 1, `Accepted (upstream)` in both ADR templates, Workflow 20's floor rule stated once with its human stop, one pointer line in each of five roles (no split, D-18)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 45-03-PLAN.md — The complete build-request grammar and lifecycle (TDD), opened by a decision checkpoint on the History forms; the carry and escalation derivations
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 45-04-PLAN.md — `BUDGETS.buildRequestBytes` and the one parser in the validator and `state-check` (BR-07)
+- [ ] 45-05-PLAN.md — The seeded build-request folder on install, re-install and `--migrate`; the BR-02 cross-version test and the deliberate skew run
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 45-06-PLAN.md — `upstream.escalation_days`, the `## Upstream` statement reader, the citation and changed-ID decisions, and the manifest-at-commit, listed-blob and ancestry reads
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 45-07-PLAN.md — The complete `requests` verb: carry list, upstream waits, overlaps, answer proposal and `not-descendant`, read-only
+- [ ] 45-08-PLAN.md — The validator's TRC-01 statement check and TRC-03 citation check; `UNKNOWN - verify` never a pass or a failure
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 45-09-PLAN.md — The build-request contract, the upstream and board contract changes, the install guide line, gate registrations
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 45-10-PLAN.md — Workflow 20's build-request procedure, per-bullet escalation rule and human-only stop; `escalation_days` in the config reference
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 45-11-PLAN.md — Workflows 03, 09 and 17 call the procedure: citation or statement, the sweep's upstream-waits line, session-start `requests`
 **Notes**: S-01 settles the board status (a waiting ticket stays in `Blocked`; no new column), S-05 the architecture ownership, and S-07 the merge of architecture as input into this phase. If planning finds the architecture work larger than pointer lines, one Workflow 00 step and the ADR status, split it into its own phase by recorded decision. Every role edit is one pointer line (BA/PM, System Analyst, Architect, Designer, Greenfield Mapper); the procedure lives in the upstream-sources workflow. Research flag (narrow): the Blocked bullet against older installed `state-check.js` copies and the metrics "Blocked time", and the separate sweep threshold. A machine-checkable answer link stays deferred (BR-F1). Names settled in Phase 44 (S-06, 44-CONTEXT.md), to build here: the build-request statuses are `open`, `carried`, `answered` and `withdrawn`, where `carried` means a human took it upstream, and there is no `declined` (D-04); a role signals with an `observation` whose body opens with `Build-request:`, which Workflow 20 already uses for reader refusals (D-05); the threshold key is `upstream.escalation_days`, default `10`, added to the `upstream` closed key set in this phase together with its behavior (D-06); build-request files live at `memory-bank/plans/build-requests/BR-<n>.md` through a new `BUILD_REQUESTS_REL` constant in `install/state-layout.ts`, added in this phase together with its reader (D-07); `BR` is already reserved in the trace.
 
 ### Phase 46: One-command install and install --migrate docs
