@@ -1,5 +1,6 @@
 // upstream-model.ts — the one authority for upstream sources (phase 44, plan 44-01, UP-01, UP-03, UP-06, D-01, D-02,
-// D-09, D-10, D-11, D-12, D-13, D-16, D-17, D-18, D-19; plan 45-06, 44 D-06: `upstream.escalation_days`).
+// D-09, D-10, D-11, D-12, D-13, D-16, D-17, D-18, D-19; plan 45-06, 44 D-06: `upstream.escalation_days`; plan 45-06,
+// TRC-01, TRC-03, BR-05, 45 D-01..D-04, D-10: the `## Upstream` statement, the citation decision, the changed-ID rule).
 //
 // WHAT IT IS. The pure part of reading an upstream design source: the grammar of the `upstream` declaration in
 // .grugops/factory.config.json (D-01, D-02, D-18), the lexical rule for a source's `path` (D-19), the grammar of the
@@ -13,9 +14,10 @@
 // `upstream` config arm, so the validator and the runnable apply one grammar.
 //
 // NO I/O. This module reads no file, runs no process and writes nothing. The runnable asks git and passes the answers
-// in (pinState takes them as UpstreamPinAnswers), and every path decision here is lexical. Its imports are a `node:`
-// builtin or a named import of a declaration an earlier authority of the runnable's EMBED_SPECS row embeds
-// (normalizeDocument, isWithin, UPSTREAM_REF_PREFIX), so the generator can embed it.
+// in (pinState takes them as UpstreamPinAnswers; upstreamCitationFindings takes the manifest read as a parameter, plan
+// 45-06, D-02), and every path decision here is lexical. Its imports are a `node:` builtin or a named import of a
+// declaration an earlier authority of the runnable's EMBED_SPECS row embeds (normalizeDocument, isWithin,
+// UPSTREAM_REF_PREFIX, compareCodeUnits, unfencedHeadingIndices, sectionEndIndex), so the generator can embed it.
 //
 // ONE NAME SPACE. Every top-level name here starts with `upstream`, `Upstream` or `UPSTREAM_`, or is a name no other
 // authority of the runnable's row declares, so the generated region never meets two declarations of one name.
@@ -25,7 +27,8 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { normalizeDocument } from "./board-model.js";
 import { isWithin } from "./context-io.js";
-import { UPSTREAM_REF_PREFIX } from "./trace-model.js";
+import { sectionEndIndex, unfencedHeadingIndices } from "./frontmatter.js";
+import { UPSTREAM_REF_PREFIX, compareCodeUnits } from "./trace-model.js";
 // ── Constants ───────────────────────────────────────────────────────────────────────────────────────────
 /** The per-read ceiling, in bytes (D-16). A file above it is refused by name, never truncated. Not a config key. */
 export const UPSTREAM_READ_MAX_BYTES = 65536;
@@ -495,4 +498,186 @@ export function formatCheckLine(sourceId, commit, finding) {
     if (finding.kind === "drift")
         return `drift ${sourceId}: ${finding.cause} (${finding.detail})`;
     return `UNKNOWN - verify ${sourceId}: ${finding.reason}`;
+}
+// ── The `## Upstream` statement (plan 45-06, TRC-01, 45 D-01) ───────────────────────────────────────────
+/** The ticket body heading that holds the build-internal statement (45 D-01). */
+export const UPSTREAM_STATEMENT_HEADING = "## Upstream";
+/** The one line a ticket that implements no upstream ID writes under UPSTREAM_STATEMENT_HEADING (45 D-01). */
+export const UPSTREAM_NONE_STATEMENT = "none (build-internal)";
+/**
+ * The `## Upstream` statement of a ticket's text. The text is normalized first. The heading is located only through
+ * the one section owner (unfencedHeadingIndices, so a heading inside a fenced block is not a heading) and its extent
+ * only through sectionEndIndex. Absent: no such heading. None: one heading whose section holds exactly one non-blank
+ * line, equal to UPSTREAM_NONE_STATEMENT. Anything else is malformed, and the reason names the rule, never the text.
+ */
+export function upstreamStatementOf(ticketText) {
+    const text = normalizeDocument(ticketText);
+    const at = unfencedHeadingIndices(text, UPSTREAM_STATEMENT_HEADING);
+    if (at.length === 0)
+        return { kind: "absent" };
+    const rule = `it holds exactly one line, \`${UPSTREAM_NONE_STATEMENT}\``;
+    if (at.length > 1) {
+        return { kind: "malformed", reason: `\`${UPSTREAM_STATEMENT_HEADING}\` appears more than once; it appears once and ${rule}` };
+    }
+    const heading = at[0];
+    const end = sectionEndIndex(text, heading + 1, 2);
+    const lines = text.split("\n").slice(heading + 1, end).filter((l) => l.trim() !== "");
+    if (lines.length === 0) {
+        return { kind: "malformed", reason: `\`${UPSTREAM_STATEMENT_HEADING}\` is empty; ${rule}` };
+    }
+    if (lines.length > 1 || lines[0].trim() !== UPSTREAM_NONE_STATEMENT) {
+        return { kind: "malformed", reason: `\`${UPSTREAM_STATEMENT_HEADING}\` holds other text; ${rule}` };
+    }
+    return { kind: "none" };
+}
+/** A parsed manifest as an UpstreamManifestAt: a malformed one is unknown, worded as pinState words it. */
+export function upstreamManifestAtOf(parsed) {
+    if (parsed.kind === "ok")
+        return { kind: "ok", rows: parsed.rows };
+    return { kind: "unknown", reason: `manifest: ${parsed.reason}, line ${parsed.line}` };
+}
+/**
+ * The citation findings (research Pattern 3). Per ticket: a malformed statement is an error; refs together with the
+ * none statement are an error; neither, on a ticket not Done while every note was read, is a warning (Pitfall 4).
+ * Per distinct `upstream:` ref of a ticket:
+ * - a ref outside the grammar is an error that quotes nothing of it;
+ * - an undeclared source is an error for a ticket not Done and an UNKNOWN line for a Done one (the source may be retired);
+ * - a commit of another length than the declared pin is an error (the wrong object format);
+ * - the manifest at the ref's own commit decides whether the ID is listed (unlisted: error); an unreadable one is an
+ *   UNKNOWN line. A ref at the current pin uses the current read, so `entry_blob` applies only there (Pitfall 3);
+ * - a listed ID on a Done ticket gives nothing (45 D-04). On a ticket not Done, an ID superseded at the current pin
+ *   is a warning naming its chain to the locked end, and an ID gone at the current pin is a warning.
+ * The manifest is read once per distinct (source, commit). UNKNOWN lines are counted per (source, commit, reason).
+ * Ticket findings come first, sorted by ticket then text; UNKNOWN lines follow, sorted by source, commit and reason.
+ */
+export function upstreamCitationFindings(input) {
+    const bySource = new Map();
+    for (const source of input.sources)
+        bySource.set(source.id, source);
+    const cache = new Map();
+    const read = (source, commit) => {
+        const key = `${source.id}\u0000${commit}`;
+        let answer = cache.get(key);
+        if (answer === undefined) {
+            answer = input.manifestAt(source, commit);
+            cache.set(key, answer);
+        }
+        return answer;
+    };
+    const unknown = new Map();
+    const addUnknown = (source, commit, reason) => {
+        const key = `${source}\u0000${commit}\u0000${reason}`;
+        const prior = unknown.get(key);
+        if (prior === undefined)
+            unknown.set(key, { source, commit, reason, count: 1 });
+        else
+            prior.count += 1;
+    };
+    const findings = [];
+    for (const t of input.tickets) {
+        const push = (severity, text) => {
+            findings.push({ severity, ticket: t.id, text });
+        };
+        const cited = [...new Set(t.refs.filter((r) => r.startsWith(UPSTREAM_REF_PREFIX)))];
+        if (t.statement.kind === "malformed")
+            push("error", `${t.id}: the ticket's upstream statement is malformed: ${t.statement.reason}`);
+        if (t.statement.kind === "none" && cited.length > 0) {
+            push("error", `${t.id} cites ${cited.length} upstream ID(s) and also states \`${UPSTREAM_NONE_STATEMENT}\`; keep one of the two`);
+        }
+        if (cited.length === 0 && t.statement.kind === "absent" && !t.done && input.notesComplete) {
+            push("warning", `${t.id} cites no upstream ID and has no \`${UPSTREAM_STATEMENT_HEADING}\` section; cite the upstream IDs it ` +
+                `implements, or write the one line \`${UPSTREAM_NONE_STATEMENT}\` under that heading`);
+        }
+        for (const ref of cited) {
+            const parsed = parseUpstreamRef(ref);
+            if (parsed === null) {
+                push("error", `${t.id} has a malformed upstream ref; a ref reads upstream:<source>:<ID>@<full commit id>`);
+                continue;
+            }
+            const { id, commit } = parsed;
+            const source = bySource.get(parsed.source);
+            const cites = `${t.id} cites ${parsed.source}:${id}@${commit}`;
+            if (source === undefined) {
+                if (t.done)
+                    addUnknown(parsed.source, commit, "the source is not declared in upstream.sources");
+                else
+                    push("error", `${cites}, but upstream.sources declares no source ${parsed.source}`);
+                continue;
+            }
+            if (commit.length !== source.commit.length) {
+                push("error", `${cites}, a ${commit.length}-hex commit, but source ${source.id} is pinned with ${source.commit.length}-hex ` +
+                    "object ids; a ref uses its source's object format");
+                continue;
+            }
+            const own = read(source, commit);
+            if (own.kind === "unknown") {
+                addUnknown(source.id, commit, own.reason);
+                continue;
+            }
+            if (!own.rows.some((r) => r.id === id)) {
+                push("error", `${cites}, but the manifest of ${source.id} does not list ${id} at ${commit}`);
+                continue;
+            }
+            if (t.done)
+                continue;
+            const current = read(source, source.commit);
+            if (current.kind === "unknown") {
+                addUnknown(source.id, source.commit, current.reason);
+                continue;
+            }
+            const now = current.rows.find((r) => r.id === id);
+            if (now === undefined) {
+                push("warning", `${cites}, which ${source.id} no longer lists at the pin ${source.commit}`);
+            }
+            else if (now.supersededBy !== null) {
+                push("warning", `${cites}, which ${source.id} supersedes at the pin ${source.commit}: ${upstreamChain(current.rows, id).join(" → ")}`);
+            }
+        }
+    }
+    findings.sort((a, b) => compareCodeUnits(a.ticket ?? "", b.ticket ?? "") || compareCodeUnits(a.text, b.text));
+    const unknownLines = [...unknown.values()].sort((a, b) => compareCodeUnits(a.source, b.source) || compareCodeUnits(a.commit, b.commit) || compareCodeUnits(a.reason, b.reason));
+    for (const u of unknownLines) {
+        findings.push({
+            severity: "unknown",
+            ticket: null,
+            text: `UNKNOWN - verify ${u.source}@${u.commit}: ${u.reason} ` +
+                `(${u.count} upstream ${u.count === 1 ? "ref" : "refs"} not checked)`,
+        });
+    }
+    return findings;
+}
+/** The supersession chain from `id` to its locked end. parseManifest refuses a cycle; the visited set is a backstop. */
+function upstreamChain(rows, id) {
+    const byId = new Map();
+    for (const row of rows)
+        byId.set(row.id, row);
+    const chain = [id];
+    let at = byId.get(id);
+    while (at !== undefined && at.supersededBy !== null && !chain.includes(at.supersededBy)) {
+        chain.push(at.supersededBy);
+        at = byId.get(at.supersededBy);
+    }
+    return chain;
+}
+/** The facts of `rows`, with each listed path's blob looked up in `blobsByPath` (path to blob id, from ls-tree). */
+export function upstreamIdFacts(rows, blobsByPath) {
+    const facts = new Map();
+    for (const row of rows) {
+        facts.set(row.id, { status: row.status, successor: row.supersededBy, blob: blobsByPath.get(row.path) ?? null });
+    }
+    return facts;
+}
+/**
+ * The IDs of `ids` that changed between two commits (45 D-10), in the order of `ids`: an ID whose status, successor
+ * or listed file's blob differs, or that is listed at only one of the two. The path is not compared, so a moved file
+ * with an equal blob is not a change. An ID listed at neither is not a change.
+ */
+export function upstreamChangedIds(ids, before, after) {
+    return ids.filter((id) => {
+        const a = before.get(id);
+        const b = after.get(id);
+        if (a === undefined || b === undefined)
+            return a !== b;
+        return a.status !== b.status || a.successor !== b.successor || a.blob !== b.blob;
+    });
 }
