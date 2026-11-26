@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-02-PLAN.md
-last_updated: "2026-11-26T10:13:42.437Z"
+stopped_at: Completed 45-03-PLAN.md
+last_updated: "2026-11-26T11:13:07.483Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: ff5b9a9e89707553eba6ba4fff227ef715ca434e
+state_head: 0530469f1d474bb6af9cf4df199196b1268cc778
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 16
+  completed_plans: 17
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 3 of 11
+Plan: 4 of 11
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -919,6 +919,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P14 | 10 min | 3 tasks | 7 files |
 | Phase 45 P01 | 49 min | 3 tasks | 30 files |
 | Phase 45 P02 | 15 min | 2 tasks | 18 files |
+| Phase 45 P03 | 22min | 3 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -2581,6 +2582,8 @@ Recent decisions affecting current work:
 - [Phase 45]: The Workflow 20 floor-conflict stop is untagged (no dial lowers a floor); WORKFLOW_STOP_BULLET_COUNT 55 -> 56
 - [Phase 45]: Only the Architect writes an Accepted (upstream) ADR; the Greenfield Mapper records only which source and pin gave each stack item
 - [Phase 45]: check-foundation-guards corpus-total fixture ROLE_GROWTH 0.05 -> 0.04 after the five Workflow 20 pointer lines
+- [Phase 45]: Build-request History forms (45-03 checkpoint, option-a, chosen by the human 2026-11-26): `- YYYY-MM-DD: open, by BA/PM` | `edited, by BA/PM: <what>` | `carried, by human:<name>` | `answered, by human:<name>, pin <commit>[, not-descendant]` | `withdrawn, by BA/PM: <reason>` (from open) or `withdrawn, by human:<name>: <reason>` (from carried); `<name>` per HUMAN_STAMP_RE; `- (recommended) ` marker; `none` in Upstream IDs; open to answered refused
+- [Phase 45]: 45-03: a second carried entry is a re-send and clears changed-since-carried; only BA/PM opens and edits; a carried request is withdrawn only by a human stamp
 
 ### Pending Todos
 
@@ -2988,8 +2991,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T10:13:42.152Z
-Stopped at: Completed 45-02-PLAN.md
+Last session: 2026-11-26T11:13:07.212Z
+Stopped at: Completed 45-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
