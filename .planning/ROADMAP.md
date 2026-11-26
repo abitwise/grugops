@@ -227,7 +227,7 @@ Plans:
   4. The human sees a carry list of open build requests to take upstream, and grugops writes nothing into the upstream repository; a request is answered only when a human sets a new pin, and the answer enters the shared context as a `claim` citing the upstream ID and pin (BR-04, BR-05)
   5. When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`) and a deviation becomes a build request; a conflict with a grugops floor (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) becomes a build request plus a human stop, and the floor does not move (ARCH-01, ARCH-02)
 
-**Plans**: 6/11 plans executed
+**Plans**: 7/11 plans executed
 
 Plans:
 **Wave 1**
@@ -245,7 +245,7 @@ Plans:
 - [x] 45-06-PLAN.md — `upstream.escalation_days`, the `## Upstream` statement reader, the citation and changed-ID decisions, and the manifest-at-commit, listed-blob and ancestry reads
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 45-07-PLAN.md — The complete `requests` verb: carry list, upstream waits, overlaps, answer proposal and `not-descendant`, read-only
+- [x] 45-07-PLAN.md — The complete `requests` verb: carry list, upstream waits, overlaps, answer proposal and `not-descendant`, read-only
 - [ ] 45-08-PLAN.md — The validator's TRC-01 statement check and TRC-03 citation check; `UNKNOWN - verify` never a pass or a failure
 
 **Wave 6** *(blocked on Wave 5 completion)*
@@ -309,7 +309,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 44. Upstream source declaration and pin check | v3.1 | 14/14 | Complete    | 2026-11-25 |
-| 45. Traceability, build requests and architecture as input | v3.1 | 6/11 | In Progress | - |
+| 45. Traceability, build requests and architecture as input | v3.1 | 7/11 | In Progress | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
 | 48. Feature docs and the 3.1.0 release | v3.1 | 0/TBD | Not started | - |

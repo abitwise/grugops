@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-06-PLAN.md
-last_updated: "2026-11-26T12:11:56.293Z"
+stopped_at: Completed 45-07-PLAN.md
+last_updated: "2026-11-26T12:32:17.086Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: 9d93740db6fb1c98191fca6b9cd444296b84c095
+state_head: 03c10421ba1ffa314d9c99e6733a2d736b9af293
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 20
+  completed_plans: 21
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 7 of 11
+Plan: 8 of 11
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -923,6 +923,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P04 | 20 min | 2 tasks | 30 files |
 | Phase 45 P05 | 15min | 2 tasks | 23 files |
 | Phase 45 P06 | 17 min | 3 tasks | 24 files |
+| Phase 45 P07 | 18 min | 2 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -2594,6 +2595,10 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-06: a malformed ## Upstream statement is an error on every ticket; a missing statement is a warning only for a ticket not Done while every note was read
 - [Phase 45]: 45-06: UNKNOWN citation lines name no ticket, are counted per (source, commit, reason) and follow the ticket findings
 - [Phase 45]: 45-06: a commit outside UPSTREAM_OBJECT_ID_RE or of another length than the pin is refused before git runs and is never quoted
+- [Phase 45]: 45-07: requests reads the config at the start of every run, as check does; an invalid declaration stops it with exit 2
+- [Phase 45]: 45-07: a request whose source is not declared (every request when no config exists) prints UNKNOWN - verify, so requests exits 2
+- [Phase 45]: 45-07: only a carried request whose raising pin differs from the declared pin asks git; git answers are cached per (source, commit) for the run
+- [Phase 45]: 45-07: frontmatter.ts sits before upstream-model.ts in the upstream.ts embed row
 
 ### Pending Todos
 
@@ -3001,8 +3006,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T12:11:56.018Z
-Stopped at: Completed 45-06-PLAN.md
+Last session: 2026-11-26T12:32:16.818Z
+Stopped at: Completed 45-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
