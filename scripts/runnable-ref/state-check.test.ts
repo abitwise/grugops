@@ -700,6 +700,183 @@ describe("state-check.js — the build-request byte budget (plan 45-04, BR-07, T
   });
 });
 
+// ── Every build-request file passes through the one grammar on the host (plan 45-04, D-05, T-45-12, T-45-13) ──────
+//
+// state-check embeds scripts/build-request-model.ts and parses each record of the build-request folder with it. A
+// refusal is a `build-request-refused` finding naming the file and the code, under the marker's severity like every
+// other finding; no file text reaches the output. A record that is not a regular file is the budget pass's finding by
+// name and is never opened; a name that is not `BR-<n>.md` is refused by its name without being opened. state-check
+// reads no clock and runs no git for this.
+
+/**
+ * The text of one build-request file (plan 45-04, D-05), invented throughout (DEC-12, ABC-014, `human:jane.example`),
+ * in the forms of scripts/build-request-fixture.test-support.ts. Each option plants one defect; none gives an
+ * admitted `open` request.
+ */
+type BuildRequestTextOptions = {
+  readonly id?: string;
+  readonly status?: string;
+  readonly extraFrontmatter?: string;
+  readonly question?: string;
+  readonly withoutOptions?: boolean;
+  readonly history?: string;
+  readonly answer?: string;
+};
+function buildRequestDoc(o: BuildRequestTextOptions = {}): string {
+  const id = o.id ?? "BR-1";
+  return (
+    "---\n" +
+    `id: ${id}\nstatus: ${o.status ?? "open"}\nsource: design\npin: 0123456789abcdef0123456789abcdef01234567\nraised: 2026-12-01\n` +
+    (o.extraFrontmatter ?? "") +
+    "---\n" +
+    `# ${id}: Which store owns the session token\n\n` +
+    `## Question\n\n${o.question ?? "Which store owns the session token after sign-out?"}\n\n` +
+    "## Upstream IDs\n\n- DEC-12\n\n" +
+    (o.withoutOptions === true ? "" : "## Options\n\n- (recommended) The server store owns it.\n- The client store owns it.\n\n") +
+    "## Blocks\n\n- ABC-014\n\n" +
+    `## History\n\n${o.history ?? "- 2026-12-01: open, by BA/PM"}\n\n` +
+    `## Answer\n${o.answer ?? ""}`
+  );
+}
+
+/** The marker a refused file carries; no output of either program may quote it (T-45-13). */
+const PLANTED_MARKER = "PLANTED-INJECTION-MARKER-45-04";
+
+/** One refused build-request file per planned defect: its file name, its text and the code the one grammar gives. */
+const REFUSED_BUILD_REQUESTS: readonly { readonly what: string; readonly name: string; readonly text: string; readonly code: string }[] = [
+  { what: "an unknown frontmatter key", name: "BR-1.md", text: buildRequestDoc({ extraFrontmatter: `${PLANTED_MARKER}: x\n` }), code: "unknown-key" },
+  { what: "a missing section", name: "BR-1.md", text: buildRequestDoc({ withoutOptions: true }), code: "bad-section" },
+  {
+    what: "a History line outside the closed forms",
+    name: "BR-1.md",
+    text: buildRequestDoc({ history: `- 2026-12-01: opened by BA/PM ${PLANTED_MARKER}` }),
+    code: "bad-history-line",
+  },
+  {
+    what: "an `answered` entry by BA/PM",
+    name: "BR-1.md",
+    text: buildRequestDoc({
+      status: "answered",
+      history:
+        "- 2026-12-01: open, by BA/PM\n- 2026-12-03: carried, by human:jane.example\n" +
+        "- 2026-12-09: answered, by BA/PM, pin 89abcdef0123456789abcdef0123456789abcdef",
+      answer: "\nDEC-12 at the new pin says the server store owns it.\n",
+    }),
+    code: "bad-transition",
+  },
+  { what: "a file named notes.md", name: "notes.md", text: buildRequestDoc(), code: "bad-file-name" },
+  { what: "a file named BR-01.md", name: "BR-01.md", text: buildRequestDoc(), code: "bad-file-name" },
+  { what: "a frontmatter id that differs from the file name", name: "BR-1.md", text: buildRequestDoc({ id: "BR-2" }), code: "id-mismatch" },
+];
+
+/** The repository root of this checkout, for the v3.0.0 comparison below. */
+const REPO_ROOT = join(import.meta.dirname, "..", "..");
+
+describe("state-check.js — every build-request file passes through the one grammar (plan 45-04, D-05)", () => {
+  it("an admitted build request with the marker: `No findings.`, exit 0", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestDoc());
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(0);
+    expect(withoutCounts(r.stdout)).toBe("No findings.\n");
+  });
+
+  it.each(REFUSED_BUILD_REQUESTS)("$what is one build-request-refused finding ($code) naming the file", ({ name, text, code }) => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    const rel = `${BUILD_REQUESTS_REL}/${name}`;
+    plant(root, rel, text);
+    const r = run(root);
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+    const lines = r.stdout.split("\n").filter((l) => l.startsWith("FINDING  "));
+    expect(lines, r.stdout).toEqual([`FINDING  ${rel}: refused by the build-request grammar (${code}) (build-request-refused)`]);
+    expect(`${r.stdout}${r.stderr}`).not.toContain(PLANTED_MARKER);
+  });
+
+  it("without the marker the same refusal is a WARN line and the run exits 0", () => {
+    const root = cleanRepo();
+    plant(root, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestDoc({ id: "BR-2" }));
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).toContain(`WARN     ${BUILD_REQUESTS_REL}/BR-1.md: refused by the build-request grammar (id-mismatch) (build-request-refused)`);
+  });
+
+  it(`the refusal quotes no file text: a refused build-request file whose line is ${PLANTED_MARKER} never shows it, in text or JSON`, () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestDoc({ extraFrontmatter: `${PLANTED_MARKER}\n` }));
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(1);
+    expect(r.stdout).toContain(`FINDING  ${BUILD_REQUESTS_REL}/BR-1.md: refused by the build-request grammar (`);
+    expect(`${r.stdout}${r.stderr}`).not.toContain(PLANTED_MARKER);
+    const j = runJson(root);
+    expect(j.stdout).not.toContain(PLANTED_MARKER);
+    expect(j.report.findings.filter((f) => f.key === "build-request-refused").map((f) => f.rel)).toEqual([`${BUILD_REQUESTS_REL}/BR-1.md`]);
+  });
+
+  it("a FIFO named `pipe` is refused by its name in bounded time, never opened", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    mkdirSync(join(root, ...BUILD_REQUESTS_REL.split("/")), { recursive: true });
+    if (!fifoAtOrSkip(join(root, ...`${BUILD_REQUESTS_REL}/pipe`.split("/")), "a FIFO named pipe in the build-request folder")) return;
+    const r = spawnSync(process.execPath, [HOST_JS, root], { encoding: "utf8", timeout: 15_000 });
+    expect(r.error, "the check did not finish in bounded time: it opened the FIFO").toBeUndefined();
+    expect(r.status, r.stdout).toBe(1);
+    const lines = (r.stdout ?? "").split("\n").filter((l) => l.startsWith("FINDING  "));
+    expect(lines, r.stdout).toEqual([`FINDING  ${BUILD_REQUESTS_REL}/pipe: refused by the build-request grammar (bad-file-name) (build-request-refused)`]);
+  });
+
+  it("a symbolic link named BR-3.md is the budget's not-a-regular-file finding and is never parsed", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${STATE_ROOT_REL}/elsewhere/BR-3.md`, buildRequestDoc({ id: "BR-3" }));
+    mkdirSync(join(root, ...BUILD_REQUESTS_REL.split("/")), { recursive: true });
+    const skipped = stageSymlinkOrSkip(
+      join(root, ...STATE_ROOT_REL.split("/"), "elsewhere", "BR-3.md"),
+      join(root, ...BUILD_REQUESTS_REL.split("/"), "BR-3.md"),
+      "symlink to a regular file",
+      "scripts/runnable-ref/state-check.test.ts: a link in the build-request folder (plan 45-04)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the FIFO case beside this one (the same lstat rule)"));
+      return;
+    }
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(1);
+    const lines = r.stdout.split("\n").filter((l) => l.startsWith("FINDING  "));
+    expect(lines, r.stdout).toHaveLength(1);
+    expect(lines[0]).toContain(`${BUILD_REQUESTS_REL}/BR-3.md: not measured`);
+    expect(lines[0]).toContain("not a regular file");
+    expect(r.stdout).not.toContain("build-request-refused");
+  });
+
+  it("an oversized BR-1.md: this state-check reports the budget; the v3.0.0 state-check prints `No findings.` (the blind spot runnable-version-skew covers)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestOfBytes(BUDGETS.buildRequestBytes + 1));
+    const now = run(root);
+    expect(now.status, now.stdout).toBe(1);
+    expect(budgetLines(now.stdout)).toEqual([
+      `FINDING  ${BUILD_REQUESTS_REL}/BR-1.md: 8,193 bytes, budget 8,192 bytes (BUDGETS.buildRequestBytes)`,
+    ]);
+    const tag = spawnSync("git", ["rev-parse", "-q", "--verify", "refs/tags/v3.0.0"], { cwd: REPO_ROOT, encoding: "utf8" });
+    if (tag.status !== 0) {
+      console.warn(
+        "SKIPPED (plan 45-04): tag v3.0.0 is absent from this clone, so the v3.0.0 state-check was not run; " +
+          "only this state-check's half of the comparison ran",
+      );
+      return;
+    }
+    const old = spawnSync("git", ["show", "v3.0.0:scripts/runnable-ref/state-check.js"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    expect(old.status, old.stderr).toBe(0);
+    const scratch = mkTmp("grugops-state-check-v3.0.0-");
+    const oldJs = join(scratch, "state-check.js");
+    writeFileSync(oldJs, old.stdout);
+    const then = spawnSync(process.execPath, [oldJs, root], { encoding: "utf8", cwd: scratch });
+    expect(then.status, `${then.stdout}${then.stderr}`).toBe(0);
+    expect(withoutCounts(then.stdout)).toBe("No findings.\n");
+  });
+});
+
 describe("state-check.js — a FIFO at a state path never hangs the check (T-37-31)", () => {
   it("a FIFO at the board path exits 2 naming the board, in bounded time", () => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);

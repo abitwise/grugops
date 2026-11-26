@@ -73,7 +73,7 @@ import {
   TRACE_DIR_REL,
   TRACEABILITY_REL,
 } from "../install/state-layout.js";
-import { skipLine, stageShapeOrSkip } from "./check-platform-shapes.js";
+import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "./check-platform-shapes.js";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
 // tree, and a second implementation of it is the defect this phase exists to delete, not a
@@ -4014,6 +4014,146 @@ describe("validate-agent-factory.js — the build-request byte budget (plan 45-0
     expect(r.error, "the validator did not answer in bounded time: it opened the FIFO").toBeUndefined();
     const lines = budgetLines(r);
     expect(lines.filter((l) => l.includes(`${BUILD_REQUESTS_REL}/BR-2.md`) && l.includes("not a regular file")), out(r)).toHaveLength(1);
+  });
+});
+
+// ── Every build-request file passes through the one grammar (plan 45-04, D-05, T-45-12, T-45-13) ─────────────────
+//
+// The validator asks scripts/build-request-model.ts, the one authority, and never re-reads a build request itself. A
+// refusal is an ERROR whatever the layout marker says, like the ticket grammar's, and it names the file and the code;
+// the grammar's reasons quote no file text. A record that is not a regular file is the budget pass's finding by name
+// and is never opened; a name that is not `BR-<n>.md` is refused by its name without being opened.
+
+/**
+ * The text of one build-request file (plan 45-04, D-05), invented throughout (DEC-12, ABC-014, `human:jane.example`),
+ * in the forms of scripts/build-request-fixture.test-support.ts. Each option plants one defect; none gives an
+ * admitted `open` request.
+ */
+type BuildRequestTextOptions = {
+  readonly id?: string;
+  readonly status?: string;
+  readonly extraFrontmatter?: string;
+  readonly question?: string;
+  readonly withoutOptions?: boolean;
+  readonly history?: string;
+  readonly answer?: string;
+};
+function buildRequestDoc(o: BuildRequestTextOptions = {}): string {
+  const id = o.id ?? "BR-1";
+  return (
+    "---\n" +
+    `id: ${id}\nstatus: ${o.status ?? "open"}\nsource: design\npin: 0123456789abcdef0123456789abcdef01234567\nraised: 2026-12-01\n` +
+    (o.extraFrontmatter ?? "") +
+    "---\n" +
+    `# ${id}: Which store owns the session token\n\n` +
+    `## Question\n\n${o.question ?? "Which store owns the session token after sign-out?"}\n\n` +
+    "## Upstream IDs\n\n- DEC-12\n\n" +
+    (o.withoutOptions === true ? "" : "## Options\n\n- (recommended) The server store owns it.\n- The client store owns it.\n\n") +
+    "## Blocks\n\n- ABC-014\n\n" +
+    `## History\n\n${o.history ?? "- 2026-12-01: open, by BA/PM"}\n\n` +
+    `## Answer\n${o.answer ?? ""}`
+  );
+}
+
+/** The marker a refused file carries; no output of either program may quote it (T-45-13). */
+const PLANTED_MARKER = "PLANTED-INJECTION-MARKER-45-04";
+
+/** One refused build-request file per planned defect: its file name, its text and the code the one grammar gives. */
+const REFUSED_BUILD_REQUESTS: readonly { readonly what: string; readonly name: string; readonly text: string; readonly code: string }[] = [
+  { what: "an unknown frontmatter key", name: "BR-1.md", text: buildRequestDoc({ extraFrontmatter: `${PLANTED_MARKER}: x\n` }), code: "unknown-key" },
+  { what: "a missing section", name: "BR-1.md", text: buildRequestDoc({ withoutOptions: true }), code: "bad-section" },
+  {
+    what: "a History line outside the closed forms",
+    name: "BR-1.md",
+    text: buildRequestDoc({ history: `- 2026-12-01: opened by BA/PM ${PLANTED_MARKER}` }),
+    code: "bad-history-line",
+  },
+  {
+    what: "an `answered` entry by BA/PM",
+    name: "BR-1.md",
+    text: buildRequestDoc({
+      status: "answered",
+      history:
+        "- 2026-12-01: open, by BA/PM\n- 2026-12-03: carried, by human:jane.example\n" +
+        "- 2026-12-09: answered, by BA/PM, pin 89abcdef0123456789abcdef0123456789abcdef",
+      answer: "\nDEC-12 at the new pin says the server store owns it.\n",
+    }),
+    code: "bad-transition",
+  },
+  { what: "a file named notes.md", name: "notes.md", text: buildRequestDoc(), code: "bad-file-name" },
+  { what: "a file named BR-01.md", name: "BR-01.md", text: buildRequestDoc(), code: "bad-file-name" },
+  { what: "a frontmatter id that differs from the file name", name: "BR-1.md", text: buildRequestDoc({ id: "BR-2" }), code: "id-mismatch" },
+];
+
+describe("validate-agent-factory.js — every build-request file passes through the one grammar (plan 45-04, D-05)", () => {
+  it("an admitted build request gives no finding", () => {
+    const d = budgetTree();
+    plant(d, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestDoc());
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    expect(out(r)).not.toContain(BUILD_REQUESTS_REL);
+  });
+
+  it.each(REFUSED_BUILD_REQUESTS)("$what is one build-request grammar ERROR ($code) naming the file, with no marker", ({ name, text, code }) => {
+    const d = budgetTree();
+    const rel = `${BUILD_REQUESTS_REL}/${name}`;
+    plant(d, rel, text);
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(1);
+    const errs = tagged(r, "ERROR").filter((l) => l.includes(BUILD_REQUESTS_REL));
+    expect(errs, out(r)).toHaveLength(1);
+    expect(untagged(errs[0] as string).startsWith(`${rel}: refused by the build-request grammar (${code}): `), out(r)).toBe(true);
+    expect(out(r)).not.toContain(PLANTED_MARKER);
+  });
+
+  it(`the refusal quotes no file text: a refused build-request file whose line is ${PLANTED_MARKER} never shows it`, () => {
+    const d = budgetTree();
+    plant(d, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestDoc({ extraFrontmatter: `${PLANTED_MARKER}\n` }));
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(1);
+    expect(tagged(r, "ERROR").filter((l) => l.includes(`${BUILD_REQUESTS_REL}/BR-1.md: refused by the build-request grammar (`)), out(r)).toHaveLength(1);
+    expect(out(r)).not.toContain(PLANTED_MARKER);
+  });
+
+  it("a FIFO named `pipe` in the build-request folder is refused by its name in bounded time, never opened", () => {
+    const d = budgetTree();
+    mkdirSync(join(d, BUILD_REQUESTS_REL), { recursive: true });
+    const skipped = stageShapeOrSkip("FIFO", join(d, BUILD_REQUESTS_REL, "pipe"), "scripts/validate.test.ts: a FIFO in the build-request folder (plan 45-04)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the build-request FIFO case of the byte budget (the same lstat rule)"));
+      return;
+    }
+    const r = spawnSync("node", [VALIDATOR_JS], {
+      encoding: "utf8",
+      timeout: 20_000,
+      env: { ...process.env, VALIDATE_KIT_ROOT: d, VALIDATE_ROOT: d },
+    });
+    expect(r.error, "the validator did not answer in bounded time: it opened the FIFO").toBeUndefined();
+    const errs = tagged(r, "ERROR").filter((l) => l.includes(BUILD_REQUESTS_REL));
+    expect(errs, out(r)).toHaveLength(1);
+    expect(untagged(errs[0] as string).startsWith(`${BUILD_REQUESTS_REL}/pipe: refused by the build-request grammar (bad-file-name): `)).toBe(true);
+  });
+
+  it("a symbolic link named BR-3.md is the budget pass's not-a-regular-file finding and is never parsed", () => {
+    const d = budgetTree();
+    plant(d, `${STATE_ROOT_REL}/elsewhere/BR-3.md`, buildRequestDoc({ id: "BR-3" }));
+    mkdirSync(join(d, BUILD_REQUESTS_REL), { recursive: true });
+    const skipped = stageSymlinkOrSkip(
+      join(d, STATE_ROOT_REL, "elsewhere", "BR-3.md"),
+      join(d, BUILD_REQUESTS_REL, "BR-3.md"),
+      "symlink to a regular file",
+      "scripts/validate.test.ts: a link in the build-request folder (plan 45-04)",
+    );
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the FIFO case beside this one (the same lstat rule)"));
+      return;
+    }
+    const r = runFixture(d);
+    expect(tagged(r, "ERROR"), out(r)).toEqual([]);
+    const lines = budgetLines(r);
+    expect(lines.filter((l) => l.includes(`${BUILD_REQUESTS_REL}/BR-3.md`) && l.includes("not a regular file")), out(r)).toHaveLength(1);
+    expect(out(r)).not.toContain("build-request grammar");
   });
 });
 
