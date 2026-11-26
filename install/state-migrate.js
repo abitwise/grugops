@@ -642,7 +642,7 @@ export function nfrLinkTarget(id) {
 }
 const SECTION_HEADING = /^##(?: |$)/;
 const DATED_HEADING = /^## [0-9]{4}-[0-9]{2}-[0-9]{2}(?: |$)/;
-function isCalendarDate(ymd) {
+export function isCalendarDate(ymd) {
     const year = Number(ymd.slice(0, 4));
     const month = Number(ymd.slice(5, 7));
     const day = Number(ymd.slice(8, 10));

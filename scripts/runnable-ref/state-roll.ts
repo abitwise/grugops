@@ -88,7 +88,7 @@ import * as nodePath from "node:path";
 import { randomUUID } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:b88172a9b2d9f4f6dfad2d85ee748f4a6ee6afd03dbf49bc4beacf40ef67f5a2";
+export const RUNNABLE_SET_STAMP = "sha256:ba70d85ad5253c12ae8a2761f61d6be0194e81bff92373cc7cacab597185a49b";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"] as const);
 export const RUNNABLE_SELF = "state-roll.js";
 // from install/state-layout.ts
@@ -151,7 +151,7 @@ export type StandingSection = { readonly heading: string; readonly line: number 
 export type ProgressEntries = { readonly dated: readonly DatedEntry[]; readonly standing: readonly StandingSection[] };
 const SECTION_HEADING = /^##(?: |$)/;
 const DATED_HEADING = /^## [0-9]{4}-[0-9]{2}-[0-9]{2}(?: |$)/;
-function isCalendarDate(ymd: string): boolean {
+export function isCalendarDate(ymd: string): boolean {
   const year = Number(ymd.slice(0, 4));
   const month = Number(ymd.slice(5, 7));
   const day = Number(ymd.slice(8, 10));

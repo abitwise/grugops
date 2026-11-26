@@ -100,6 +100,11 @@ export const LEGACY_FALLBACK_CLAUSE =
 export const MEMORY_BANK_REL = "memory-bank";
 /** The per-NFR record directory (one file per NFR, indexed by NFR_CATALOG_REL). */
 export const NFR_DIR_REL = `${STATE_ROOT_REL}/nfr`;
+/**
+ * The build-request folder (plan 45-01, 44 D-07, 45 D-05): one `BR-<n>.md` file per request, BA/PM its single writer
+ * (D-06). Read by the structure validator, state-check and `tools/grugops/upstream.js requests`.
+ */
+export const BUILD_REQUESTS_REL = `${STATE_ROOT_REL}/build-requests`;
 /** The per-ticket trace file directory (rendered by tools/grugops/trace-render.js, D-01). */
 export const TRACE_DIR_REL = `${STATE_ROOT_REL}/traceability`;
 /** The state archive directory; files under it are outside every budget. */

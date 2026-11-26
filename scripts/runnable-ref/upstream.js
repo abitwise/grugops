@@ -9,6 +9,8 @@
 //   - `read <source> (<ID> | --manifest) [--root <dir>]` prints one file of one declared source at its pin (plan 44-06,
 //     D-15): the file the manifest at the pin lists for <ID>, or the entry manifest itself. There is no path argument,
 //     so nothing the manifest does not list can be read.
+//   - `requests [--root <dir>]` reads the build-request folder memory-bank/plans/build-requests/ and prints the human's
+//     carry list (plan 45-01, BR-04, D-12): each `open` build request the human takes upstream.
 // It writes nothing: no verb writes a file, the config is opened read-only, and no pin is ever moved here. Only a
 // named human edits a pin, in a commit (UP-03).
 //
@@ -56,6 +58,20 @@
 // git message quoted in a reason has each path the failing call named after `--` replaced by `<listed path>` (plan
 // 44-12, T-44-38).
 //
+// THE REQUESTS CONTRACT (plan 45-01, BR-04, D-05, D-12). `requests` reads only the build-request folder, spawns no git
+// and writes nothing. It prints, in one stdout write at the end:
+//   `refused BR-<n>.md: <code>` for a file the build-request grammar refuses, in name order; a record whose name is not
+//            `BR-<n>.md` prints as `refused <entry not named BR-<n>.md>: bad-file-name`. Only the code is printed,
+//            never the reason, so no text from a build-request file reaches stdout.
+//   `carry <BR> <source>: open since <raised>` for each `open` request, in numeric ID order (BR-2 before BR-10).
+//   `no build requests` when the folder is absent or holds no record (a dot-named keeper such as .gitkeep is not one).
+//   `no build request needs a human (<n> on file)` when the folder holds parsed requests and no other line printed.
+//   exit 2 → any `refused` line printed; else exit 1 → any `carry` line printed; else exit 0. A run that cannot start
+//            (a bad argument, no .grugops directory, a folder that is a symbolic link or not a directory, or a folder
+//            that cannot be listed) exits 2 with nothing on stdout and one `Error: ` line on stderr, as `check` does.
+// Plan 45-07 adds the other line kinds; the grammar of the lines and the exit codes live in
+// scripts/build-request-model.ts and reach this file through the generated region.
+//
 // The manifest's listed-path sweep that `check` makes is not repeated here: `read` checks the mode of the one path it
 // prints, so a bad row elsewhere in the manifest is reported by `check` and does not hide a good one from `read`.
 //
@@ -75,8 +91,8 @@
 //
 // NOTHING HERE IS RETYPED. The declaration grammar, the path rule, the manifest grammar, the blob id, the pin decision,
 // the output lines, the root-chain owner and the reader sit in the generated region, copied verbatim from
-// install/state-layout.ts, scripts/state-rules.ts, scripts/trace-model.ts, scripts/board-model.ts, scripts/context-io.ts
-// and scripts/upstream-model.ts by scripts/generate-runnable-embeds.ts. scripts/runnable-embeds-freshness.ts fails CI
+// install/state-layout.ts, scripts/state-rules.ts, scripts/trace-model.ts, scripts/board-model.ts, scripts/context-io.ts,
+// scripts/upstream-model.ts and scripts/build-request-model.ts by scripts/generate-runnable-embeds.ts. scripts/runnable-embeds-freshness.ts fails CI
 // when the region differs from a fresh derivation. The part below holds only argv, the root checks, the git calls, the
 // exit codes and the output lines.
 //
@@ -88,12 +104,25 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:b88172a9b2d9f4f6dfad2d85ee748f4a6ee6afd03dbf49bc4beacf40ef67f5a2";
+export const RUNNABLE_SET_STAMP = "sha256:ba70d85ad5253c12ae8a2761f61d6be0194e81bff92373cc7cacab597185a49b";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
+export const STATE_ROOT_REL = "memory-bank/plans";
+export const BUILD_REQUESTS_REL = `${STATE_ROOT_REL}/build-requests`;
 export const GRUGOPS_DIR_REL = ".grugops";
 // from scripts/state-rules.ts
+export function recordEntryNames(names) {
+    return names.filter((n) => !n.startsWith(".")).sort(codeUnitOrder);
+}
+export function isCalendarDate(ymd) {
+    const year = Number(ymd.slice(0, 4));
+    const month = Number(ymd.slice(5, 7));
+    const day = Number(ymd.slice(8, 10));
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+    return day >= 1 && day <= days;
+}
 export function stripControlChars(text, multiLine) {
     let out = "";
     for (let i = 0; i < text.length; i++) {
@@ -103,6 +132,9 @@ export function stripControlChars(text, multiLine) {
             out += text[i];
     }
     return out;
+}
+function codeUnitOrder(a, b) {
+    return a < b ? -1 : a > b ? 1 : 0;
 }
 // from scripts/trace-model.ts
 export const UPSTREAM_REF_PREFIX = "upstream:";
@@ -658,6 +690,132 @@ export function formatCheckLine(sourceId, commit, finding) {
         return `drift ${sourceId}: ${finding.cause} (${finding.detail})`;
     return `UNKNOWN - verify ${sourceId}: ${finding.reason}`;
 }
+// from scripts/build-request-model.ts
+export const BUILD_REQUEST_KEYS = Object.freeze(["id", "status", "source", "pin", "raised"]);
+export const BUILD_REQUEST_STATUSES = Object.freeze(["open", "carried", "answered", "withdrawn"]);
+export const BUILD_REQUEST_ID_RE = /^BR-[1-9][0-9]{0,8}$/;
+export const BUILD_REQUEST_READ_MAX_BYTES = 65536;
+const BUILD_REQUEST_DELIMITER = "---";
+const BUILD_REQUEST_KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?: ([^\t]*))?$/;
+const BUILD_REQUEST_CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/;
+const BUILD_REQUEST_DATE_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+export function buildRequestIdOfFileName(name) {
+    if (!name.endsWith(".md"))
+        return null;
+    const id = name.slice(0, -".md".length);
+    return BUILD_REQUEST_ID_RE.test(id) ? id : null;
+}
+export function compareBuildRequestIds(a, b) {
+    return Number(a.slice("BR-".length)) - Number(b.slice("BR-".length));
+}
+function buildRequestRefusal(code, reason, line) {
+    return line === undefined ? { ok: false, code, reason } : { ok: false, code, reason, line };
+}
+function buildRequestValueOk(key, value) {
+    if (key === "id")
+        return BUILD_REQUEST_ID_RE.test(value);
+    if (key === "status")
+        return BUILD_REQUEST_STATUSES.includes(value);
+    if (key === "source")
+        return UPSTREAM_SOURCE_ID_RE.test(value);
+    if (key === "pin")
+        return UPSTREAM_OBJECT_ID_RE.test(value);
+    return BUILD_REQUEST_DATE_RE.test(value) && isCalendarDate(value);
+}
+function buildRequestValueForm(key) {
+    if (key === "id")
+        return "`BR-` then a number with no leading zero";
+    if (key === "status")
+        return `one of ${BUILD_REQUEST_STATUSES.join(", ")}`;
+    if (key === "source")
+        return "a declared source id: a lowercase letter, then up to 31 lowercase letters, digits and hyphens";
+    if (key === "pin")
+        return "a full 40- or 64-character lowercase hex commit id";
+    return "a calendar date written YYYY-MM-DD";
+}
+export function parseBuildRequestDocument(text, fileName) {
+    const nameId = buildRequestIdOfFileName(fileName);
+    if (nameId === null) {
+        return buildRequestRefusal("bad-file-name", "a build-request file is named `BR-<n>.md`, with no leading zero");
+    }
+    const lines = normalizeDocument(text).split("\n");
+    if (lines[0] !== BUILD_REQUEST_DELIMITER) {
+        return buildRequestRefusal("no-opening-delimiter", "a build-request file opens with a `---` line on line 1", 1);
+    }
+    let close = -1;
+    for (let i = 1; i < lines.length; i += 1) {
+        if (lines[i] === BUILD_REQUEST_DELIMITER) {
+            close = i;
+            break;
+        }
+    }
+    if (close === -1) {
+        return buildRequestRefusal("no-closing-delimiter", "the frontmatter opens with `---` on line 1 and no later line closes it");
+    }
+    const values = new Map();
+    for (let i = 1; i < close; i += 1) {
+        const line = lines[i];
+        const at = i + 1;
+        if (line.trim() === "")
+            continue;
+        if (BUILD_REQUEST_CONTROL.test(line)) {
+            return buildRequestRefusal("control-character", `line ${at} carries a control character`, at);
+        }
+        const m = BUILD_REQUEST_KEY_LINE.exec(line);
+        if (m === null) {
+            return buildRequestRefusal("unrecognized-line", `line ${at} is neither \`key: value\` nor \`key:\``, at);
+        }
+        const key = m[1];
+        if (!BUILD_REQUEST_KEYS.includes(key)) {
+            return buildRequestRefusal("unknown-key", `line ${at} carries a key outside the closed set (${BUILD_REQUEST_KEYS.join(", ")})`, at);
+        }
+        const known = key;
+        if (values.has(known)) {
+            return buildRequestRefusal("duplicate-key", `line ${at} writes \`${known}\` a second time`, at);
+        }
+        const value = (m[2] ?? "").trim();
+        if (value === "" || !buildRequestValueOk(known, value)) {
+            return buildRequestRefusal("bad-value", `line ${at}: the value of \`${known}\` is not ${buildRequestValueForm(known)}`, at);
+        }
+        values.set(known, value);
+    }
+    for (const key of BUILD_REQUEST_KEYS) {
+        if (!values.has(key)) {
+            return buildRequestRefusal("missing-key", `the frontmatter has no \`${key}\`; every key of ${BUILD_REQUEST_KEYS.join(", ")} is required`);
+        }
+    }
+    const id = values.get("id");
+    if (id !== nameId) {
+        return buildRequestRefusal("id-mismatch", "the frontmatter `id` differs from the id in the file name");
+    }
+    return {
+        ok: true,
+        value: {
+            id,
+            status: values.get("status"),
+            source: values.get("source"),
+            pin: values.get("pin"),
+            raised: values.get("raised"),
+        },
+    };
+}
+export function formatBuildRequestReportLine(item) {
+    if (item.kind === "refused") {
+        return `refused ${item.fileName ?? "<entry not named BR-<n>.md>"}: ${item.code}`;
+    }
+    if (item.kind === "carry-open")
+        return `carry ${item.id} ${item.source}: open since ${item.since}`;
+    if (item.kind === "none")
+        return "no build requests";
+    return `no build request needs a human (${item.onFile} on file)`;
+}
+export function buildRequestReportExitCode(items) {
+    if (items.some((i) => i.kind === "refused"))
+        return 2;
+    if (items.some((i) => i.kind === "carry-open"))
+        return 1;
+    return 0;
+}
 // from scripts/runnable-stamp.ts
 export const RUNNABLE_STAMP_NAME = "RUNNABLE_SET_STAMP";
 export const RUNNABLE_STAMP_LINE = new RegExp(`^export const ${RUNNABLE_STAMP_NAME} = "(sha256:[0-9a-f]{64})";$`);
@@ -698,7 +856,8 @@ function couldNotRun(message) {
 function codeOf(e) {
     return e.code ?? "unknown error";
 }
-const USAGE = "Usage: node upstream.js check [--root <dir>] or node upstream.js read <source> (<ID> | --manifest) [--root <dir>]";
+const USAGE = "Usage: node upstream.js check [--root <dir>] or node upstream.js read <source> (<ID> | --manifest) [--root <dir>]" +
+    " or node upstream.js requests [--root <dir>]";
 /** The second argument of `read` that prints the entry manifest instead of a listed file (D-15). */
 const MANIFEST_FLAG = "--manifest";
 /** The config file under .grugops/. install/state-layout.ts has no constant for it, so it is typed here, once. */
@@ -717,7 +876,7 @@ const args = process.argv.slice(2);
 const command = args[0];
 if (command === undefined)
     couldNotRun(`no command was given. ${USAGE}.`);
-if (command !== "check" && command !== "read")
+if (command !== "check" && command !== "read" && command !== "requests")
     couldNotRun(`unknown command ${command}. ${USAGE}.`);
 let rootArg;
 const positionals = [];
@@ -735,8 +894,9 @@ for (let i = 1; i < args.length; i += 1) {
     }
     if (arg.startsWith("--") && !(command === "read" && arg === MANIFEST_FLAG))
         couldNotRun(`unknown option ${arg}. ${USAGE}.`);
-    if (command === "check")
-        couldNotRun(`check takes no argument; it was given ${arg}. ${USAGE}.`);
+    if (command === "check" || command === "requests") {
+        couldNotRun(`${command} takes no argument; it was given ${arg}. ${USAGE}.`);
+    }
     positionals.push(arg);
 }
 // `read` takes exactly a source id and one upstream ID or --manifest. Neither is a path, so no argument can name a
@@ -1247,7 +1407,78 @@ function readReport(sourceId, target) {
         throw e;
     }
 }
-if (command === "read") {
+/**
+ * The stdout lines and the exit code of `requests` (plan 45-01, BR-04, D-12). The build-request folder is located with
+ * the root-chain owner, so a folder that is a symbolic link or not a directory stops the run and is never followed.
+ * Each record is lstat'ed and read with the non-blocking reader at the build-request ceiling, so a link, a FIFO, a
+ * directory or an oversized file is a `refused` item and is never opened blocking. No git runs and nothing is written.
+ */
+function requestsReport() {
+    const presence = rootChainPresence(root, BUILD_REQUESTS_REL, "directory");
+    if (presence.kind === "absent")
+        return { lines: [formatBuildRequestReportLine({ kind: "none" })], code: 0 };
+    const problem = directoryProblem(presence);
+    if (problem !== null)
+        couldNotRun(`${BUILD_REQUESTS_REL} cannot be used (${problem}).`);
+    const dir = nodePath.join(root, BUILD_REQUESTS_REL);
+    let names;
+    try {
+        names = nodeFs.readdirSync(dir);
+    }
+    catch (e) {
+        return couldNotRun(`${BUILD_REQUESTS_REL} could not be listed (${codeOf(e)}).`);
+    }
+    const records = recordEntryNames(names);
+    const refused = [];
+    const open = [];
+    for (const name of records) {
+        if (buildRequestIdOfFileName(name) === null) {
+            refused.push({ kind: "refused", fileName: null, code: "bad-file-name" });
+            continue;
+        }
+        const path = nodePath.join(dir, name);
+        let text;
+        try {
+            if (!nodeFs.lstatSync(path).isFile()) {
+                refused.push({ kind: "refused", fileName: name, code: "not-a-regular-file" });
+                continue;
+            }
+            text = readRegularFileOrNull(path, BUILD_REQUEST_READ_MAX_BYTES, "build-request file");
+        }
+        catch (e) {
+            const code = e instanceof ReadPositionRefusal ? e.condition : "unopenable";
+            refused.push({ kind: "refused", fileName: name, code });
+            continue;
+        }
+        if (text === null) {
+            refused.push({ kind: "refused", fileName: name, code: "unopenable" });
+            continue;
+        }
+        const parsed = parseBuildRequestDocument(text, name);
+        if (!parsed.ok) {
+            refused.push({ kind: "refused", fileName: name, code: parsed.code });
+            continue;
+        }
+        if (parsed.value.status === "open") {
+            open.push({
+                id: parsed.value.id,
+                item: { kind: "carry-open", id: parsed.value.id, source: parsed.value.source, since: parsed.value.raised },
+            });
+        }
+    }
+    open.sort((a, b) => compareBuildRequestIds(a.id, b.id));
+    const items = [...refused, ...open.map((o) => o.item)];
+    if (items.length === 0) {
+        items.push(records.length === 0 ? { kind: "none" } : { kind: "quiet", onFile: records.length });
+    }
+    return { lines: items.map(formatBuildRequestReportLine), code: buildRequestReportExitCode(items) };
+}
+if (command === "requests") {
+    const report = requestsReport();
+    process.stdout.write(`${report.lines.map(printable).join("\n")}\n`);
+    process.exitCode = report.code;
+}
+else if (command === "read") {
     const [sourceArg, targetArg] = positionals;
     const answer = readReport(sourceArg, targetArg);
     process.stdout.write(answer.out);

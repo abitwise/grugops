@@ -836,7 +836,7 @@ export type StandingSection = { readonly heading: string; readonly line: number 
 export type ProgressEntries = { readonly dated: readonly DatedEntry[]; readonly standing: readonly StandingSection[] };
 const SECTION_HEADING = /^##(?: |$)/;
 const DATED_HEADING = /^## [0-9]{4}-[0-9]{2}-[0-9]{2}(?: |$)/;
-function isCalendarDate(ymd: string): boolean {
+export function isCalendarDate(ymd: string): boolean {
   const year = Number(ymd.slice(0, 4));
   const month = Number(ymd.slice(5, 7));
   const day = Number(ymd.slice(8, 10));

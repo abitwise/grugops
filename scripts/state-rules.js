@@ -366,8 +366,11 @@ const SECTION_HEADING = /^##(?: |$)/;
  * line. The date must also be a calendar date, so a heading such as `## 2026-13-01` is standing content.
  */
 const DATED_HEADING = /^## [0-9]{4}-[0-9]{2}-[0-9]{2}(?: |$)/;
-/** Whether `ymd` (`YYYY-MM-DD`, digits already checked) names a day of the proleptic Gregorian calendar. */
-function isCalendarDate(ymd) {
+/**
+ * Whether `ymd` (`YYYY-MM-DD`, digits already checked) names a day of the proleptic Gregorian calendar. Exported for
+ * the build-request grammar's `raised` date (scripts/build-request-model.ts, plan 45-01).
+ */
+export function isCalendarDate(ymd) {
     const year = Number(ymd.slice(0, 4));
     const month = Number(ymd.slice(5, 7));
     const day = Number(ymd.slice(8, 10));

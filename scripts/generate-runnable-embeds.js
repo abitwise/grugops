@@ -168,6 +168,12 @@ export function runnableSpecs(set) {
  * last authority, scripts/runnable-stamp.ts with the root readRunnableStamp (it imports nothing, so it can go last), so
  * `check` compares the build stamp of each sibling program in RUNNABLE_SET with its own, by the rule state-check uses
  * (plan 37-24). EMBED_SPEC_COUNT stays 7.
+ * Plan 45-01 (2026-11-26, BR-04, D-05, D-12) adds a new authority to the upstream.ts row, scripts/build-request-model.ts
+ * (the one build-request grammar and the `requests` report lines), after scripts/upstream-model.ts and before
+ * scripts/runnable-stamp.ts, because it imports UPSTREAM_SOURCE_ID_RE and UPSTREAM_OBJECT_ID_RE from upstream-model,
+ * isCalendarDate from state-rules and normalizeDocument from board-model, each an earlier row sibling. The same plan adds
+ * BUILD_REQUESTS_REL to the install/state-layout.ts roots and recordEntryNames to the scripts/state-rules.ts roots, for
+ * the hand-written `requests` verb's folder listing. EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -402,8 +408,8 @@ export const EMBED_SPECS = Object.freeze([
     {
         target: "scripts/runnable-ref/upstream.ts",
         authorities: [
-            { module: "install/state-layout.ts", roots: ["GRUGOPS_DIR_REL"] },
-            { module: "scripts/state-rules.ts", roots: ["stripControlChars"] },
+            { module: "install/state-layout.ts", roots: ["GRUGOPS_DIR_REL", "BUILD_REQUESTS_REL"] },
+            { module: "scripts/state-rules.ts", roots: ["stripControlChars", "isCalendarDate", "recordEntryNames"] },
             { module: "scripts/trace-model.ts", roots: ["UPSTREAM_REF_PREFIX"] },
             { module: "scripts/board-model.ts", roots: ["normalizeDocument"] },
             {
@@ -426,6 +432,19 @@ export const EMBED_SPECS = Object.freeze([
                     "formatCheckLine",
                     "UPSTREAM_READ_MAX_BYTES",
                     "UPSTREAM_NONE_DECLARED_LINE",
+                    "UPSTREAM_SOURCE_ID_RE",
+                    "UPSTREAM_OBJECT_ID_RE",
+                ],
+            },
+            {
+                module: "scripts/build-request-model.ts",
+                roots: [
+                    "BUILD_REQUEST_READ_MAX_BYTES",
+                    "buildRequestIdOfFileName",
+                    "compareBuildRequestIds",
+                    "parseBuildRequestDocument",
+                    "formatBuildRequestReportLine",
+                    "buildRequestReportExitCode",
                 ],
             },
             { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },
