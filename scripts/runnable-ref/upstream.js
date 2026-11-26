@@ -10,7 +10,8 @@
 //     D-15): the file the manifest at the pin lists for <ID>, or the entry manifest itself. There is no path argument,
 //     so nothing the manifest does not list can be read.
 //   - `requests [--root <dir>]` reads the build-request folder memory-bank/plans/build-requests/ and prints the human's
-//     carry list (plan 45-01, BR-04, D-12): each `open` build request the human takes upstream.
+//     carry list (plan 45-01, BR-04, D-12), the requests waiting past `upstream.escalation_days`, and the requests that
+//     share an upstream ID (plan 45-07, BR-03, BR-06).
 // It writes nothing: no verb writes a file, the config is opened read-only, and no pin is ever moved here. Only a
 // named human edits a pin, in a commit (UP-03).
 //
@@ -58,19 +59,32 @@
 // git message quoted in a reason has each path the failing call named after `--` replaced by `<listed path>` (plan
 // 44-12, T-44-38).
 //
-// THE REQUESTS CONTRACT (plan 45-01, BR-04, D-05, D-12). `requests` reads only the build-request folder, spawns no git
-// and writes nothing. It prints, in one stdout write at the end:
+// THE REQUESTS CONTRACT (plan 45-01, BR-04, D-05, D-12; plan 45-07, BR-03, BR-05, BR-06, D-08..D-13). `requests` reads
+// the config once (as `check` does: an absent config or no `upstream` key declares no source and leaves the threshold
+// at its default of 10 days; a config that cannot be read or an invalid declaration stops the run) and the
+// build-request folder, and writes nothing. Today is the UTC date, read once. It prints, in one stdout write at the end:
 //   `refused BR-<n>.md: <code>` for a file the build-request grammar refuses, in name order; a record whose name is not
 //            `BR-<n>.md` prints as `refused <entry not named BR-<n>.md>: bad-file-name`. Only the code is printed,
 //            never the reason, so no text from a build-request file reaches stdout.
-//   `carry <BR> <source>: open since <raised>` for each `open` request, in numeric ID order (BR-2 before BR-10).
+//   Then, for each `open` or `carried` request in numeric ID order (BR-2 before BR-10), its lines in this order:
+//   `carry <BR> <source>: open since <raised>` for an `open` request, or
+//   `carry <BR> <source>: changed since carried <date>` for a `carried` request edited after its last carry (D-08);
+//   `wait <BR> <source>: <status> for <n> days (escalation_days <m>)` when it has waited n whole UTC days since its last
+//            status move (`raised` for `open`, the last `carried` date for `carried`) and n > m (D-13, BR-06);
+//   `UNKNOWN - verify <BR> <source>: <reason>` when its source is not declared or its raising pin has another length
+//            than the declared pin.
+//   Then `overlap <BR-a> <BR-b> <source>: <ID>[, <ID>…]` for each pair of `open` or `carried` requests for one source
+//            whose `## Upstream IDs` share an ID, by the first ID then the second (D-09, BR-03).
 //   `no build requests` when the folder is absent or holds no record (a dot-named keeper such as .gitkeep is not one).
-//   `no build request needs a human (<n> on file)` when the folder holds parsed requests and no other line printed.
-//   exit 2 → any `refused` line printed; else exit 1 → any `carry` line printed; else exit 0. A run that cannot start
-//            (a bad argument, no .grugops directory, a folder that is a symbolic link or not a directory, or a folder
-//            that cannot be listed) exits 2 with nothing on stdout and one `Error: ` line on stderr, as `check` does.
-// Plan 45-07 adds the other line kinds; the grammar of the lines and the exit codes live in
-// scripts/build-request-model.ts and reach this file through the generated region.
+//   `no build request needs a human (<n> on file)` when the folder holds records and no other line printed.
+//   exit 2 → any `refused` or `UNKNOWN - verify` line printed; else exit 1 → any other report line printed; else exit
+//            0. A run that cannot start (a bad argument, no .grugops directory, a config that cannot be used, a folder
+//            that is a symbolic link or not a directory, or a folder that cannot be listed) exits 2 with nothing on
+//            stdout and one `Error: ` line on stderr, as `check` does.
+// No line carries the question, an option, History text, the answer, a manifest cell or listed-file text: every value
+// printed is a build-request id, a source id, a date, a status, a number, an upstream ID or a commit id. The grammar
+// of the lines and the exit codes live in scripts/build-request-model.ts and reach this file through the generated
+// region.
 //
 // The manifest's listed-path sweep that `check` makes is not repeated here: `read` checks the mode of the one path it
 // prints, so a bad row elsewhere in the manifest is reported by `check` and does not hide a good one from `read`.
@@ -98,7 +112,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:bc78d3decede72e1c5da7179a4e2f4edfcfa62c7b6d12894e2de54cfb5aaf72d";
+export const RUNNABLE_SET_STAMP = "sha256:e4c16e41ab46e2279481ea19d925e393cab370311558ddfce5699489e192e686";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -355,6 +369,100 @@ export function rootChainPresence(realRoot, rel, leaf) {
             return { kind: "outside", real };
         return { kind: "present", entry, target, real };
     }
+}
+// from scripts/frontmatter.ts
+const HTML_BLOCK_OPEN = /^ {0,3}<[!/a-zA-Z]/;
+export function blockContextFlags(text) {
+    const lines = text.split("\n");
+    const flags = [];
+    let inside = false;
+    let openChar = "";
+    let openLen = 0;
+    let html = "none";
+    for (const line of lines) {
+        if (html !== "none") {
+            // A COMMENT block ends on the line carrying `-->`; a TAG block ends at the next blank line.
+            const ends = html === "comment" ? line.includes("-->") : /^[ \t]*$/.test(line);
+            flags.push(true);
+            if (ends)
+                html = "none";
+            continue;
+        }
+        const run = strictFenceRun(line);
+        if (!inside) {
+            if (run !== null) {
+                inside = !inside;
+                openChar = run.char;
+                openLen = run.len;
+                flags.push(true);
+                continue;
+            }
+            if (HTML_BLOCK_OPEN.test(line)) {
+                html = line.includes("<!--") ? "comment" : "tag";
+                // A comment that opens and closes on one line, or a tag block on a line that is itself
+                // blank-terminated, does not carry the block past itself.
+                if (html === "comment" && line.includes("-->"))
+                    html = "none";
+                flags.push(true);
+                continue;
+            }
+        }
+        else if (run !== null &&
+            run.char === openChar &&
+            run.len >= openLen &&
+            /^[ \t]*$/.test(run.info)) {
+            // §4.5's closing rule IN FULL here: same character, at least as long, and NO info string.
+            inside = !inside;
+            flags.push(true);
+            continue;
+        }
+        flags.push(inside);
+    }
+    return flags;
+}
+function strictFenceRun(line) {
+    const at = line.search(/[^ ]/);
+    if (at < 0 || at > 3)
+        return null;
+    const rest = line.slice(at);
+    const char = rest[0];
+    if (char !== "`" && char !== "~")
+        return null;
+    let len = 0;
+    while (len < rest.length && rest[len] === char)
+        len += 1;
+    if (len < 3)
+        return null;
+    const info = rest.slice(len);
+    if (char === "`" && info.includes("`"))
+        return null; // a backtick fence's info string may not carry one
+    return { char, len, info };
+}
+const HEADING_AT_MOST_1 = /^# /;
+const HEADING_AT_MOST_2 = /^#{1,2} /;
+export function unfencedHeadingIndices(text, heading) {
+    const lines = text.split("\n");
+    // THE STRICT PROJECTION, not the prose one (round 4, R5-2). See `blockContextFlags`.
+    const flags = blockContextFlags(text);
+    const at = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (!flags[i] && lines[i].trimEnd() === heading)
+            at.push(i);
+    }
+    return at;
+}
+export function sectionEndIndex(text, from, level) {
+    const lines = text.split("\n");
+    // THE STRICT PROJECTION (round 4, R5-2). "Does this line END a section" must agree with the
+    // renderer or every freeze built on it is fiction; "is this line governed prose" is the other
+    // question and keeps the measured lax view.
+    const flags = blockContextFlags(text);
+    const closes = level === 1 ? HEADING_AT_MOST_1 : HEADING_AT_MOST_2;
+    for (let i = Math.max(from, 0); i < lines.length; i++) {
+        if (!flags[i] && closes.test(lines[i]))
+            return i;
+    }
+    return lines.length;
 }
 // from scripts/upstream-model.ts
 export const UPSTREAM_READ_MAX_BYTES = 65536;
@@ -930,99 +1038,13 @@ export function upstreamGitEntryAtPin(sourceReal, commit, path) {
     }
     return null;
 }
-// from scripts/frontmatter.ts
-const HTML_BLOCK_OPEN = /^ {0,3}<[!/a-zA-Z]/;
-export function blockContextFlags(text) {
-    const lines = text.split("\n");
-    const flags = [];
-    let inside = false;
-    let openChar = "";
-    let openLen = 0;
-    let html = "none";
-    for (const line of lines) {
-        if (html !== "none") {
-            // A COMMENT block ends on the line carrying `-->`; a TAG block ends at the next blank line.
-            const ends = html === "comment" ? line.includes("-->") : /^[ \t]*$/.test(line);
-            flags.push(true);
-            if (ends)
-                html = "none";
-            continue;
-        }
-        const run = strictFenceRun(line);
-        if (!inside) {
-            if (run !== null) {
-                inside = !inside;
-                openChar = run.char;
-                openLen = run.len;
-                flags.push(true);
-                continue;
-            }
-            if (HTML_BLOCK_OPEN.test(line)) {
-                html = line.includes("<!--") ? "comment" : "tag";
-                // A comment that opens and closes on one line, or a tag block on a line that is itself
-                // blank-terminated, does not carry the block past itself.
-                if (html === "comment" && line.includes("-->"))
-                    html = "none";
-                flags.push(true);
-                continue;
-            }
-        }
-        else if (run !== null &&
-            run.char === openChar &&
-            run.len >= openLen &&
-            /^[ \t]*$/.test(run.info)) {
-            // §4.5's closing rule IN FULL here: same character, at least as long, and NO info string.
-            inside = !inside;
-            flags.push(true);
-            continue;
-        }
-        flags.push(inside);
+export function upstreamGitCommitProblem(source, commit) {
+    if (!UPSTREAM_OBJECT_ID_RE.test(commit))
+        return "a commit is not a full-length lowercase object id (40 or 64 hex)";
+    if (commit.length !== source.commit.length) {
+        return `commit ${commit} is ${commit.length}-hex but source ${source.id} is pinned with ${source.commit.length}-hex object ids`;
     }
-    return flags;
-}
-function strictFenceRun(line) {
-    const at = line.search(/[^ ]/);
-    if (at < 0 || at > 3)
-        return null;
-    const rest = line.slice(at);
-    const char = rest[0];
-    if (char !== "`" && char !== "~")
-        return null;
-    let len = 0;
-    while (len < rest.length && rest[len] === char)
-        len += 1;
-    if (len < 3)
-        return null;
-    const info = rest.slice(len);
-    if (char === "`" && info.includes("`"))
-        return null; // a backtick fence's info string may not carry one
-    return { char, len, info };
-}
-const HEADING_AT_MOST_1 = /^# /;
-const HEADING_AT_MOST_2 = /^#{1,2} /;
-export function unfencedHeadingIndices(text, heading) {
-    const lines = text.split("\n");
-    // THE STRICT PROJECTION, not the prose one (round 4, R5-2). See `blockContextFlags`.
-    const flags = blockContextFlags(text);
-    const at = [];
-    for (let i = 0; i < lines.length; i++) {
-        if (!flags[i] && lines[i].trimEnd() === heading)
-            at.push(i);
-    }
-    return at;
-}
-export function sectionEndIndex(text, from, level) {
-    const lines = text.split("\n");
-    // THE STRICT PROJECTION (round 4, R5-2). "Does this line END a section" must agree with the
-    // renderer or every freeze built on it is fiction; "is this line governed prose" is the other
-    // question and keeps the measured lax view.
-    const flags = blockContextFlags(text);
-    const closes = level === 1 ? HEADING_AT_MOST_1 : HEADING_AT_MOST_2;
-    for (let i = Math.max(from, 0); i < lines.length; i++) {
-        if (!flags[i] && closes.test(lines[i]))
-            return i;
-    }
-    return lines.length;
+    return null;
 }
 // from scripts/build-request-model.ts
 export const BUILD_REQUEST_KEYS = Object.freeze(["id", "status", "source", "pin", "raised"]);
@@ -1411,20 +1433,92 @@ function buildRequestBody(lines, close, fm) {
         },
     };
 }
+const BUILD_REQUEST_DAY_MS = 86_400_000;
+export function buildRequestChangedSinceCarried(doc) {
+    if (doc.status !== "carried")
+        return false;
+    let lastCarried = -1;
+    doc.history.forEach((e, i) => {
+        if (e.event === "carried")
+            lastCarried = i;
+    });
+    return doc.history.some((e, i) => i > lastCarried && e.event === "edited");
+}
+export function buildRequestLastMoveDate(doc) {
+    if (doc.status === "open")
+        return doc.raised;
+    if (doc.status !== "carried")
+        return null;
+    let last = null;
+    for (const e of doc.history)
+        if (e.event === "carried")
+            last = e.date;
+    return last;
+}
+function buildRequestUtcMs(date) {
+    return Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)));
+}
+export function buildRequestAgeDays(from, today) {
+    return (buildRequestUtcMs(today) - buildRequestUtcMs(from)) / BUILD_REQUEST_DAY_MS;
+}
+export function buildRequestWaitDays(doc, today) {
+    const since = buildRequestLastMoveDate(doc);
+    return since === null ? null : buildRequestAgeDays(since, today);
+}
+export function buildRequestIsOverdue(days, threshold) {
+    return days > threshold;
+}
+export function buildRequestOverlaps(docs) {
+    const live = docs
+        .filter((d) => d.status === "open" || d.status === "carried")
+        .slice()
+        .sort((x, y) => compareBuildRequestIds(x.id, y.id));
+    const out = [];
+    for (let i = 0; i < live.length; i += 1) {
+        const first = live[i];
+        for (let j = i + 1; j < live.length; j += 1) {
+            const second = live[j];
+            if (first.source !== second.source)
+                continue;
+            const ids = first.upstreamIds.filter((id) => second.upstreamIds.includes(id));
+            if (ids.length > 0)
+                out.push({ kind: "overlap", a: first.id, b: second.id, source: first.source, ids });
+        }
+    }
+    return out;
+}
 export function formatBuildRequestReportLine(item) {
     if (item.kind === "refused") {
         return `refused ${item.fileName ?? "<entry not named BR-<n>.md>"}: ${item.code}`;
     }
     if (item.kind === "carry-open")
         return `carry ${item.id} ${item.source}: open since ${item.since}`;
+    if (item.kind === "carry-changed")
+        return `carry ${item.id} ${item.source}: changed since carried ${item.since}`;
+    if (item.kind === "wait") {
+        return `wait ${item.id} ${item.source}: ${item.status} for ${item.days} days (escalation_days ${item.threshold})`;
+    }
+    const pins = (i) => `(raised at ${i.raisedAt}, pin now ${i.pinNow})`;
+    if (item.kind === "answer-candidate") {
+        return `answer-candidate ${item.id} ${item.source}: changed ${item.changed.join(", ")} ${pins(item)}`;
+    }
+    if (item.kind === "pin-moved")
+        return `pin-moved ${item.id} ${item.source}: no listed ID changed ${pins(item)}`;
+    if (item.kind === "not-descendant") {
+        return `not-descendant ${item.id} ${item.source}: pin now ${item.pinNow} does not descend from ${item.raisedAt}`;
+    }
+    if (item.kind === "overlap")
+        return `overlap ${item.a} ${item.b} ${item.source}: ${item.ids.join(", ")}`;
+    if (item.kind === "unknown")
+        return `UNKNOWN - verify ${item.id} ${item.source}: ${item.reason}`;
     if (item.kind === "none")
         return "no build requests";
     return `no build request needs a human (${item.onFile} on file)`;
 }
 export function buildRequestReportExitCode(items) {
-    if (items.some((i) => i.kind === "refused"))
+    if (items.some((i) => i.kind === "refused" || i.kind === "unknown"))
         return 2;
-    if (items.some((i) => i.kind === "carry-open"))
+    if (items.some((i) => i.kind !== "none" && i.kind !== "quiet"))
         return 1;
     return 0;
 }
@@ -1585,11 +1679,14 @@ function checkSource(source, index) {
         throw e;
     }
 }
-/** The declared sources in config order, or null when none is declared (no config file, or no `upstream` key). */
-function declaredSources() {
+/**
+ * The upstream declaration, read once from the config: absent (no config file, or no `upstream` key) or a valid set of
+ * sources with its escalation threshold. A config that is not JSON, or a declaration that is invalid, stops the run.
+ */
+function upstreamDeclaration() {
     const configText = configTextOrNull();
     if (configText === null)
-        return null;
+        return { kind: "absent" };
     let parsed;
     try {
         parsed = JSON.parse(configText);
@@ -1602,6 +1699,11 @@ function declaredSources() {
         couldNotRun(`${CONFIG_REL} declares upstream sources that cannot be checked: ${declaration.findings.join("; ")}. ` +
             "The structure validator names every problem.");
     }
+    return declaration;
+}
+/** The declared sources in config order, or null when none is declared (no config file, or no `upstream` key). */
+function declaredSources() {
+    const declaration = upstreamDeclaration();
     return declaration.kind === "absent" ? null : declaration.sources;
 }
 // --- sibling programs built together (plan 44-11, WR-03, TRC-02) --------------------------------------------
@@ -1766,12 +1868,45 @@ function readReport(sourceId, target) {
     }
 }
 /**
- * The stdout lines and the exit code of `requests` (plan 45-01, BR-04, D-12). The build-request folder is located with
- * the root-chain owner, so a folder that is a symbolic link or not a directory stops the run and is never followed.
- * Each record is lstat'ed and read with the non-blocking reader at the build-request ceiling, so a link, a FIFO, a
- * directory or an oversized file is a `refused` item and is never opened blocking. No git runs and nothing is written.
+ * The items one parsed `open` or `carried` request gives, in the fixed kind order (plan 45-07): its carry item
+ * (`carry-open`, or `carry-changed` when it was edited after its last carry), a `wait` item when it has waited longer
+ * than `threshold` days since its last status move, then one `unknown` item when its source is not declared or its
+ * raising pin has another length than the declared pin. `today` is read once per run.
+ */
+function requestItems(doc, sources, threshold, today) {
+    const items = [];
+    if (doc.status === "open") {
+        items.push({ kind: "carry-open", id: doc.id, source: doc.source, since: doc.raised });
+    }
+    else if (buildRequestChangedSinceCarried(doc)) {
+        items.push({ kind: "carry-changed", id: doc.id, source: doc.source, since: buildRequestLastMoveDate(doc) });
+    }
+    const days = buildRequestWaitDays(doc, today);
+    if (days !== null && buildRequestIsOverdue(days, threshold)) {
+        items.push({ kind: "wait", id: doc.id, source: doc.source, status: doc.status, days, threshold });
+    }
+    const source = sources.find((s) => s.id === doc.source);
+    if (source === undefined) {
+        items.push({ kind: "unknown", id: doc.id, source: doc.source, reason: `source ${doc.source} is not declared` });
+        return items;
+    }
+    const lengthProblem = upstreamGitCommitProblem(source, doc.pin);
+    if (lengthProblem !== null)
+        items.push({ kind: "unknown", id: doc.id, source: doc.source, reason: lengthProblem });
+    return items;
+}
+/**
+ * The stdout lines and the exit code of `requests` (plan 45-01, BR-04, D-12; plan 45-07, BR-03, BR-05, BR-06, D-09..D-13).
+ * The build-request folder is located with the root-chain owner, so a folder that is a symbolic link or not a directory
+ * stops the run and is never followed. Each record is lstat'ed and read with the non-blocking reader at the
+ * build-request ceiling, so a link, a FIFO, a directory or an oversized file is a `refused` item and is never opened
+ * blocking. The config is read once, through configTextOrNull and parseUpstreamConfig. Nothing is written.
  */
 function requestsReport() {
+    const declaration = upstreamDeclaration();
+    const sources = declaration.kind === "absent" ? [] : declaration.sources;
+    const threshold = declaration.kind === "absent" ? UPSTREAM_ESCALATION_DAYS_DEFAULT : declaration.escalationDays;
+    const today = new Date().toISOString().slice(0, 10);
     const presence = rootChainPresence(root, BUILD_REQUESTS_REL, "directory");
     if (presence.kind === "absent")
         return { lines: [formatBuildRequestReportLine({ kind: "none" })], code: 0 };
@@ -1788,7 +1923,7 @@ function requestsReport() {
     }
     const records = recordEntryNames(names);
     const refused = [];
-    const open = [];
+    const live = [];
     for (const name of records) {
         if (buildRequestIdOfFileName(name) === null) {
             refused.push({ kind: "refused", fileName: null, code: "bad-file-name" });
@@ -1817,15 +1952,14 @@ function requestsReport() {
             refused.push({ kind: "refused", fileName: name, code: parsed.code });
             continue;
         }
-        if (parsed.value.status === "open") {
-            open.push({
-                id: parsed.value.id,
-                item: { kind: "carry-open", id: parsed.value.id, source: parsed.value.source, since: parsed.value.raised },
-            });
-        }
+        if (parsed.value.status === "open" || parsed.value.status === "carried")
+            live.push(parsed.value);
     }
-    open.sort((a, b) => compareBuildRequestIds(a.id, b.id));
-    const items = [...refused, ...open.map((o) => o.item)];
+    live.sort((a, b) => compareBuildRequestIds(a.id, b.id));
+    const items = [...refused];
+    for (const doc of live)
+        items.push(...requestItems(doc, sources, threshold, today));
+    items.push(...buildRequestOverlaps(live));
     if (items.length === 0) {
         items.push(records.length === 0 ? { kind: "none" } : { kind: "quiet", onFile: records.length });
     }

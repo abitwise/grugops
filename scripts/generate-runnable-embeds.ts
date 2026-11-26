@@ -233,6 +233,13 @@ export function runnableSpecs(set: readonly EmbedSpec[]): readonly EmbedSpec[] {
  * scripts/upstream-git.ts splits its opening checks into upstreamGitOpen and gains the reads at any commit. The
  * regenerated regions follow from those edits; the new functions are no row's roots yet (plans 45-07 and 45-08 call
  * them). EMBED_SPEC_COUNT stays 7.
+ * Plan 45-07 (2026-11-26, BR-03, BR-04, BR-06, D-09, D-12, D-13) moves scripts/frontmatter.ts in the upstream.ts row to
+ * just after scripts/context-io.ts, before scripts/upstream-model.ts, because upstream-model now imports the section
+ * owner (plan 45-06) and a sibling import must name an earlier authority. It adds UPSTREAM_ESCALATION_DAYS_DEFAULT to the
+ * scripts/upstream-model.ts roots, upstreamGitCommitProblem to the scripts/upstream-git.ts roots, and the derivations
+ * buildRequestChangedSinceCarried, buildRequestLastMoveDate, buildRequestWaitDays and buildRequestIsOverdue (plan 45-03)
+ * and buildRequestOverlaps to the scripts/build-request-model.ts roots: the `requests` verb's carry, wait, overlap and
+ * undeclared-source lines. EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -491,6 +498,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "HUMAN_STAMP_RE",
         ],
       },
+      { module: "scripts/frontmatter.ts", roots: ["unfencedHeadingIndices", "sectionEndIndex"] },
       {
         module: "scripts/upstream-model.ts",
         roots: [
@@ -510,11 +518,13 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "UPSTREAM_SOURCE_ID_RE",
           "UPSTREAM_OBJECT_ID_RE",
           "UPSTREAM_ID_RE",
+          "UPSTREAM_ESCALATION_DAYS_DEFAULT",
         ],
       },
       {
         module: "scripts/upstream-git.ts",
         roots: [
+          "upstreamGitCommitProblem",
           "upstreamGitAnswers",
           "upstreamGitAnswer",
           "upstreamGitText",
@@ -525,7 +535,6 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "UPSTREAM_GIT_REGULAR_FILE_MODES",
         ],
       },
-      { module: "scripts/frontmatter.ts", roots: ["unfencedHeadingIndices", "sectionEndIndex"] },
       {
         module: "scripts/build-request-model.ts",
         roots: [
@@ -535,6 +544,11 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "parseBuildRequestDocument",
           "formatBuildRequestReportLine",
           "buildRequestReportExitCode",
+          "buildRequestChangedSinceCarried",
+          "buildRequestLastMoveDate",
+          "buildRequestWaitDays",
+          "buildRequestIsOverdue",
+          "buildRequestOverlaps",
         ],
       },
       { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },

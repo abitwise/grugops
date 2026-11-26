@@ -445,12 +445,22 @@ describe("build requests across versions (plan 45-05, BR-02)", () => {
       runAsync([join(RUNNABLES, "state-check.js"), target]),
       runAsync([join(RUNNABLES, "upstream.js"), "requests", "--root", target]),
     ]);
-    // state-check: exit 0, no finding. requests: one carry line for the open request, so its documented exit 1.
+    // state-check: exit 0, no finding. requests: the carry line for the open request.
+    // 2026-11-26, plan 45-07: this tree has no config, so `design` is not declared and requests prints
+    // `UNKNOWN - verify` for the request, which makes its documented exit 2. From 2026-12-01 the request has waited past
+    // the default escalation_days of 10, so a `wait` line comes between; its day count is computed here from today's
+    // UTC date, as upstream.js computes it.
+    const raised = "2026-11-20";
+    const today = new Date().toISOString().slice(0, 10);
+    const days = (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${raised}T00:00:00Z`)) / 86_400_000;
+    const wait = days > 10 ? `wait BR-1 design: open for ${days} days (escalation_days 10)\n` : "";
     expect(c.status, all(c)).toBe(0);
     expect(lastLine(c.stdout), all(c)).toBe("No findings.");
     expect(r.stderr, all(r)).toBe("");
-    expect(r.stdout, all(r)).toBe("carry BR-1 design: open since 2026-11-20\n");
-    expect(r.status, all(r)).toBe(1);
+    expect(r.stdout, all(r)).toBe(
+      `carry BR-1 design: open since ${raised}\n${wait}UNKNOWN - verify BR-1 design: source design is not declared\n`,
+    );
+    expect(r.status, all(r)).toBe(2);
     expect(treeDigest(target), "no byte of the tree changed").toBe(before);
   }, 120_000);
 });

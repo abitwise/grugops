@@ -7,7 +7,8 @@
 // This plan fixes the frontmatter: exactly the five keys `id`, `status`, `source`, `pin` and `raised`, each once and
 // non-empty (D-05). Plan 45-03 adds the six body sections, the closed History line forms and the closed lifecycle
 // (BR-01, BR-03, BR-05, D-05..D-08) without changing a refusal code of plan 45-01. Plan 45-07 adds the other report
-// line kinds without renaming one named here.
+// line kinds without renaming one named here: `carry … changed since carried`, `wait … (escalation_days <m>)`,
+// `answer-candidate`, `pin-moved`, `not-descendant`, `overlap` and `UNKNOWN - verify <BR> <source>: …`.
 //
 // THE BODY (plan 45-03). After the frontmatter come the six level-two sections `## Question`, `## Upstream IDs`,
 // `## Options`, `## Blocks`, `## History` and `## Answer`, each exactly once and in that order, with at most one
@@ -537,23 +538,69 @@ export function buildRequestWaitDays(doc, today) {
 export function buildRequestIsOverdue(days, threshold) {
     return days > threshold;
 }
+/**
+ * The overlap items of `docs` (D-09, BR-03): one per pair of `open` or `carried` requests with the same source whose
+ * `## Upstream IDs` share at least one ID, so a duplicate filed by a parallel BA/PM subtask is shown to the next BA/PM
+ * pass. Pairs come out by the first request's id, then the second's, in numeric order; the shared IDs are in the first
+ * request's order. A request whose upstream IDs are `none` overlaps nothing.
+ */
+export function buildRequestOverlaps(docs) {
+    const live = docs
+        .filter((d) => d.status === "open" || d.status === "carried")
+        .slice()
+        .sort((x, y) => compareBuildRequestIds(x.id, y.id));
+    const out = [];
+    for (let i = 0; i < live.length; i += 1) {
+        const first = live[i];
+        for (let j = i + 1; j < live.length; j += 1) {
+            const second = live[j];
+            if (first.source !== second.source)
+                continue;
+            const ids = first.upstreamIds.filter((id) => second.upstreamIds.includes(id));
+            if (ids.length > 0)
+                out.push({ kind: "overlap", a: first.id, b: second.id, source: first.source, ids });
+        }
+    }
+    return out;
+}
 // ── The requests report ─────────────────────────────────────────────────────────────────────────────────
-/** The stdout line of one report item (plan 45-01 output grammar). */
+/** The stdout line of one report item (plan 45-01 output grammar, extended by plan 45-07). */
 export function formatBuildRequestReportLine(item) {
     if (item.kind === "refused") {
         return `refused ${item.fileName ?? "<entry not named BR-<n>.md>"}: ${item.code}`;
     }
     if (item.kind === "carry-open")
         return `carry ${item.id} ${item.source}: open since ${item.since}`;
+    if (item.kind === "carry-changed")
+        return `carry ${item.id} ${item.source}: changed since carried ${item.since}`;
+    if (item.kind === "wait") {
+        return `wait ${item.id} ${item.source}: ${item.status} for ${item.days} days (escalation_days ${item.threshold})`;
+    }
+    const pins = (i) => `(raised at ${i.raisedAt}, pin now ${i.pinNow})`;
+    if (item.kind === "answer-candidate") {
+        return `answer-candidate ${item.id} ${item.source}: changed ${item.changed.join(", ")} ${pins(item)}`;
+    }
+    if (item.kind === "pin-moved")
+        return `pin-moved ${item.id} ${item.source}: no listed ID changed ${pins(item)}`;
+    if (item.kind === "not-descendant") {
+        return `not-descendant ${item.id} ${item.source}: pin now ${item.pinNow} does not descend from ${item.raisedAt}`;
+    }
+    if (item.kind === "overlap")
+        return `overlap ${item.a} ${item.b} ${item.source}: ${item.ids.join(", ")}`;
+    if (item.kind === "unknown")
+        return `UNKNOWN - verify ${item.id} ${item.source}: ${item.reason}`;
     if (item.kind === "none")
         return "no build requests";
     return `no build request needs a human (${item.onFile} on file)`;
 }
-/** The exit code of a report: 2 when any item is `refused`, else 1 when any is `carry-open`, else 0. */
+/**
+ * The exit code of a report: 2 when any item is `refused` or `unknown`, else 1 when any other report line is present
+ * (every kind but `none` and `quiet`), else 0.
+ */
 export function buildRequestReportExitCode(items) {
-    if (items.some((i) => i.kind === "refused"))
+    if (items.some((i) => i.kind === "refused" || i.kind === "unknown"))
         return 2;
-    if (items.some((i) => i.kind === "carry-open"))
+    if (items.some((i) => i.kind !== "none" && i.kind !== "quiet"))
         return 1;
     return 0;
 }
