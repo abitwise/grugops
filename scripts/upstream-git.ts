@@ -10,6 +10,13 @@
 // WHO USES IT. The host runnable scripts/runnable-ref/upstream.ts embeds it through scripts/generate-runnable-embeds.ts,
 // so the installed tools/grugops/upstream.js runs this code. The structure validator imports it in plan 45-08.
 //
+// PLAN 45-06 (TRC-03, BR-05, D-02, D-10, D-11). The opening checks of upstreamGitAnswers became upstreamGitOpen, with
+// no change in behavior or message, and three reads share them: upstreamGitManifestAt (the manifest at any commit, the
+// citation check's read), upstreamGitListedBlobs (the blob of each listed path at a commit, for the changed-ID rule) and
+// upstreamGitDescends (ancestry, for the answer's not-descendant note). Each returns an answer and never throws: an
+// UpstreamGitUnknown becomes its `unknown` answer. Every commit and path they pass to git has passed its grammar first
+// (UPSTREAM_OBJECT_ID_RE, isManifestPath), so a value from a note or a file can never read as a git option.
+//
 // I/O, BUT NO ARGV, NO EXIT AND NO WRITE. This module starts git and reads the filesystem (realpath and stat of a
 // source path). It reads no argument, never exits the process and writes nothing. A source that cannot be checked is
 // thrown as UpstreamGitUnknown, whose message is the reason, and the caller decides what that means for its run. Its
@@ -26,25 +33,32 @@
 // (a replace ref would substitute the pinned commit or blob), GIT_NO_LAZY_FETCH=1 (a partial clone would fetch over the
 // network; git older than 2.45 ignores it, so a partial clone on such a git is refused before any call that reads an
 // object, plan 44-12), GIT_LITERAL_PATHSPECS=1 and GIT_TERMINAL_PROMPT=0. It uses only `rev-parse`, `ls-tree`,
-// `cat-file`, `config` and `version`, never `status`, `diff`, `log`, `show` or anything that refreshes the index,
-// because those can run commands the untrusted source's own git config names. The blob bytes git returns are hashed
-// here and compared to the blob id, so a substituted object is caught even if a switch is not honored.
+// `cat-file`, `config` and `version`, and for the ancestry read alone `merge-base` (plan 45-06), never `status`,
+// `diff`, `log`, `show` or anything that refreshes the index, because those can run commands the untrusted source's
+// own git config names. The blob bytes git returns are hashed here and compared to the blob id, so a substituted object
+// is caught even if a switch is not honored. The ancestry call also sets GIT_GRAFT_FILE to the null device, so a local
+// `.git/info/grafts` file cannot cut history (research Pattern 5).
 //
 // Voice: clear professional voice (CLAUDE.md hard rule): these reasons tell a human why a source cannot be read.
 
 import { spawnSync } from "node:child_process";
 import { realpathSync, statSync } from "node:fs";
+import { devNull } from "node:os";
 import { resolve } from "node:path";
 import { isWithin } from "./context-io.js";
 import {
+  type UpstreamManifestAt,
   type UpstreamManifestResult,
   type UpstreamPinAnswers,
   type UpstreamSource,
+  UPSTREAM_OBJECT_ID_RE,
   UPSTREAM_READ_MAX_BYTES,
   gitBlobId,
+  isManifestPath,
   objectFormatOf,
   parseManifest,
   sourcePathFindings,
+  upstreamManifestAtOf,
 } from "./upstream-model.js";
 
 // ── Constants ───────────────────────────────────────────────────────────────────────────────────────────
@@ -95,13 +109,16 @@ export interface UpstreamGitRun {
   readonly errorMessage: string | undefined;
 }
 
-/** Runs `git -C <sourceReal> <gitArgs>`: no shell, a 20 s timeout, stdout as bytes, the scrubbed environment. */
-export function upstreamGitRun(sourceReal: string, gitArgs: readonly string[]): UpstreamGitRun {
+/**
+ * Runs `git -C <sourceReal> <gitArgs>`: no shell, a 20 s timeout, stdout as bytes, the scrubbed environment. `extraEnv`
+ * is laid over that environment last; only the ancestry read passes one (GIT_GRAFT_FILE, plan 45-06).
+ */
+export function upstreamGitRun(sourceReal: string, gitArgs: readonly string[], extraEnv: NodeJS.ProcessEnv = {}): UpstreamGitRun {
   const r = spawnSync("git", ["-C", sourceReal, ...gitArgs], {
     shell: false,
     timeout: UPSTREAM_GIT_TIMEOUT_MS,
     maxBuffer: UPSTREAM_READ_MAX_BYTES * 4,
-    env: upstreamGitEnv(),
+    env: { ...upstreamGitEnv(), ...extraEnv },
   });
   const error = r.error as NodeJS.ErrnoException | undefined;
   return {
@@ -142,9 +159,14 @@ export function upstreamGitComplaint(run: UpstreamGitRun, gitArgs: readonly stri
  * One git call whose exit status must be one of `allowed`. A launch failure, a timeout, an over-long answer, a signal
  * and any other status each make the source UNKNOWN with a named reason.
  */
-export function upstreamGitAnswer(sourceReal: string, gitArgs: readonly string[], allowed: readonly number[] = [0]): UpstreamGitRun {
+export function upstreamGitAnswer(
+  sourceReal: string,
+  gitArgs: readonly string[],
+  allowed: readonly number[] = [0],
+  extraEnv: NodeJS.ProcessEnv = {},
+): UpstreamGitRun {
   const sub = gitArgs[0] as string;
-  const run = upstreamGitRun(sourceReal, gitArgs);
+  const run = upstreamGitRun(sourceReal, gitArgs, extraEnv);
   if (run.errorCode === "ENOENT") upstreamGitUnknownBecause("git was not found on PATH");
   if (run.errorCode === "ETIMEDOUT") upstreamGitUnknownBecause(`git did not answer within ${UPSTREAM_GIT_TIMEOUT_MS / 1000} s`);
   if (run.errorCode === "ENOBUFS") upstreamGitUnknownBecause(`git ${sub} printed more than ${UPSTREAM_READ_MAX_BYTES * 4} bytes`);
@@ -203,17 +225,22 @@ export interface UpstreamGitPinned {
   readonly format: "sha1" | "sha256";
 }
 
+/** A source checkout that passed the opening checks: its real path and its object format. */
+export interface UpstreamGitOpened {
+  readonly real: string;
+  readonly format: "sha1" | "sha256";
+}
+
 /**
- * What git answers for one source, read only from objects at the pin. The path is checked first: the lexical rule,
- * then realpath, then the inside and ancestor test again on the real paths. The checkout must be the top of a git
- * work tree and use the pin's object format. Before any git call that reads an object, a partial clone (a
+ * The opening checks every read of a source runs before its first object read (plan 45-06, split out of
+ * upstreamGitAnswers with no change in behavior or message). The path is checked first: the lexical rule, then
+ * realpath, then the inside and ancestor test again on the real paths. A path whose stat fails is that source's UNKNOWN
+ * (IN-04). The checkout must be the top of a git work tree and use the pin's object format. Then a partial clone (a
  * `remote.<name>.promisor` key not set to false, or an `extensions.partialclone` key) is refused when the git that runs
  * is older than 2.45, which ignores GIT_NO_LAZY_FETCH and would fetch a missing object over the network (WR-01,
- * T-44-11). The checkout must then hold the pinned commit. A path whose stat fails is that source's UNKNOWN (IN-04). The entry's blob at the pin is compared to the
- * declared one; only when they agree is the manifest read. With `sweepListed` (the `check` verb) every path it lists is
- * then checked to be a regular file at the pin; `read` checks only the one path it prints.
+ * T-44-11). Only `rev-parse`, `config` and `version` run here. Throws UpstreamGitUnknown.
  */
-export function upstreamGitAnswers(root: string, source: UpstreamSource, index: number, sweepListed: boolean): UpstreamGitPinned {
+export function upstreamGitOpen(root: string, source: UpstreamSource, index: number): UpstreamGitOpened {
   const lexical = sourcePathFindings(root, source.path, `upstream.sources[${index}].path`);
   if (lexical.length > 0) upstreamGitUnknownBecause(lexical.join("; "));
   let real: string;
@@ -272,7 +299,17 @@ export function upstreamGitAnswers(root: string, source: UpstreamSource, index: 
       upstreamGitUnknownBecause("partial clone and git older than 2.45; make a full clone or upgrade git");
     }
   }
+  return { real, format };
+}
 
+/**
+ * What git answers for one source, read only from objects at the pin. upstreamGitOpen runs first. The checkout must
+ * then hold the pinned commit. The entry's blob at the pin is compared to the declared one; only when they agree is the
+ * manifest read. With `sweepListed` (the `check` verb) every path it lists is then checked to be a regular file at the
+ * pin; `read` checks only the one path it prints.
+ */
+export function upstreamGitAnswers(root: string, source: UpstreamSource, index: number, sweepListed: boolean): UpstreamGitPinned {
+  const { real, format } = upstreamGitOpen(root, source, index);
   const verified = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}^{commit}`], [0, 1]);
   if (verified.status !== 0) {
     upstreamGitUnknownBecause(`pinned commit ${source.commit} is not in the checkout (shallow clone or not fetched)`);
@@ -321,3 +358,142 @@ export function upstreamGitEntryAtPin(sourceReal: string, commit: string, path: 
   return null;
 }
 
+
+// ── Reads at any commit (plan 45-06, TRC-03, BR-05, D-02, D-10, D-11) ────────────────────────────────────
+
+/** An unknown answer for `e`: an UpstreamGitUnknown gives its reason; anything else is named by its kind only. */
+export function upstreamGitUnknownOf(e: unknown): { readonly kind: "unknown"; readonly reason: string } {
+  if (e instanceof UpstreamGitUnknown) return { kind: "unknown", reason: e.message };
+  return { kind: "unknown", reason: `the read failed unexpectedly (${e instanceof Error ? e.name : typeof e})` };
+}
+
+/**
+ * Why `commit` may not be passed to git for `source`, or null when it may: it must match UPSTREAM_OBJECT_ID_RE (hex
+ * only, so never a git option) and have the length of the source's pin. A value that fails is never quoted.
+ */
+export function upstreamGitCommitProblem(source: UpstreamSource, commit: string): string | null {
+  if (!UPSTREAM_OBJECT_ID_RE.test(commit)) return "a commit is not a full-length lowercase object id (40 or 64 hex)";
+  if (commit.length !== source.commit.length) {
+    return `commit ${commit} is ${commit.length}-hex but source ${source.id} is pinned with ${source.commit.length}-hex object ids`;
+  }
+  return null;
+}
+
+/** Throws UpstreamGitUnknown unless the checkout at `real` holds `commit` as a commit object. */
+export function upstreamGitCommitPresent(real: string, commit: string): void {
+  const verified = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`], [0, 1]);
+  if (verified.status !== 0) upstreamGitUnknownBecause(`commit ${commit} is not in the checkout (shallow clone or not fetched)`);
+  if (upstreamGitText(verified) !== commit) upstreamGitUnknownBecause(`object ${commit} is not a commit`);
+}
+
+/**
+ * The entry manifest of `source` at `commit` (research Pattern 3). At the declared pin the pin read runs, with
+ * `entry_blob` compared: a blob mismatch is unknown, never a manifest (Pitfall 3 applies `entry_blob` there only). At
+ * any other commit: the commit must be in the checkout, the entry must be in it as a regular file, and its blob passes
+ * upstreamGitBlobText's size, NUL, UTF-8 and re-hash checks before parseManifest. A malformed manifest is unknown,
+ * worded as pinState words it. Never throws.
+ */
+export function upstreamGitManifestAt(root: string, source: UpstreamSource, index: number, commit: string): UpstreamManifestAt {
+  const problem = upstreamGitCommitProblem(source, commit);
+  if (problem !== null) return { kind: "unknown", reason: problem };
+  try {
+    if (commit === source.commit) {
+      const { answers } = upstreamGitAnswers(root, source, index, false);
+      if (answers.entryBlobAtPin !== source.entry_blob) {
+        return {
+          kind: "unknown",
+          reason: `drift: blob-mismatch (declared ${source.entry_blob}, at the pin ${answers.entryBlobAtPin})`,
+        };
+      }
+      return answers.manifest === null
+        ? { kind: "unknown", reason: "manifest: it was not read" }
+        : upstreamManifestAtOf(answers.manifest);
+    }
+    const { real, format } = upstreamGitOpen(root, source, index);
+    upstreamGitCommitPresent(real, commit);
+    const entry = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${commit}:${source.entry}`], [0, 1]);
+    if (entry.status !== 0) upstreamGitUnknownBecause(`entry ${source.entry} is not in commit ${commit}`);
+    if (!UPSTREAM_GIT_REGULAR_FILE_MODES.has(upstreamGitModesAtPin(real, commit, [source.entry]).get(source.entry) ?? "")) {
+      upstreamGitUnknownBecause(`entry ${source.entry} is not a regular file at ${commit}`);
+    }
+    const blob = upstreamGitText(entry);
+    return upstreamManifestAtOf(parseManifest(upstreamGitBlobText(real, blob, format, `entry ${source.entry} at ${commit}`)));
+  } catch (e) {
+    return upstreamGitUnknownOf(e);
+  }
+}
+
+/** The mode and blob id of each listed path at a commit, or why they could not be read. */
+export type UpstreamGitListed =
+  | { readonly kind: "ok"; readonly entries: ReadonlyMap<string, { readonly mode: string; readonly blob: string }> }
+  | { readonly kind: "unknown"; readonly reason: string };
+
+/**
+ * The mode and blob id of each of `paths` at `commit`, from one `ls-tree -r -z --full-tree <commit> -- <paths>` (45
+ * D-10: no file content is read). A path the tree does not hold has no entry. Every path must be a manifest path
+ * (isManifestPath) and the commit must pass its grammar before git runs. Never throws.
+ */
+export function upstreamGitListedBlobs(
+  root: string,
+  source: UpstreamSource,
+  index: number,
+  commit: string,
+  paths: readonly string[],
+): UpstreamGitListed {
+  const problem = upstreamGitCommitProblem(source, commit);
+  if (problem !== null) return { kind: "unknown", reason: problem };
+  if (!paths.every((p) => isManifestPath(p))) return { kind: "unknown", reason: "a listed path is not a manifest path" };
+  if (paths.length === 0) return { kind: "ok", entries: new Map() };
+  try {
+    const { real } = upstreamGitOpen(root, source, index);
+    upstreamGitCommitPresent(real, commit);
+    const wanted = new Set(paths);
+    const run = upstreamGitAnswer(real, ["ls-tree", "-r", "-z", "--full-tree", commit, "--", ...wanted]);
+    const entries = new Map<string, { readonly mode: string; readonly blob: string }>();
+    for (const record of run.stdout.toString("utf8").split("\0")) {
+      const tab = record.indexOf("\t");
+      if (tab < 0 || !wanted.has(record.slice(tab + 1))) continue;
+      const [mode, , blob] = record.slice(0, tab).split(" ");
+      if (mode !== undefined && blob !== undefined) entries.set(record.slice(tab + 1), { mode, blob });
+    }
+    return { kind: "ok", entries };
+  } catch (e) {
+    return upstreamGitUnknownOf(e);
+  }
+}
+
+/** Whether one commit descends from another, or why that cannot be decided (45 D-11). */
+export type UpstreamGitAncestry =
+  | { readonly kind: "descendant" }
+  | { readonly kind: "not-descendant" }
+  | { readonly kind: "unknown"; readonly reason: string };
+
+/**
+ * Whether `descendant` descends from `ancestor` in `source` (research Pattern 5). Both commits must pass their grammar
+ * and be in the checkout. A shallow clone is unknown, because `merge-base --is-ancestor` answers 1 there for a true
+ * ancestor; so a shallow clone never gives not-descendant. The ancestry call runs with GIT_GRAFT_FILE set to the null
+ * device and, as every call, GIT_NO_REPLACE_OBJECTS=1, so neither a local graft file nor a replace ref can fake history.
+ * Exit 0 is descendant and 1 is not-descendant; anything else is unknown. Never throws.
+ */
+export function upstreamGitDescends(
+  root: string,
+  source: UpstreamSource,
+  index: number,
+  ancestor: string,
+  descendant: string,
+): UpstreamGitAncestry {
+  const problem = upstreamGitCommitProblem(source, ancestor) ?? upstreamGitCommitProblem(source, descendant);
+  if (problem !== null) return { kind: "unknown", reason: problem };
+  try {
+    const { real } = upstreamGitOpen(root, source, index);
+    upstreamGitCommitPresent(real, ancestor);
+    upstreamGitCommitPresent(real, descendant);
+    if (upstreamGitText(upstreamGitAnswer(real, ["rev-parse", "--is-shallow-repository"])) === "true") {
+      upstreamGitUnknownBecause("shallow clone; ancestry cannot be decided");
+    }
+    const run = upstreamGitAnswer(real, ["merge-base", "--is-ancestor", ancestor, descendant], [0, 1], { GIT_GRAFT_FILE: devNull });
+    return run.status === 0 ? { kind: "descendant" } : { kind: "not-descendant" };
+  } catch (e) {
+    return upstreamGitUnknownOf(e);
+  }
+}

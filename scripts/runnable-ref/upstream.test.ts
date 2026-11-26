@@ -1840,8 +1840,10 @@ describe("upstream.js — source stat: a stat that fails is that source's own `U
     const js = hostProgram();
     // 2026-11-26, plan 45-01 (D-02): gitAnswers moved to scripts/upstream-git.ts as upstreamGitAnswers and reaches the
     // program through the generated region; the site is located by its new enclosing name.
-    const stats = deriveReadSites(js).filter((s) => s.enclosing === "upstreamGitAnswers" && s.fn === "statSync");
-    expect(stats, "PREMISE: upstreamGitAnswers stats the source's real path at one site, derived from the committed .js").toHaveLength(1);
+    // 2026-11-26, plan 45-06 (D-02): the opening checks of upstreamGitAnswers moved, unchanged, into upstreamGitOpen,
+    // which every read of a source now runs first; the stat is located there.
+    const stats = deriveReadSites(js).filter((s) => s.enclosing === "upstreamGitOpen" && s.fn === "statSync");
+    expect(stats, "PREMISE: upstreamGitOpen stats the source's real path at one site, derived from the committed .js").toHaveLength(1);
     const url = scriptUrl(js);
     const before = treeDigest(product);
     const r = runFaulted(

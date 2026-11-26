@@ -157,7 +157,10 @@ const INSTALL_TEST_FILE_COUNT = 48;
 // SCRIPTS_TEST_FILE_COUNT 87 -> 88 (2026-11-26, plan 45-03, re-derived by listing scripts/, not incremented) for
 // build-request-model.test.ts, which has no chmod call and reads no `.mode` (it calls the pure build-request grammar
 // on text built in memory and touches no file).
-const SCRIPTS_TEST_FILE_COUNT = 88;
+// SCRIPTS_TEST_FILE_COUNT 88 -> 89 (2026-11-26, plan 45-06, re-derived by listing scripts/, not incremented) for
+// upstream-git.test.ts, which has no chmod call and reads no `.mode` from a stat (its `mode` values are git tree modes
+// that ls-tree prints; it builds synthetic upstream repositories with git and calls the git reads directly).
+const SCRIPTS_TEST_FILE_COUNT = 89;
 const SOURCE_FILE_COUNT = 11;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial

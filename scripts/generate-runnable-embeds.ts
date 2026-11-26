@@ -228,6 +228,11 @@ export function runnableSpecs(set: readonly EmbedSpec[]): readonly EmbedSpec[] {
  * earlier sibling. Its closure adds isCalendarDate to the scripts/state-rules.ts roots, unfencedHeadingIndices to the
  * scripts/frontmatter.ts roots, isTicketRef to the scripts/trace-model.ts roots and HUMAN_STAMP_RE to the
  * scripts/context-io.ts roots. EMBED_SPEC_COUNT stays 7.
+ * Plan 45-06 (2026-11-26, TRC-03, BR-05, BR-06) changes two authorities and adds no root: scripts/upstream-model.ts reads
+ * `upstream.escalation_days` in parseUpstreamConfig and gains the statement, citation and changed-ID decisions, and
+ * scripts/upstream-git.ts splits its opening checks into upstreamGitOpen and gains the reads at any commit. The
+ * regenerated regions follow from those edits; the new functions are no row's roots yet (plans 45-07 and 45-08 call
+ * them). EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {

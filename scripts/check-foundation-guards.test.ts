@@ -829,6 +829,12 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // fence state and no heading grammar of its own. Re-derived rather than incremented: the same
     // `git ls-files … | xargs grep -l 'from "./frontmatter.js"'` minus test files reports sixteen with
     // this module tracked (2026-11-26).
+    //
+    // (Plan 45-06, TRC-01) AND FROM SIXTEEN TO SEVENTEEN, SAME DIRECTION. `upstream-model.ts`, the upstream
+    // authority, imports `unfencedHeadingIndices` and `sectionEndIndex`, the two section-locator answers, to
+    // read a ticket's `## Upstream` statement. No verdict-bearing symbol, no private fence state and no
+    // heading grammar of its own. Re-derived rather than incremented: the same `git ls-files … | xargs grep -l
+    // 'from "./frontmatter.js"'` minus test files reports seventeen with this import (2026-11-26).
     expect(consumers).toEqual([
       "audit-model.ts",
       "build-request-model.ts",
@@ -845,6 +851,7 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       "generate-role-adapters.ts",
       "generate-skill-twins.ts",
       "kit-model.ts",
+      "upstream-model.ts",
       "voice-model.ts",
     ]);
     expect(
@@ -858,6 +865,10 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     expect(
       importedSymbols("build-request-model.ts", "frontmatter"),
       "build-request-model.ts takes the two section-locator answers only — no grant predicate (plan 45-03)",
+    ).toEqual(["sectionEndIndex", "unfencedHeadingIndices"]);
+    expect(
+      importedSymbols("upstream-model.ts", "frontmatter"),
+      "upstream-model.ts takes the two section-locator answers only — no grant predicate (plan 45-06)",
     ).toEqual(["sectionEndIndex", "unfencedHeadingIndices"]);
     // (Plan 29-35) …and `generate-catalog.ts`'s OWN set, pinned like every other locator consumer's.
     //
@@ -2640,6 +2651,10 @@ const LOCATOR_FUNCTIONS = [
 // level-one and level-two heading, and every section end, with `sectionEndIndex`. It declares NO heading
 // equality, NO close scan and NO fence state of its own, so it is adoption, checked in that direction before
 // the pin moved (2026-11-26).
+// (Plan 45-06, TRC-01) RE-DERIVED AND UP BY ONE. `scripts/upstream-model.ts`, the upstream authority, joins: it
+// locates a ticket's `## Upstream` heading with `unfencedHeadingIndices` (0, 1 or more) and asks `sectionEndIndex` for
+// the section's end. It declares NO heading equality, NO close scan and NO fence state of its own, so it is adoption,
+// checked in that direction before the pin moved (2026-11-26).
 const LOCATOR_CONSUMERS = [
   "scripts/audit-model.ts",
   "scripts/build-request-model.ts",
@@ -2650,9 +2665,10 @@ const LOCATOR_CONSUMERS = [
   "scripts/checkpoints.ts",
   "scripts/generate-catalog.ts",
   "scripts/generate-role-adapters.ts",
+  "scripts/upstream-model.ts",
   "scripts/voice-model.ts",
 ];
-const LOCATOR_CONSUMER_COUNT = 10;
+const LOCATOR_CONSUMER_COUNT = 11;
 
 /**
  * A source carrying ONE site of each construct pair — the falsifiability probe's fixture.
@@ -10256,7 +10272,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // derivations (changed since carried, last move date, age in UTC days, the overdue boundary). The pin moved because a
 // module landed, not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
 // 88 on this tree (2026-11-26, plan 45-03).
-const TRIPWIRE_MODULES = 88;
+//
+// 88 -> 89 (plan 45-06, 2026-11-26): ONE test module, `scripts/upstream-git.test.ts` — the integration cases of the git
+// reads at any commit (the manifest at a commit, the listed blobs, ancestry with the shallow, graft and replace-ref
+// cases, the partial-clone guard and the argument grammar). The pin moved because a module landed, not to make a red go
+// away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports 89 on this tree (2026-11-26, plan
+// 45-06).
+const TRIPWIRE_MODULES = 89;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

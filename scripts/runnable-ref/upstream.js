@@ -98,7 +98,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:514d2dfe81314d414f01f98fcb6e52fd85f07e0bc79f12acd151f31a683caca7";
+export const RUNNABLE_SET_STAMP = "sha256:bc78d3decede72e1c5da7179a4e2f4edfcfa62c7b6d12894e2de54cfb5aaf72d";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -360,7 +360,9 @@ export function rootChainPresence(realRoot, rel, leaf) {
 export const UPSTREAM_READ_MAX_BYTES = 65536;
 export const UPSTREAM_NONE_DECLARED_LINE = "no upstream sources declared";
 export const UPSTREAM_AREAS = Object.freeze(["product", "ux", "visual", "audio", "architecture", "content"]);
-export const UPSTREAM_KEYS = Object.freeze(["sources"]);
+export const UPSTREAM_KEYS = Object.freeze(["sources", "escalation_days"]);
+export const UPSTREAM_REQUIRED_KEYS = Object.freeze(["sources"]);
+export const UPSTREAM_ESCALATION_DAYS_DEFAULT = 10;
 export const UPSTREAM_SOURCE_KEYS = Object.freeze(["id", "path", "commit", "entry", "entry_blob", "owns"]);
 export const UPSTREAM_OWNS_KEYS = Object.freeze(["areas", "prefixes"]);
 export const UPSTREAM_STATUSES = Object.freeze(["locked", "superseded"]);
@@ -386,14 +388,14 @@ function upstreamHasControlChar(text) {
 function upstreamQuote(value) {
     return typeof value === "string" ? JSON.stringify(value) : String(JSON.stringify(value) ?? typeof value);
 }
-function upstreamKeyFindings(obj, allowed, label) {
+function upstreamKeyFindings(obj, allowed, label, required = allowed) {
     const findings = [];
     for (const key of Object.keys(obj)) {
         if (!allowed.includes(key)) {
             findings.push(`${label}.${key} is not a known key; the allowed keys are: ${allowed.join(", ")}`);
         }
     }
-    for (const key of allowed) {
+    for (const key of required) {
         if (!Object.prototype.hasOwnProperty.call(obj, key))
             findings.push(`${label}.${key} is required`);
     }
@@ -406,9 +408,24 @@ export function parseUpstreamConfig(config) {
         return { kind: "absent" };
     const upstream = config.upstream;
     if (!upstreamIsObject(upstream)) {
-        return { kind: "invalid", findings: [`upstream must be an object whose only key is "sources"`] };
+        return {
+            kind: "invalid",
+            findings: [`upstream must be an object with the key "sources" and, optionally, "escalation_days"`],
+        };
     }
-    const findings = upstreamKeyFindings(upstream, UPSTREAM_KEYS, "upstream");
+    const findings = upstreamKeyFindings(upstream, UPSTREAM_KEYS, "upstream", UPSTREAM_REQUIRED_KEYS);
+    // `escalation_days` (44 D-06, plan 45-06): optional; when present, a safe integer of at least 1. No fraction and no
+    // rounding rule exist, so a value is either the threshold or refused by name.
+    let escalationDays = UPSTREAM_ESCALATION_DAYS_DEFAULT;
+    if (Object.prototype.hasOwnProperty.call(upstream, "escalation_days")) {
+        const days = upstream.escalation_days;
+        if (typeof days === "number" && Number.isSafeInteger(days) && days >= 1) {
+            escalationDays = days;
+        }
+        else {
+            findings.push(`upstream.escalation_days ${upstreamQuote(days)} must be a whole number of days, at least 1`);
+        }
+    }
     if (!Object.prototype.hasOwnProperty.call(upstream, "sources"))
         return { kind: "invalid", findings };
     const rawSources = upstream.sources;
@@ -496,7 +513,7 @@ export function parseUpstreamConfig(config) {
     });
     if (findings.length > 0)
         return { kind: "invalid", findings };
-    return { kind: "ok", sources: Object.freeze(sources) };
+    return { kind: "ok", sources: Object.freeze(sources), escalationDays };
 }
 function upstreamOwnedFindings(value, label, sourceIndex, owner, memberProblem) {
     if (!Array.isArray(value) || value.length === 0)
@@ -717,12 +734,12 @@ export function upstreamGitEnv() {
     env.GIT_TERMINAL_PROMPT = "0";
     return env;
 }
-export function upstreamGitRun(sourceReal, gitArgs) {
+export function upstreamGitRun(sourceReal, gitArgs, extraEnv = {}) {
     const r = spawnSync("git", ["-C", sourceReal, ...gitArgs], {
         shell: false,
         timeout: UPSTREAM_GIT_TIMEOUT_MS,
         maxBuffer: UPSTREAM_READ_MAX_BYTES * 4,
-        env: upstreamGitEnv(),
+        env: { ...upstreamGitEnv(), ...extraEnv },
     });
     const error = r.error;
     return {
@@ -747,9 +764,9 @@ export function upstreamGitComplaint(run, gitArgs) {
         .join("|");
     return line.replace(new RegExp(alternation, "g"), () => "<listed path>");
 }
-export function upstreamGitAnswer(sourceReal, gitArgs, allowed = [0]) {
+export function upstreamGitAnswer(sourceReal, gitArgs, allowed = [0], extraEnv = {}) {
     const sub = gitArgs[0];
-    const run = upstreamGitRun(sourceReal, gitArgs);
+    const run = upstreamGitRun(sourceReal, gitArgs, extraEnv);
     if (run.errorCode === "ENOENT")
         upstreamGitUnknownBecause("git was not found on PATH");
     if (run.errorCode === "ETIMEDOUT")
@@ -800,7 +817,7 @@ export function upstreamGitBlobText(sourceReal, blob, format, label) {
 export function upstreamGitHexLength(format) {
     return format === "sha1" ? "40" : format === "sha256" ? "64" : format;
 }
-export function upstreamGitAnswers(root, source, index, sweepListed) {
+export function upstreamGitOpen(root, source, index) {
     const lexical = sourcePathFindings(root, source.path, `upstream.sources[${index}].path`);
     if (lexical.length > 0)
         upstreamGitUnknownBecause(lexical.join("; "));
@@ -863,6 +880,10 @@ export function upstreamGitAnswers(root, source, index, sweepListed) {
             upstreamGitUnknownBecause("partial clone and git older than 2.45; make a full clone or upgrade git");
         }
     }
+    return { real, format };
+}
+export function upstreamGitAnswers(root, source, index, sweepListed) {
+    const { real, format } = upstreamGitOpen(root, source, index);
     const verified = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}^{commit}`], [0, 1]);
     if (verified.status !== 0) {
         upstreamGitUnknownBecause(`pinned commit ${source.commit} is not in the checkout (shallow clone or not fetched)`);

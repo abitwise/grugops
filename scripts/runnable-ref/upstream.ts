@@ -100,7 +100,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:514d2dfe81314d414f01f98fcb6e52fd85f07e0bc79f12acd151f31a683caca7";
+export const RUNNABLE_SET_STAMP = "sha256:bc78d3decede72e1c5da7179a4e2f4edfcfa62c7b6d12894e2de54cfb5aaf72d";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"] as const);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -368,7 +368,9 @@ export function rootChainPresence(realRoot: string, rel: string, leaf: "director
 export const UPSTREAM_READ_MAX_BYTES = 65536;
 export const UPSTREAM_NONE_DECLARED_LINE = "no upstream sources declared";
 export const UPSTREAM_AREAS = Object.freeze(["product", "ux", "visual", "audio", "architecture", "content"] as const);
-export const UPSTREAM_KEYS = Object.freeze(["sources"] as const);
+export const UPSTREAM_KEYS = Object.freeze(["sources", "escalation_days"] as const);
+export const UPSTREAM_REQUIRED_KEYS = Object.freeze(["sources"] as const);
+export const UPSTREAM_ESCALATION_DAYS_DEFAULT = 10;
 export const UPSTREAM_SOURCE_KEYS = Object.freeze(["id", "path", "commit", "entry", "entry_blob", "owns"] as const);
 export const UPSTREAM_OWNS_KEYS = Object.freeze(["areas", "prefixes"] as const);
 export const UPSTREAM_STATUSES = Object.freeze(["locked", "superseded"] as const);
@@ -390,7 +392,7 @@ export interface UpstreamSource {
 }
 export type UpstreamConfigResult =
   | { readonly kind: "absent" }
-  | { readonly kind: "ok"; readonly sources: readonly UpstreamSource[] }
+  | { readonly kind: "ok"; readonly sources: readonly UpstreamSource[]; readonly escalationDays: number }
   | { readonly kind: "invalid"; readonly findings: readonly string[] };
 export interface UpstreamManifestRow {
   readonly id: string;
@@ -431,14 +433,19 @@ function upstreamHasControlChar(text: string): boolean {
 function upstreamQuote(value: unknown): string {
   return typeof value === "string" ? JSON.stringify(value) : String(JSON.stringify(value) ?? typeof value);
 }
-function upstreamKeyFindings(obj: Record<string, unknown>, allowed: readonly string[], label: string): string[] {
+function upstreamKeyFindings(
+  obj: Record<string, unknown>,
+  allowed: readonly string[],
+  label: string,
+  required: readonly string[] = allowed,
+): string[] {
   const findings: string[] = [];
   for (const key of Object.keys(obj)) {
     if (!allowed.includes(key)) {
       findings.push(`${label}.${key} is not a known key; the allowed keys are: ${allowed.join(", ")}`);
     }
   }
-  for (const key of allowed) {
+  for (const key of required) {
     if (!Object.prototype.hasOwnProperty.call(obj, key)) findings.push(`${label}.${key} is required`);
   }
   return findings;
@@ -448,9 +455,23 @@ export function parseUpstreamConfig(config: unknown): UpstreamConfigResult {
   if (!Object.prototype.hasOwnProperty.call(config, "upstream")) return { kind: "absent" };
   const upstream = config.upstream;
   if (!upstreamIsObject(upstream)) {
-    return { kind: "invalid", findings: [`upstream must be an object whose only key is "sources"`] };
+    return {
+      kind: "invalid",
+      findings: [`upstream must be an object with the key "sources" and, optionally, "escalation_days"`],
+    };
   }
-  const findings = upstreamKeyFindings(upstream, UPSTREAM_KEYS, "upstream");
+  const findings = upstreamKeyFindings(upstream, UPSTREAM_KEYS, "upstream", UPSTREAM_REQUIRED_KEYS);
+  // `escalation_days` (44 D-06, plan 45-06): optional; when present, a safe integer of at least 1. No fraction and no
+  // rounding rule exist, so a value is either the threshold or refused by name.
+  let escalationDays = UPSTREAM_ESCALATION_DAYS_DEFAULT;
+  if (Object.prototype.hasOwnProperty.call(upstream, "escalation_days")) {
+    const days = upstream.escalation_days;
+    if (typeof days === "number" && Number.isSafeInteger(days) && days >= 1) {
+      escalationDays = days;
+    } else {
+      findings.push(`upstream.escalation_days ${upstreamQuote(days)} must be a whole number of days, at least 1`);
+    }
+  }
   if (!Object.prototype.hasOwnProperty.call(upstream, "sources")) return { kind: "invalid", findings };
   const rawSources = upstream.sources;
   if (!Array.isArray(rawSources) || rawSources.length === 0) {
@@ -559,7 +580,7 @@ export function parseUpstreamConfig(config: unknown): UpstreamConfigResult {
   });
 
   if (findings.length > 0) return { kind: "invalid", findings };
-  return { kind: "ok", sources: Object.freeze(sources) };
+  return { kind: "ok", sources: Object.freeze(sources), escalationDays };
 }
 function upstreamOwnedFindings(
   value: unknown,
@@ -756,12 +777,12 @@ export interface UpstreamGitRun {
   readonly errorCode: string | undefined;
   readonly errorMessage: string | undefined;
 }
-export function upstreamGitRun(sourceReal: string, gitArgs: readonly string[]): UpstreamGitRun {
+export function upstreamGitRun(sourceReal: string, gitArgs: readonly string[], extraEnv: NodeJS.ProcessEnv = {}): UpstreamGitRun {
   const r = spawnSync("git", ["-C", sourceReal, ...gitArgs], {
     shell: false,
     timeout: UPSTREAM_GIT_TIMEOUT_MS,
     maxBuffer: UPSTREAM_READ_MAX_BYTES * 4,
-    env: upstreamGitEnv(),
+    env: { ...upstreamGitEnv(), ...extraEnv },
   });
   const error = r.error as NodeJS.ErrnoException | undefined;
   return {
@@ -784,9 +805,14 @@ export function upstreamGitComplaint(run: UpstreamGitRun, gitArgs: readonly stri
     .join("|");
   return line.replace(new RegExp(alternation, "g"), () => "<listed path>");
 }
-export function upstreamGitAnswer(sourceReal: string, gitArgs: readonly string[], allowed: readonly number[] = [0]): UpstreamGitRun {
+export function upstreamGitAnswer(
+  sourceReal: string,
+  gitArgs: readonly string[],
+  allowed: readonly number[] = [0],
+  extraEnv: NodeJS.ProcessEnv = {},
+): UpstreamGitRun {
   const sub = gitArgs[0] as string;
-  const run = upstreamGitRun(sourceReal, gitArgs);
+  const run = upstreamGitRun(sourceReal, gitArgs, extraEnv);
   if (run.errorCode === "ENOENT") upstreamGitUnknownBecause("git was not found on PATH");
   if (run.errorCode === "ETIMEDOUT") upstreamGitUnknownBecause(`git did not answer within ${UPSTREAM_GIT_TIMEOUT_MS / 1000} s`);
   if (run.errorCode === "ENOBUFS") upstreamGitUnknownBecause(`git ${sub} printed more than ${UPSTREAM_READ_MAX_BYTES * 4} bytes`);
@@ -831,7 +857,11 @@ export interface UpstreamGitPinned {
   readonly real: string;
   readonly format: "sha1" | "sha256";
 }
-export function upstreamGitAnswers(root: string, source: UpstreamSource, index: number, sweepListed: boolean): UpstreamGitPinned {
+export interface UpstreamGitOpened {
+  readonly real: string;
+  readonly format: "sha1" | "sha256";
+}
+export function upstreamGitOpen(root: string, source: UpstreamSource, index: number): UpstreamGitOpened {
   const lexical = sourcePathFindings(root, source.path, `upstream.sources[${index}].path`);
   if (lexical.length > 0) upstreamGitUnknownBecause(lexical.join("; "));
   let real: string;
@@ -890,7 +920,10 @@ export function upstreamGitAnswers(root: string, source: UpstreamSource, index: 
       upstreamGitUnknownBecause("partial clone and git older than 2.45; make a full clone or upgrade git");
     }
   }
-
+  return { real, format };
+}
+export function upstreamGitAnswers(root: string, source: UpstreamSource, index: number, sweepListed: boolean): UpstreamGitPinned {
+  const { real, format } = upstreamGitOpen(root, source, index);
   const verified = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}^{commit}`], [0, 1]);
   if (verified.status !== 0) {
     upstreamGitUnknownBecause(`pinned commit ${source.commit} is not in the checkout (shallow clone or not fetched)`);
