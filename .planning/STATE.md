@@ -4,17 +4,17 @@ milestone: v3.1
 milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
-status: executing
-stopped_at: Completed 45-15-PLAN.md
-last_updated: "2026-11-26T20:52:20.542Z"
+status: verifying
+stopped_at: Completed 45-16-PLAN.md
+last_updated: "2026-11-26T20:58:09.722Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: 064e0da3c00297a7c9f77d34c3aa5498f9ff9b10
+state_head: 1f4be0f94f2ac82b6ce8c4bc1a949a79ad2399a4
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 30
-  completed_plans: 29
+  completed_plans: 30
   percent: 20
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
 Plan: 16 of 16
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-26 — Phase 45 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -932,6 +932,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P14 | 6 min | 2 tasks | 6 files |
 | Phase 45 P13 | 8 min | 2 tasks | 5 files |
 | Phase 45 P15 | 6 min | 2 tasks | 9 files |
+| Phase 45 P16 | 4 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2627,6 +2628,7 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-13: Review finding WR-03 fixed by 9ba0b91e: a ticket leaves Blocked only when no other ## Blocked bullet remains (Workflow 20 step 12 and Board moves)
 - [Phase 45]: 45-15: the Greenfield Mapper reports a bootstrap floor conflict and keeps working; no role edit, the Architect records the observation on the Orchestrator's routing
 - [Phase 45]: 45-15: the bootstrap floor stop sits after BA/PM files at Workflow 00 step 6, before step 7; WORKFLOW_STOP_BULLET_COUNT 58 -> 59 (untagged); WR-06 fixed, WR-04/WR-08/WR-09 stay open
+- [Phase 45]: Plan 45-16: Workflow 20 step 13 reserves a request to a named human when a ticket in its ## Blocks holds a human-stop bullet, whatever ## Question says; step 3 marks a merged request; the contract forbids an edit removing either mark. No program check (T-45-54 accepted). WR-07 fixed by cd31ae5d.
 
 ### Pending Todos
 
@@ -3034,8 +3036,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T20:52:20.056Z
-Stopped at: Completed 45-15-PLAN.md
+Last session: 2026-11-26T20:58:09.234Z
+Stopped at: Completed 45-16-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
