@@ -29,8 +29,8 @@ This document is the human-readable twin of the JSON. Each top-level field has o
 | `compliance_regime` | array of strings | `[]` (empty) | Active compliance regimes, e.g. `["GDPR","SOC2"]`. Empty = trigger-only via sensitive-data rules. |
 | `environments` | array of strings | `["dev","staging","prod"]` | Deployment environments the factory recognizes. |
 | `production_requires_human_confirmation` | boolean | `true` | Must stay `true`: agents never deploy to production alone; a named human always confirms. |
-| `blocked_escalation_days` | integer | `2` | Days a work item may stay blocked before it is escalated. |
-| `upstream` | object (key: `sources`) | absent (no upstream source) | Read-only upstream design sources outside this repository, each pinned by a commit and by the blob of its entry manifest, and read only through `node tools/grugops/upstream.js`. See *`upstream` sub-fields* below. |
+| `blocked_escalation_days` | integer | `2` | Days a work item may stay blocked before it is escalated. A `## Blocked` bullet that names an open or carried build request waits on `upstream.escalation_days` instead (Workflow 20). |
+| `upstream` | object (keys: `sources`, `escalation_days`) | absent (no upstream source) | Read-only upstream design sources outside this repository, each pinned by a commit and by the blob of its entry manifest, and read only through `node tools/grugops/upstream.js`. See *`upstream` sub-fields* below. |
 
 ### `default_stack` sub-fields
 
@@ -254,7 +254,7 @@ The installer never performs this edit for you. When it meets a configuration ca
 
 ### `upstream` sub-fields
 
-The `upstream` object declares design sources that live in other repositories, such as a design package this repository builds from. grugops reads a declared source only through `node tools/grugops/upstream.js`, which asks git for objects at the pinned commit and never reads the source's working tree. `upstream` takes one key, `sources`; any other key, including `escalation_days`, is refused by name because this version does not read it.
+The `upstream` object declares design sources that live in other repositories, such as a design package this repository builds from. grugops reads a declared source only through `node tools/grugops/upstream.js`, which asks git for objects at the pinned commit and never reads the source's working tree. `upstream` takes `sources` and, optionally, `escalation_days`; any other key is refused by name.
 
 `upstream.sources` is a non-empty array. Each source has exactly the six keys below, and all six are required. Any other key on a source is refused by name, with the allowed set quoted back.
 
@@ -268,6 +268,12 @@ The `upstream` object declares design sources that live in other repositories, s
 | `owns` | object with exactly the keys `areas` and `prefixes` | What the source decides. `owns.areas` is a non-empty subset of `product`, `ux`, `visual`, `audio`, `architecture` and `content`, and each area belongs to one source. `owns.prefixes` is a non-empty list of upstream ID prefixes such as `DEC`, each a capital letter followed by up to 15 capital letters or digits, and each prefix belongs to one source. |
 
 The structure validator checks this shape through the same module the runnable uses, so the two cannot disagree. A path that lands inside the repository, or on a directory that contains it, is refused because a host would then load the source's `CLAUDE.md` or `AGENTS.md` as if it were this repository's own.
+
+`upstream.escalation_days` is the second key of the `upstream` object, beside `sources`:
+
+| Key | Form | Default | Meaning |
+|-----|------|---------|---------|
+| `escalation_days` | integer, at least 1 | `10` | Days an `open` or `carried` build request may wait, counted from its last status move, before the sweep raises it on its own `upstream waits` line. It is separate from `blocked_escalation_days` (Workflow 20). |
 
 `node tools/grugops/upstream.js check` reports each source as `match`, `drift` or `UNKNOWN - verify`.
 
@@ -304,7 +310,7 @@ grugops runs with zero configuration. When no `factory.config.json` is present, 
 
 The same holds for the gate / test-first / security / memory dials documented above: every one of the keys enumerated here — `bdd`, `quality.tdd`, `quality.lint`, `quality.ui_e2e`, `quality.test_integrity`, `quality.gate_enforcement`, `security.asvs_level`, `security.block_on`, `context.compaction`, and every cell of the `checkpoints` object — degrades to its documented lean default when the key, its enclosing object, or the whole file is absent. The enumeration is the inventory; no separate count is kept beside it, because a hand-maintained numeral drifts the moment a key is added and this sentence had already drifted once. A missing key is never an error; it is read as its lean default. So a missing `context.compaction` reads as `aggressive`, exactly the read-at-use, default-on-absent precedent the compactor relies on (D-06). (The safety floors are not one key. The canonical floor list is `SAFETY_FLOORS` in `scripts/audit-model.ts`, and the roster table in *`checkpoints` sub-fields* above marks each floor-tier member; each defaults to `block`, so none of them is lowered by an absent configuration. Two values are refused outright rather than dialled: `quality.test_integrity` has no `off` in any mode, and `checkpoints.test_integrity` refuses `off` for the same TINT-03 reason. The carve-out behind `context.compaction` is un-dialable on that same trace-integrity argument — D-05.)
 
-A missing `upstream` object means grugops reads no upstream source, which is the behavior of a repository that declares none.
+A missing `upstream` object means grugops reads no upstream source, which is the behavior of a repository that declares none. With no `upstream` key, `node tools/grugops/upstream.js requests` uses the default of 10 days, and prints an `UNKNOWN - verify` line for any build request on file, because its source is not declared.
 
 The same read-at-use, default-on-absent rule covers the `queue` object: a missing `queue.wip_limit`, `queue.claim_cap`, or `queue.stale_ttl_minutes` key — or the whole `queue` object — degrades to its lean default (`3 / 2 / 30`). A missing queue key is never an error; the coordinator reads it as the lean default, exactly as it reads a missing `context.compaction` as `aggressive`.
 
