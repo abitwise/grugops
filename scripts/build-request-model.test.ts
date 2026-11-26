@@ -21,9 +21,13 @@ import {
   buildRequestChangedSinceCarried,
   buildRequestIsOverdue,
   buildRequestLastMoveDate,
+  buildRequestOverlaps,
+  buildRequestReportExitCode,
   buildRequestWaitDays,
+  formatBuildRequestReportLine,
   parseBuildRequestDocument,
   type BuildRequestDocument,
+  type BuildRequestReportItem,
   type BuildRequestResult,
 } from "./build-request-model.js";
 import {
@@ -31,6 +35,7 @@ import {
   BR_FIXTURE_NEW_PIN,
   BR_FIXTURE_PIN,
   BR_FIXTURE_PIN_64,
+  buildRequestPartsAt,
   buildRequestText,
   validBuildRequestParts,
   type BuildRequestFixtureShape,
@@ -538,5 +543,148 @@ describe("build-request derivations — overdue past the escalation threshold (B
 
   it("a fresh request is not overdue", () => {
     expect(buildRequestIsOverdue(0, 10)).toBe(false);
+  });
+});
+
+// ── The requests report lines (plan 45-07, BR-03, BR-04, BR-05, BR-06, D-09..D-13) ─────────────────────
+
+describe("requests report — one line per kind, in the plan 45-07 grammar", () => {
+  const A = BR_FIXTURE_PIN;
+  const B = BR_FIXTURE_NEW_PIN;
+  it.each([
+    [{ kind: "carry-open", id: "BR-1", source: "design", since: "2026-12-01" }, "carry BR-1 design: open since 2026-12-01"],
+    [
+      { kind: "carry-changed", id: "BR-1", source: "design", since: "2026-12-03" },
+      "carry BR-1 design: changed since carried 2026-12-03",
+    ],
+    [
+      { kind: "wait", id: "BR-1", source: "design", status: "open", days: 11, threshold: 10 },
+      "wait BR-1 design: open for 11 days (escalation_days 10)",
+    ],
+    [
+      { kind: "wait", id: "BR-2", source: "ux-kit", status: "carried", days: 31, threshold: 30 },
+      "wait BR-2 ux-kit: carried for 31 days (escalation_days 30)",
+    ],
+    [
+      { kind: "answer-candidate", id: "BR-1", source: "design", changed: ["DEC-1"], raisedAt: A, pinNow: B },
+      `answer-candidate BR-1 design: changed DEC-1 (raised at ${A}, pin now ${B})`,
+    ],
+    [
+      { kind: "answer-candidate", id: "BR-1", source: "design", changed: ["DEC-2", "DEC-1"], raisedAt: A, pinNow: B },
+      `answer-candidate BR-1 design: changed DEC-2, DEC-1 (raised at ${A}, pin now ${B})`,
+    ],
+    [
+      { kind: "pin-moved", id: "BR-1", source: "design", raisedAt: A, pinNow: B },
+      `pin-moved BR-1 design: no listed ID changed (raised at ${A}, pin now ${B})`,
+    ],
+    [
+      { kind: "not-descendant", id: "BR-1", source: "design", raisedAt: A, pinNow: B },
+      `not-descendant BR-1 design: pin now ${B} does not descend from ${A}`,
+    ],
+    [{ kind: "overlap", a: "BR-1", b: "BR-2", source: "design", ids: ["DEC-1"] }, "overlap BR-1 BR-2 design: DEC-1"],
+    [
+      { kind: "overlap", a: "BR-2", b: "BR-10", source: "design", ids: ["DEC-3", "Q-1"] },
+      "overlap BR-2 BR-10 design: DEC-3, Q-1",
+    ],
+    [
+      { kind: "unknown", id: "BR-1", source: "ghost", reason: "source ghost is not declared" },
+      "UNKNOWN - verify BR-1 ghost: source ghost is not declared",
+    ],
+  ] as const)("%o prints %s", (item, line) => {
+    expect(formatBuildRequestReportLine(item as BuildRequestReportItem)).toBe(line);
+  });
+});
+
+describe("requests report — the exit code (plan 45-07)", () => {
+  const carry: BuildRequestReportItem = { kind: "carry-open", id: "BR-1", source: "design", since: "2026-12-01" };
+  const unknown: BuildRequestReportItem = { kind: "unknown", id: "BR-1", source: "ghost", reason: "source ghost is not declared" };
+  const refused: BuildRequestReportItem = { kind: "refused", fileName: "BR-2.md", code: "unknown-key" };
+  it("an UNKNOWN - verify line alone, or beside a carry line, gives exit 2", () => {
+    expect(buildRequestReportExitCode([unknown])).toBe(2);
+    expect(buildRequestReportExitCode([carry, unknown])).toBe(2);
+    expect(buildRequestReportExitCode([refused, carry])).toBe(2);
+  });
+
+  it.each([
+    [{ kind: "carry-changed", id: "BR-1", source: "design", since: "2026-12-03" }],
+    [{ kind: "wait", id: "BR-1", source: "design", status: "open", days: 11, threshold: 10 }],
+    [{ kind: "answer-candidate", id: "BR-1", source: "design", changed: ["DEC-1"], raisedAt: BR_FIXTURE_PIN, pinNow: BR_FIXTURE_NEW_PIN }],
+    [{ kind: "pin-moved", id: "BR-1", source: "design", raisedAt: BR_FIXTURE_PIN, pinNow: BR_FIXTURE_NEW_PIN }],
+    [{ kind: "not-descendant", id: "BR-1", source: "design", raisedAt: BR_FIXTURE_PIN, pinNow: BR_FIXTURE_NEW_PIN }],
+    [{ kind: "overlap", a: "BR-1", b: "BR-2", source: "design", ids: ["DEC-1"] }],
+  ] as const)("any other report line (%o) gives exit 1", (item) => {
+    expect(buildRequestReportExitCode([item as BuildRequestReportItem])).toBe(1);
+  });
+
+  it("the none and quiet lines give exit 0", () => {
+    expect(buildRequestReportExitCode([{ kind: "none" }])).toBe(0);
+    expect(buildRequestReportExitCode([{ kind: "quiet", onFile: 2 }])).toBe(0);
+  });
+});
+
+/** The admitted document of `parts`, failing the test when it is refused. */
+function admitted(parts: BuildRequestParts): BuildRequestDocument {
+  const r = parseParts(parts);
+  if (!r.ok) throw new Error(`test premise: ${parts.id} was refused (${r.code}: ${r.reason})`);
+  return r.value;
+}
+
+describe("requests report — overlaps between open and carried requests (D-09, BR-03)", () => {
+  it("two open requests for one source that both name DEC-1 give one overlap item", () => {
+    const one = admitted(buildRequestPartsAt({ id: "BR-1", raised: "2026-12-01", upstreamIds: ["DEC-1"] }));
+    const two = admitted(buildRequestPartsAt({ id: "BR-2", raised: "2026-12-01", upstreamIds: ["DEC-1"] }));
+    expect(buildRequestOverlaps([two, one])).toEqual([{ kind: "overlap", a: "BR-1", b: "BR-2", source: "design", ids: ["DEC-1"] }]);
+  });
+
+  it("[EDGE BR-04/ordering] pairs come out by the first ID then the second, numerically, the shared IDs in the first request's order", () => {
+    const docs = [
+      admitted(buildRequestPartsAt({ id: "BR-10", raised: "2026-12-01", upstreamIds: ["Q-1", "DEC-3"] })),
+      admitted(buildRequestPartsAt({ id: "BR-2", raised: "2026-12-01", upstreamIds: ["DEC-3", "DEC-9", "Q-1"] })),
+      admitted(buildRequestPartsAt({ id: "BR-3", raised: "2026-12-01", upstreamIds: ["DEC-9"], after: [["carried", "2026-12-02"]] })),
+    ];
+    expect(buildRequestOverlaps(docs).map(formatBuildRequestReportLine)).toEqual([
+      "overlap BR-2 BR-3 design: DEC-9",
+      "overlap BR-2 BR-10 design: DEC-3, Q-1",
+    ]);
+  });
+
+  it("the same IDs under different sources give nothing", () => {
+    const one = admitted(buildRequestPartsAt({ id: "BR-1", raised: "2026-12-01", upstreamIds: ["DEC-1"] }));
+    const two = admitted(buildRequestPartsAt({ id: "BR-2", source: "ux-kit", raised: "2026-12-01", upstreamIds: ["DEC-1"] }));
+    expect(buildRequestOverlaps([one, two])).toEqual([]);
+  });
+
+  it("a withdrawn or answered request never overlaps", () => {
+    const open = admitted(buildRequestPartsAt({ id: "BR-1", raised: "2026-12-01", upstreamIds: ["DEC-12"] }));
+    const answered = admitted({ ...validBuildRequestParts("answered"), id: "BR-2" });
+    const withdrawn = admitted({ ...validBuildRequestParts("withdrawn-open"), id: "BR-4" });
+    expect(answered.upstreamIds, "PREMISE: the answered request names DEC-12").toEqual(["DEC-12"]);
+    expect(buildRequestOverlaps([open, answered, withdrawn])).toEqual([]);
+  });
+
+  it("[EDGE BR-05/empty] a request whose `## Upstream IDs` is `none` overlaps nothing", () => {
+    const none = admitted(buildRequestPartsAt({ id: "BR-1", raised: "2026-12-01", upstreamIds: [] }));
+    const other = admitted(buildRequestPartsAt({ id: "BR-2", raised: "2026-12-01", upstreamIds: ["DEC-1"] }));
+    expect(none.upstreamIds).toEqual([]);
+    expect(buildRequestOverlaps([none, other])).toEqual([]);
+  });
+});
+
+describe("requests report — the dated fixture builder gives the History each shape implies", () => {
+  it("carried, edited after the carry, then carried again", () => {
+    const doc = admitted(
+      buildRequestPartsAt({
+        id: "BR-5",
+        raised: "2026-12-01",
+        after: [
+          ["carried", "2026-12-02"],
+          ["edited", "2026-12-04"],
+          ["carried", "2026-12-06"],
+        ],
+      }),
+    );
+    expect(doc.status).toBe("carried");
+    expect(buildRequestChangedSinceCarried(doc)).toBe(false);
+    expect(buildRequestLastMoveDate(doc)).toBe("2026-12-06");
   });
 });

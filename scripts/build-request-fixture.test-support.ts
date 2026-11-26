@@ -132,3 +132,43 @@ export function validBuildRequestParts(shape: BuildRequestFixtureShape): BuildRe
       };
   }
 }
+
+/** One History entry after the `open` line of buildRequestPartsAt: `carried` by the fixture human, or `edited` by BA/PM. */
+export type BuildRequestFixtureEvent = readonly [event: "carried" | "edited", date: string];
+
+/**
+ * An admitted `open` or `carried` part set with chosen dates and IDs (plan 45-07): `open` on `raised`, then each entry
+ * of `after` in order. The status is `carried` when any entry is `carried`, else `open`. `upstreamIds` lists IDs (an
+ * empty list writes the single line `none`); the default is DEC-12. `question` replaces the question lines.
+ */
+export function buildRequestPartsAt(o: {
+  readonly id: string;
+  readonly raised: string;
+  readonly source?: string;
+  readonly pin?: string;
+  readonly after?: readonly BuildRequestFixtureEvent[];
+  readonly upstreamIds?: readonly string[];
+  readonly question?: readonly string[];
+}): BuildRequestParts {
+  const after = o.after ?? [];
+  const history = [
+    `- ${o.raised}: open, by BA/PM`,
+    ...after.map(([event, date]) =>
+      event === "carried" ? `- ${date}: carried, by ${BR_FIXTURE_HUMAN}` : `- ${date}: edited, by BA/PM: reworded the question`,
+    ),
+  ];
+  const ids = o.upstreamIds ?? ["DEC-12"];
+  const base = validBuildRequestParts("open");
+  return {
+    ...base,
+    id: o.id,
+    title: `# ${o.id}: Which store owns the session token`,
+    status: after.some(([event]) => event === "carried") ? "carried" : "open",
+    source: o.source ?? base.source,
+    pin: o.pin ?? base.pin,
+    raised: o.raised,
+    question: o.question ?? base.question,
+    upstreamIds: ids.length === 0 ? ["none"] : ids.map((id) => `- ${id}`),
+    history,
+  };
+}
