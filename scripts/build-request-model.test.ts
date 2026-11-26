@@ -17,7 +17,13 @@ import {
   BUILD_REQUEST_NONE_IDS,
   BUILD_REQUEST_RECOMMENDED_MARKER,
   BUILD_REQUEST_SECTIONS,
+  buildRequestAgeDays,
+  buildRequestChangedSinceCarried,
+  buildRequestIsOverdue,
+  buildRequestLastMoveDate,
+  buildRequestWaitDays,
   parseBuildRequestDocument,
+  type BuildRequestDocument,
   type BuildRequestResult,
 } from "./build-request-model.js";
 import {
@@ -444,5 +450,93 @@ describe("build-request grammar — every refusal reason names the line and the 
     expect(r.code).toBe(code);
     expect(r.reason).not.toContain(MARK);
     expect(r.reason).not.toContain("ZZQ");
+  });
+});
+
+// ── The derivations (Task 3, D-08, D-12, D-13, BR-06) ───────────────────────────────────────────────────
+
+/** The admitted document of a fixture shape. */
+function docOf(shape: BuildRequestFixtureShape): BuildRequestDocument {
+  const r = parseParts(validBuildRequestParts(shape));
+  if (!r.ok) throw new Error(`test premise: the ${shape} shape was refused (${r.code})`);
+  return r.value;
+}
+
+describe("build-request derivations — changed since carried (D-08, D-12)", () => {
+  it.each([
+    ["open", false],
+    ["carried", false],
+    ["carried-edited", true],
+    ["carried-resent", false],
+    ["answered", false],
+    ["withdrawn-open", false],
+    ["withdrawn-carried", false],
+  ] as const)("the %s shape gives %s", (shape, want) => {
+    expect(buildRequestChangedSinceCarried(docOf(shape))).toBe(want);
+  });
+
+  it("an edit made before the request was carried does not flag it", () => {
+    const r = parseParts(
+      withHistory("carried", [OPEN, "- 2026-12-02: edited, by BA/PM: reworded the question", CARRIED]),
+    );
+    if (!r.ok) throw new Error(`refused: ${r.code}`);
+    expect(buildRequestChangedSinceCarried(r.value)).toBe(false);
+  });
+});
+
+describe("build-request derivations — the last status move (D-13)", () => {
+  it.each([
+    ["open", "2026-12-01"],
+    ["carried", "2026-12-03"],
+    ["carried-edited", "2026-12-03"],
+    ["carried-resent", "2026-12-06"],
+    ["answered", null],
+    ["answered-not-descendant", null],
+    ["withdrawn-open", null],
+    ["withdrawn-carried", null],
+  ] as const)("the %s shape last moved on %s", (shape, want) => {
+    expect(buildRequestLastMoveDate(docOf(shape))).toBe(want);
+  });
+});
+
+describe("build-request derivations — age in whole UTC days (BR-06)", () => {
+  it("[EDGE BR-06/precision] 2026-12-01 to 2026-12-11 is 10 days", () => {
+    expect(buildRequestAgeDays("2026-12-01", "2026-12-11")).toBe(10);
+  });
+
+  it("[EDGE BR-06/precision] across a month end and a leap day, 2028-02-28 to 2028-03-01 is 2 days", () => {
+    expect(buildRequestAgeDays("2028-02-28", "2028-03-01")).toBe(2);
+  });
+
+  it("across a year end and a non-leap February the count stays whole", () => {
+    expect(buildRequestAgeDays("2026-12-31", "2027-01-01")).toBe(1);
+    expect(buildRequestAgeDays("2027-02-28", "2027-03-01")).toBe(1);
+  });
+
+  it("equal dates give 0, and a `from` after `today` gives a negative number", () => {
+    expect(buildRequestAgeDays("2026-12-11", "2026-12-11")).toBe(0);
+    expect(buildRequestAgeDays("2026-12-11", "2026-12-01")).toBe(-10);
+  });
+
+  it("the wait counts from the last status move, and a finished request has none", () => {
+    expect(buildRequestWaitDays(docOf("open"), "2026-12-11")).toBe(10);
+    expect(buildRequestWaitDays(docOf("carried"), "2026-12-11")).toBe(8);
+    expect(buildRequestWaitDays(docOf("carried-resent"), "2026-12-11")).toBe(5);
+    expect(buildRequestWaitDays(docOf("answered"), "2026-12-11")).toBeNull();
+    expect(buildRequestWaitDays(docOf("withdrawn-carried"), "2026-12-11")).toBeNull();
+  });
+});
+
+describe("build-request derivations — overdue past the escalation threshold (BR-06, D-13)", () => {
+  it("[EDGE BR-06/boundary] a wait equal to the threshold is not overdue", () => {
+    expect(buildRequestIsOverdue(10, 10)).toBe(false);
+  });
+
+  it("[EDGE BR-06/boundary] a wait one day past the threshold is overdue", () => {
+    expect(buildRequestIsOverdue(11, 10)).toBe(true);
+  });
+
+  it("a fresh request is not overdue", () => {
+    expect(buildRequestIsOverdue(0, 10)).toBe(false);
   });
 });
