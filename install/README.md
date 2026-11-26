@@ -535,6 +535,8 @@ are written only when that agent is chosen.
   `node tools/grugops/upstream.js check` checks each declared source at its pinned commit, reading
   git objects only, and changes no file. Install writes no permission or read rule for a declared
   source, so this program is the one way an agent reads it.
+  `node tools/grugops/upstream.js requests` lists the build requests to carry upstream, the overdue
+  waits and the requests a moved pin may answer, and changes no file.
 
   Install never overwrites a copy that is already there, so an updated program reaches your
   repository only after you remove the old copy and install again.

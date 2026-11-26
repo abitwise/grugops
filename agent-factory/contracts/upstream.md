@@ -16,8 +16,15 @@ installed on a host as `tools/grugops/upstream.js`. The procedure roles follow i
 ## Declaration
 
 A repository declares its sources in `.grugops/factory.config.json` under the `upstream` key.
-The `upstream` object takes one key, `sources`, a non-empty array. Each source has exactly
-these six keys, and all six are required:
+The `upstream` object takes two keys:
+
+- `sources` is required: a non-empty array of sources.
+- `escalation_days` is optional: an integer of at least 1, default 10 when the key is absent. It is
+  the number of days an `open` or `carried` build request may wait before
+  `upstream.js requests` prints a `wait` line for it (§ Requests). It is separate from
+  `blocked_escalation_days`.
+
+Each source has exactly these six keys, and all six are required:
 
 | Key | Form |
 |-----|------|
@@ -29,8 +36,8 @@ these six keys, and all six are required:
 | `owns` | an object with exactly the keys `areas` and `prefixes`, each a non-empty array |
 
 - The key sets are closed. A key outside the set of `upstream`, of a source or of `owns` is
-  refused by name, and the finding quotes the allowed keys. `escalation_days` is refused in
-  this version.
+  refused by name, and the finding quotes the allowed keys. A value of `escalation_days` that is
+  not a whole number of at least 1 is refused by name.
 - `path` is resolved against the repository root, the directory that holds `.grugops/`, never
   against `.grugops/` itself. A leading `/`, a drive letter, a leading `~`, a backslash and a
   control character are each refused. A `..` segment is allowed.
@@ -211,6 +218,77 @@ it is refused by name and never truncated. The ceiling is a constant, not a conf
 is a build-request candidate: upstream splits the file.
 
 The reader writes nothing: no file, no config and no pin.
+
+## Requests
+
+`node tools/grugops/upstream.js requests [--root <dir>]` reads the build-request folder and the
+declared sources, and prints the report that `agent-factory/contracts/build-request.md` lists,
+with its exit codes.
+
+- For a `carried` request whose `pin` is not the declared pin, it reads the manifest and the
+  blobs of the listed files at both commits, through the same git reads as `check`.
+- It runs one git subcommand that `check` does not: `merge-base --is-ancestor`, for the
+  `not-descendant` warning only. It runs with grafts ignored and with replace refs off, so neither
+  can fake history.
+- A shallow clone gives `UNKNOWN - verify` for the ancestry, never `not-descendant`.
+- It writes nothing and never moves a pin.
+
+## Citation check
+
+When the state root's own `.grugops/factory.config.json` declares `upstream`, the structure
+validator checks the upstream citations of every admitted ticket. With no `upstream` key it reads
+no note and runs no git.
+
+- It reads the live and archived notes, and keeps the current notes, the ones no later note
+  supersedes. A current note that names a ticket in its `refs` cites for that ticket each
+  `upstream:` ref it holds.
+- It checks each ref at the ref's own commit, through the same git read as the reader.
+- It checks each ticket's `## Upstream` section, which holds the one line `none (build-internal)`
+  (board contract, Ticket body sections).
+
+Each error and warning starts with the ticket's file path and a colon. The errors, each given in
+this form:
+
+```
+<ID>: the ticket's upstream statement is malformed: <reason>
+<ID> cites <n> upstream ID(s) and also states `none (build-internal)`; keep one of the two
+<ID> has a malformed upstream ref; a ref reads upstream:<source>:<ID>@<full commit id>
+<ID> cites <source>:<ID>@<commit>, but upstream.sources declares no source <source>
+<ID> cites <source>:<ID>@<commit>, a <n>-hex commit, but source <source> is pinned with <m>-hex object ids; a ref uses its source's object format
+<ID> cites <source>:<ID>@<commit>, but the manifest of <source> does not list <ID> at <commit>
+```
+
+The undeclared-source error applies to a ticket not `Done`. The warnings apply only to a ticket
+not `Done`:
+
+```
+<ID> cites no upstream ID and has no `## Upstream` section; cite the upstream IDs it implements on its ticket note (Workflow 03 step 8), or write the one line `none (build-internal)` under that heading
+<ID> cites <source>:<ID>@<commit>, which <source> supersedes at the pin <commit>: <ID> → <ID>
+<ID> cites <source>:<ID>@<commit>, which <source> no longer lists at the pin <commit>
+```
+
+- The first warning is not given when some note could not be read.
+- The supersession warning names the chain to its locked end.
+
+A listed ID on a `Done` ticket gives no finding. A source the validator cannot read gives one line
+per source, commit and reason, never a pass and never an error:
+
+- `UNKNOWN - verify <source>@<commit>: <reason> (<n> upstream refs not checked)`, with `ref`
+  when `<n>` is 1
+- `UNKNOWN - verify <source>@<commit>: the source is not declared in upstream.sources (<n> upstream refs not checked)`,
+  for a ticket that is `Done`, because its source may be retired
+- `UNKNOWN - verify notes: …`, for a context root or a task whose notes could not be read
+
+The validator prints each of these lines as a `WARNING` on stderr. They never count as an error,
+and `--strict` does not promote them. While one is listed and no error is, the last line is
+`NO ERRORS, <n> UNKNOWN - verify: an unread source is not a pass`, at exit 0.
+
+A ref is never edited in place. The remedy for a wrong ref is a correcting note that supersedes
+the note that holds it (`agent-factory/contracts/context-note.md`).
+
+The structure validator is dev and CI tooling. The scripted install does not install it on a host,
+and no workflow runs it. A repository gets the check only when someone runs the validator
+against it, for example from a grugops checkout with `VALIDATE_ROOT=<repo>`.
 
 ## Host access
 

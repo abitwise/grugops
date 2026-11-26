@@ -145,15 +145,23 @@ example; this paragraph is the authority it points at.
 ### Ticket body sections
 
 The eight keys above stay the closed set, and no key is added for ticket detail. Detail that does
-not belong on the board row goes in the ticket body, under one of two level-two headings:
+not belong on the board row goes in the ticket body, under one of three level-two headings:
 
 - `## Blocked` holds a blocked ticket's reasons, one bullet per reason. Each bullet gives the date,
   who raised it, the reason and the owner who can clear it, for example
   `- 2026-10-21, raised by Software Engineer: waiting on ADR-0007 (owner: Architect/Design)`.
+  A ticket waiting on a build request has the bullet
+  `- 2026-12-01, raised by BA/PM: waiting on build request BR-3 (owner: human carrier)`.
+  `agent-factory/contracts/build-request.md` states the forms of a build request.
 - `## Board notes` holds text that used to sit in a board row's trailer, copied verbatim.
+- `## Upstream` holds exactly the one line `none (build-internal)` when the repository declares
+  `upstream` and the ticket implements no upstream ID. A ticket that implements an upstream ID
+  cites it on its BA/PM ticket note instead (Workflow 03 step 8). A repository with no `upstream`
+  key needs no `## Upstream` section.
 
-The body is never interpreted, so the grammar reads neither section. Section order carries no
-meaning, and a ticket with neither section is admitted the same way as one with both.
+The board grammar reads none of these sections. The structure validator reads `## Upstream` when
+`upstream` is declared (upstream contract, Citation check). Section order carries no meaning, and
+a ticket with none of them is admitted the same way as one with all three.
 
 ## Rows
 
