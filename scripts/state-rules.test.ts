@@ -312,6 +312,7 @@ describe("fileBytesFinding: the per-file byte budgets", () => {
     ["ticketBytes", BUDGETS.ticketBytes],
     ["nfrBytes", BUDGETS.nfrBytes],
     ["traceBytes", BUDGETS.traceBytes],
+    ["buildRequestBytes", BUDGETS.buildRequestBytes],
     ["progressBytes", BUDGETS.progressBytes],
   ] as const)("%s: at the budget yields nothing, one byte more yields one finding", (key, budget) => {
     expect(fileBytesFinding("d/ABC-7.md", budget, key, BUDGETS)).toBeNull();

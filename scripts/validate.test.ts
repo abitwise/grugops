@@ -62,6 +62,7 @@ import {
   BOARD_REL,
   BUDGET_COUNT,
   BUDGETS,
+  BUILD_REQUESTS_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   NFR_CATALOG_REL,
@@ -3759,6 +3760,30 @@ function paddedTo(text: string, bytes: number): string {
 const READY_TICKET = "---\ncolumn: Ready\nstatus: ready\n---\n# ABC-001 budget fixture ticket\n";
 
 /**
+ * A build request the build-request grammar admits (plan 45-04, BR-07), of exactly `bytes` UTF-8 bytes: the question
+ * line is padded with `q`, so only the byte budget can break. Every id, pin and sentence is invented (DEC-12,
+ * ABC-014), as in scripts/build-request-fixture.test-support.ts, whose forms this text copies inline.
+ */
+function buildRequestOfBytes(bytes: number, id = "BR-1"): string {
+  const text = (question: string): string =>
+    "---\n" +
+    `id: ${id}\nstatus: open\nsource: design\npin: 0123456789abcdef0123456789abcdef01234567\nraised: 2026-12-01\n` +
+    "---\n" +
+    `# ${id}: Which store owns the session token\n\n` +
+    `## Question\n\n${question}\n\n` +
+    "## Upstream IDs\n\n- DEC-12\n\n" +
+    "## Options\n\n- (recommended) The server store owns it.\n- The client store owns it.\n\n" +
+    "## Blocks\n\n- ABC-014\n\n" +
+    "## History\n\n- 2026-12-01: open, by BA/PM\n\n" +
+    "## Answer\n";
+  const pad = bytes - Buffer.byteLength(text("Q"), "utf8");
+  if (pad < 0) throw new Error("PREMISE: the build request is already larger than the requested size");
+  const out = text(`Q${"q".repeat(pad)}`);
+  expect(Buffer.byteLength(out, "utf8")).toBe(bytes);
+  return out;
+}
+
+/**
  * One planter per BUDGETS key. Each breaks ONLY its own budget in a temp copy of the good fixture. Typed as a
  * Record over the BUDGETS keys, so a tenth key without a planter fails typecheck, and counted against
  * BUDGET_COUNT below, so the table cannot shrink either.
@@ -3778,6 +3803,8 @@ const planters: Record<keyof typeof BUDGETS, (dir: string) => void> = {
   },
   nfrBytes: (d) => plant(d, `${NFR_DIR_REL}/NFR-001.md`, paddedTo("# NFR-001\n", BUDGETS.nfrBytes + 1)),
   traceBytes: (d) => plant(d, `${TRACE_DIR_REL}/ABC-083.md`, paddedTo("# ABC-083\n", BUDGETS.traceBytes + 1)),
+  // Plan 45-04 (2026-11-26, BR-07): one admitted build request one byte over its per-file budget.
+  buildRequestBytes: (d) => plant(d, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestOfBytes(BUDGETS.buildRequestBytes + 1)),
   progressBytes: (d) => plant(d, PROGRESS_REL, paddedTo("# Progress\n", BUDGETS.progressBytes + 1)),
   doneRows: (d) =>
     appendTo(
@@ -3920,6 +3947,73 @@ describe("validate-agent-factory.js — every BUDGETS key is checked (plan 37-02
     );
     expect(keyed).toEqual(sorted);
     expect(new Set(keyed.map((k) => k.key)).size, "every key appears").toBe(BUDGET_COUNT);
+  });
+});
+
+// ── The build-request folder's per-file byte budget (plan 45-04, BR-07, T-45-11, T-45-12) ─────────────────────────
+//
+// Each `.md` record in memory-bank/plans/build-requests/ is measured against BUDGETS.buildRequestBytes from its lstat
+// size, never opened for the measure. A keeper is not a record; a folder that is absent holds nothing to measure; a
+// folder that is not a directory, and a record that is not a regular file, are findings by name.
+
+describe("validate-agent-factory.js — the build-request byte budget (plan 45-04, BR-07)", () => {
+  const BR_1 = `${BUILD_REQUESTS_REL}/BR-1.md`;
+  const grouped = (n: number): string => String(n).replace(/(\d)(?=(\d{3})+$)/g, "$1,");
+
+  it("a build request of exactly BUDGETS.buildRequestBytes bytes is no budget finding", () => {
+    const d = budgetTree();
+    plant(d, BR_1, buildRequestOfBytes(BUDGETS.buildRequestBytes));
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    expect(budgetLines(r), out(r)).toEqual([]);
+  });
+
+  it("one byte over is one budget finding naming the file, the measure and the budget", () => {
+    const d = budgetTree();
+    plant(d, BR_1, buildRequestOfBytes(BUDGETS.buildRequestBytes + 1));
+    const lines = budgetLines(runFixture(d));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(
+      `${BR_1}: ${grouped(BUDGETS.buildRequestBytes + 1)} bytes, budget ${grouped(BUDGETS.buildRequestBytes)} bytes (BUDGETS.buildRequestBytes)`,
+    );
+  });
+
+  it("a .gitkeep and an over-budget dot-named file in the folder are never measured", () => {
+    const d = budgetTree();
+    plant(d, `${BUILD_REQUESTS_REL}/.gitkeep`, "");
+    plant(d, `${BUILD_REQUESTS_REL}/.draft.md`, paddedTo("# draft\n", BUDGETS.buildRequestBytes + 100));
+    const r = runFixture(d);
+    expect(r.status, out(r)).toBe(0);
+    expect(budgetLines(r), out(r)).toEqual([]);
+    expect(tagged(r, "LAYOUT"), out(r)).toEqual([]);
+  });
+
+  it("a file where the folder should be is an unmeasured finding naming the folder", () => {
+    const d = budgetTree();
+    plant(d, BUILD_REQUESTS_REL, "not a folder\n");
+    const lines = budgetLines(runFixture(d));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`${BUILD_REQUESTS_REL}: not measured`);
+    expect(lines[0]).toContain("(BUDGETS.buildRequestBytes)");
+  });
+
+  it("a FIFO named BR-2.md in the folder is reported as not a regular file in bounded time, never opened", () => {
+    const d = budgetTree();
+    mkdirSync(join(d, BUILD_REQUESTS_REL), { recursive: true });
+    const fifo = join(d, BUILD_REQUESTS_REL, "BR-2.md");
+    const skipped = stageShapeOrSkip("FIFO", fifo, "scripts/validate.test.ts: a FIFO in the build-request folder (plan 45-04)");
+    if (skipped !== null) {
+      console.warn(skipLine(skipped, "the NFR FIFO case of plan 37-02 (the same lstat rule)"));
+      return;
+    }
+    const r = spawnSync("node", [VALIDATOR_JS], {
+      encoding: "utf8",
+      timeout: 20_000,
+      env: { ...process.env, VALIDATE_KIT_ROOT: d, VALIDATE_ROOT: d },
+    });
+    expect(r.error, "the validator did not answer in bounded time: it opened the FIFO").toBeUndefined();
+    const lines = budgetLines(r);
+    expect(lines.filter((l) => l.includes(`${BUILD_REQUESTS_REL}/BR-2.md`) && l.includes("not a regular file")), out(r)).toHaveLength(1);
   });
 });
 

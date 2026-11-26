@@ -37,6 +37,7 @@ import {
   ARCHIVE_REL,
   BOARD_REL,
   BUDGET_COUNT,
+  BUILD_REQUESTS_REL,
   CONTEXT_ARCHIVE_REL,
   CONTEXT_REL,
   BUDGETS,
@@ -294,6 +295,30 @@ function cleanRepo(marker?: string): string {
 }
 
 /**
+ * A build request the build-request grammar admits (plan 45-04, BR-07), of exactly `bytes` UTF-8 bytes: the question
+ * line is padded with `q`, so only the byte budget can break. Every id, pin and sentence is invented (DEC-12,
+ * ABC-014), as in scripts/build-request-fixture.test-support.ts, whose forms this text copies inline.
+ */
+function buildRequestOfBytes(bytes: number, id = "BR-1"): string {
+  const text = (question: string): string =>
+    "---\n" +
+    `id: ${id}\nstatus: open\nsource: design\npin: 0123456789abcdef0123456789abcdef01234567\nraised: 2026-12-01\n` +
+    "---\n" +
+    `# ${id}: Which store owns the session token\n\n` +
+    `## Question\n\n${question}\n\n` +
+    "## Upstream IDs\n\n- DEC-12\n\n" +
+    "## Options\n\n- (recommended) The server store owns it.\n- The client store owns it.\n\n" +
+    "## Blocks\n\n- ABC-014\n\n" +
+    "## History\n\n- 2026-12-01: open, by BA/PM\n\n" +
+    "## Answer\n";
+  const pad = bytes - Buffer.byteLength(text("Q"), "utf8");
+  if (pad < 0) throw new Error("PREMISE: the build request is already larger than the requested size");
+  const out = text(`Q${"q".repeat(pad)}`);
+  expect(Buffer.byteLength(out, "utf8")).toBe(bytes);
+  return out;
+}
+
+/**
  * One planter per BUDGETS key, each breaking ONLY its own budget in a clean repository. Typed as a Record over
  * the BUDGETS keys, so a key without a planter fails typecheck, and counted against BUDGET_COUNT below, so the
  * table cannot shrink either.
@@ -312,6 +337,8 @@ const planters: Record<keyof typeof BUDGETS, (root: string) => void> = {
     appendTo(r, NFR_CATALOG_REL, NFR_LINE_001);
   },
   traceBytes: (r) => plant(r, `${TRACE_DIR_REL}/ABC-083.md`, paddedTo("# ABC-083\n", BUDGETS.traceBytes + 1)),
+  // Plan 45-04 (2026-11-26, BR-07): one admitted build request one byte over its per-file budget.
+  buildRequestBytes: (r) => plant(r, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestOfBytes(BUDGETS.buildRequestBytes + 1)),
   progressBytes: (r) => plant(r, PROGRESS_REL, paddedTo("# Progress\n", BUDGETS.progressBytes + 1)),
   doneRows: (r) =>
     appendTo(
@@ -621,6 +648,57 @@ function fifoAtOrSkip(at: string, position: string): boolean {
   expect(statSync(at).isFIFO(), "PREMISE: the planted path is not a FIFO").toBe(true);
   return true;
 }
+
+describe("state-check.js — the build-request byte budget (plan 45-04, BR-07, T-45-11, T-45-12)", () => {
+  const BR_1 = `${BUILD_REQUESTS_REL}/BR-1.md`;
+
+  it("a build request of exactly BUDGETS.buildRequestBytes bytes with the marker: `No findings.`, exit 0", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, BR_1, buildRequestOfBytes(BUDGETS.buildRequestBytes));
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(0);
+    expect(withoutCounts(r.stdout)).toBe("No findings.\n");
+  });
+
+  it("one byte over with the marker: one FINDING naming the file, the measure and the budget, exit 1", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, BR_1, buildRequestOfBytes(BUDGETS.buildRequestBytes + 1));
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(1);
+    expect(budgetLines(r.stdout)).toEqual([`FINDING  ${BR_1}: 8,193 bytes, budget 8,192 bytes (BUDGETS.buildRequestBytes)`]);
+  });
+
+  it("a .gitkeep and an over-budget dot-named file in the folder are never measured", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, `${BUILD_REQUESTS_REL}/.gitkeep`, "");
+    plant(root, `${BUILD_REQUESTS_REL}/.draft.md`, paddedTo("# draft\n", BUDGETS.buildRequestBytes + 100));
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(0);
+    expect(withoutCounts(r.stdout)).toBe("No findings.\n");
+  });
+
+  it("a file where the folder should be is an unmeasured finding naming the folder", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(root, BUILD_REQUESTS_REL, "not a folder\n");
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(1);
+    const lines = budgetLines(r.stdout);
+    expect(lines, r.stdout).toHaveLength(1);
+    expect(lines[0]).toContain(`FINDING  ${BUILD_REQUESTS_REL}: not measured`);
+    expect(lines[0]).toContain("(BUDGETS.buildRequestBytes)");
+  });
+
+  it("a FIFO named BR-2.md is reported as not a regular file in bounded time, never opened", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    mkdirSync(join(root, ...BUILD_REQUESTS_REL.split("/")), { recursive: true });
+    if (!fifoAtOrSkip(join(root, ...`${BUILD_REQUESTS_REL}/BR-2.md`.split("/")), "a FIFO in the build-request folder")) return;
+    const r = spawnSync(process.execPath, [HOST_JS, root], { encoding: "utf8", timeout: 15_000 });
+    expect(r.error, "the check did not finish in bounded time: it opened the FIFO").toBeUndefined();
+    expect(r.status, r.stdout).toBe(1);
+    const lines = budgetLines(r.stdout ?? "");
+    expect(lines.filter((l) => l.includes(`${BUILD_REQUESTS_REL}/BR-2.md`) && l.includes("not a regular file")), r.stdout).toHaveLength(1);
+  });
+});
 
 describe("state-check.js — a FIFO at a state path never hangs the check (T-37-31)", () => {
   it("a FIFO at the board path exits 2 naming the board, in bounded time", () => {
@@ -2275,13 +2353,32 @@ function enclosingFunction(n: ts.Node): string {
 }
 
 /** The folders state-check lists, other than the trace directory (a D-20 position already), by their constant. */
-const LISTED_FOLDERS = [TICKETS_REL, NFR_DIR_REL, QUEUE_DONE_REL, QUEUE_DONE_ARCHIVE_REL, DECISIONS_REL, DECISIONS_ARCHIVE_REL] as const;
-const LISTED_FOLDER_NAMES = ["TICKETS_REL", "NFR_DIR_REL", "QUEUE_DONE_REL", "QUEUE_DONE_ARCHIVE_REL", "DECISIONS_REL", "DECISIONS_ARCHIVE_REL"];
+// 2026-11-26, plan 45-04 (BR-07): 6 -> 7 members. BUILD_REQUESTS_REL joins: state-check lists the build-request
+// folder for its per-file byte budget, so a link at it is the folder's one finding like the other listed folders.
+const LISTED_FOLDERS = [
+  TICKETS_REL,
+  NFR_DIR_REL,
+  BUILD_REQUESTS_REL,
+  QUEUE_DONE_REL,
+  QUEUE_DONE_ARCHIVE_REL,
+  DECISIONS_REL,
+  DECISIONS_ARCHIVE_REL,
+] as const;
+const LISTED_FOLDER_NAMES = [
+  "TICKETS_REL",
+  "NFR_DIR_REL",
+  "BUILD_REQUESTS_REL",
+  "QUEUE_DONE_REL",
+  "QUEUE_DONE_ARCHIVE_REL",
+  "DECISIONS_REL",
+  "DECISIONS_ARCHIVE_REL",
+];
 
 /** The byte-budget key a linked folder's one finding carries; a move-only folder's is move-only-unlisted. */
 function folderKey(folder: string): string {
   if (folder === TICKETS_REL) return "ticketBytes";
   if (folder === NFR_DIR_REL) return "nfrBytes";
+  if (folder === BUILD_REQUESTS_REL) return "buildRequestBytes";
   return "move-only-unlisted";
 }
 
@@ -2289,7 +2386,8 @@ const OVER_BUDGET_TICKET = `${TICKETS_REL}/ABC-2.md`;
 
 /**
  * A migrated, rendered repository with real record files in every listed folder: two tickets (ABC-2.md one byte
- * over BUDGETS.ticketBytes), one NFR file the catalog indexes, and two records in each move-only folder.
+ * over BUDGETS.ticketBytes), one NFR file the catalog indexes, one admitted build request under its budget (plan
+ * 45-04), and two records in each move-only folder.
  */
 function folderRepo(): string {
   const root = tracedRepo(LAYOUT_MARKER_CONTENT);
@@ -2297,6 +2395,7 @@ function folderRepo(): string {
   plant(root, OVER_BUDGET_TICKET, paddedTo("# ABC-2\n", BUDGETS.ticketBytes + 1));
   plant(root, `${NFR_DIR_REL}/NFR-001.md`, "# NFR-001\n");
   appendTo(root, NFR_CATALOG_REL, NFR_LINE_001);
+  plant(root, `${BUILD_REQUESTS_REL}/BR-1.md`, buildRequestOfBytes(1024));
   const records: Readonly<Record<string, readonly string[]>> = {
     [QUEUE_DONE_REL]: ["T-1.md", "T-2.md"],
     [QUEUE_DONE_ARCHIVE_REL]: ["T-3.md", "T-4.md"],
@@ -2317,8 +2416,8 @@ let folderRowsRun = 0;
 let folderRowsSkipped = 0;
 
 describe("flagged: a link at a listed folder is the folder's one finding, and no file beneath it is read (plan 37-35)", () => {
-  it("LISTED_FOLDERS has 6 members, and each is a listDirectory or moveOnlyReport argument in the committed state-check.ts", () => {
-    expect(LISTED_FOLDERS).toHaveLength(6);
+  it("LISTED_FOLDERS has 7 members, and each is a listDirectory or moveOnlyReport argument in the committed state-check.ts", () => {
+    expect(LISTED_FOLDERS).toHaveLength(7);
     const source = handWrittenCheck();
     const args = new Set(
       callsUnder(source)
