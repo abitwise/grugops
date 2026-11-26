@@ -2131,3 +2131,38 @@ describe("the bootstrap floor path (plan 45-15, G-45-9b, WR-06, ARCH-02)", () =>
     expect(provenance[0]).not.toContain("records only");
   });
 });
+
+// Plan 45-16 (G-45-9b, WR-07, 2026-11-26): the reservation of a deviation or floor-conflict request to a
+// named human holds on every path, filed new, merged or edited. Step 13 keys it on a mark BA/PM does not
+// control through the request text: a ticket in `## Blocks` that holds a human-stop bullet.
+describe("the reservation holds on every path (plan 45-16, G-45-9b, WR-07, BR-03)", () => {
+  const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
+  const WF20 = read("agent-factory/workflows/20-upstream-sources.md");
+  const numbered = section(WF20, "Build requests")
+    .split("\n")
+    .filter((l) => /^\d+\. /.test(l));
+  const brStep = (n: number): string => {
+    const line = numbered.find((l) => l.startsWith(`${n}. `));
+    expect(line, `no build-request step ${n}`).toBeDefined();
+    return line as string;
+  };
+  /** Asserts both needles occur in `hay` and `first` comes before `second`. */
+  const before = (hay: string, first: string, second: string): void => {
+    expect(hay, first).toContain(first);
+    expect(hay, second).toContain(second);
+    expect(hay.indexOf(first), `"${first}" before "${second}"`).toBeLessThan(hay.indexOf(second));
+  };
+
+  it("(a) step 13 keys the reservation on a human-stop bullet in `## Blocks`, whatever `## Question` says", () => {
+    const last = brStep(13);
+    for (const sentence of [
+      "Withdraw a `carried`, deviation or floor-conflict request only on a named human's word, recorded in the contract's `human:<name>` form.",
+      "A request whose `## Blocks` names a ticket with a human-stop bullet is one, whatever its `## Question` says.",
+      "A `## Question` that names the deviation or floor conflict marks one too (steps 3 and 4).",
+    ]) {
+      expect(last, sentence).toContain(sentence);
+    }
+    before(last, "only on a named human's word", "names a ticket with a human-stop bullet");
+    expect(last).not.toContain("says so in `## Question` (step 4)");
+  });
+});
