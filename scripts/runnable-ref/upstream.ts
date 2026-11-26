@@ -71,8 +71,16 @@
 //   `carry <BR> <source>: changed since carried <date>` for a `carried` request edited after its last carry (D-08);
 //   `wait <BR> <source>: <status> for <n> days (escalation_days <m>)` when it has waited n whole UTC days since its last
 //            status move (`raised` for `open`, the last `carried` date for `carried`) and n > m (D-13, BR-06);
-//   `UNKNOWN - verify <BR> <source>: <reason>` when its source is not declared or its raising pin has another length
-//            than the declared pin.
+//   for a `carried` request whose raising pin is not the declared pin (a human moved the pin, D-10, BR-05):
+//   `answer-candidate <BR> <source>: changed <ID>[, <ID>…] (raised at <pin>, pin now <commit>)` when an ID it names
+//            changed status, successor or listed blob between the two commits (in the request's ID order), else
+//   `pin-moved <BR> <source>: no listed ID changed (raised at <pin>, pin now <commit>)`, so an upstream "no change"
+//            answer stays visible; then
+//   `not-descendant <BR> <source>: pin now <commit> does not descend from <pin>` when the pin now is not a descendant of
+//            the raising pin (D-11), a warning only: the human decides the answer;
+//   `UNKNOWN - verify <BR> <source>: <reason>` when its source is not declared, its raising pin has another length than
+//            the declared pin, a git read at either commit could not be answered (the line replaces the proposal), or
+//            git cannot decide the ancestry (a shallow clone: never a `not-descendant` line).
 //   Then `overlap <BR-a> <BR-b> <source>: <ID>[, <ID>…]` for each pair of `open` or `carried` requests for one source
 //            whose `## Upstream IDs` share an ID, by the first ID then the second (D-09, BR-03).
 //   `no build requests` when the folder is absent or holds no record (a dot-named keeper such as .gitkeep is not one).
@@ -86,12 +94,18 @@
 // of the lines and the exit codes live in scripts/build-request-model.ts and reach this file through the generated
 // region.
 //
+// `requests` asks git only for a carried request whose pin moved, through the generated region's
+// upstreamGitManifestAt, upstreamGitListedBlobs and upstreamGitDescends, and caches each answer per (source, commit)
+// for the run. Besides the subcommands `check` uses it runs `merge-base`, for the ancestry only. It writes nothing and
+// never moves a pin: only a named human edits `commit` and `entry_blob`, in a commit (UP-03, BR-05).
+//
 // The manifest's listed-path sweep that `check` makes is not repeated here: `read` checks the mode of the one path it
 // prints, so a bad row elsewhere in the manifest is reported by `check` and does not hide a good one from `read`.
 //
 // THE GIT LAUNCHER. The one git launcher and the object reads live in scripts/upstream-git.ts (moved there by plan
 // 45-01 for D-02) and reach this file through the generated region, with their read-safety rules stated there. It
-// starts only `git`, and uses only `rev-parse`, `ls-tree`, `cat-file`, `config` and `version`.
+// starts only `git`, and uses only `rev-parse`, `ls-tree`, `cat-file`, `config` and `version`, plus `merge-base` for the
+// ancestry `requests` asks (plan 45-07).
 //
 // BUILTINS ONLY. A host runs this file with no kit and no node_modules, so it imports `node:` builtins and nothing
 // else. The hand-written part below imports them as namespaces, so the names the generated region imports never
@@ -113,8 +127,9 @@ import * as nodePath from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
+import { devNull } from "node:os";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:e4c16e41ab46e2279481ea19d925e393cab370311558ddfce5699489e192e686";
+export const RUNNABLE_SET_STAMP = "sha256:0a414fdd70668a6d6d372bdf2eff895e19bae22af8a9fbb50b743746ad937feb";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"] as const);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -852,6 +867,38 @@ export function formatCheckLine(sourceId: string, commit: string, finding: Upstr
   if (finding.kind === "drift") return `drift ${sourceId}: ${finding.cause} (${finding.detail})`;
   return `UNKNOWN - verify ${sourceId}: ${finding.reason}`;
 }
+export type UpstreamManifestAt =
+  | { readonly kind: "ok"; readonly rows: readonly UpstreamManifestRow[] }
+  | { readonly kind: "unknown"; readonly reason: string };
+export function upstreamManifestAtOf(parsed: UpstreamManifestResult): UpstreamManifestAt {
+  if (parsed.kind === "ok") return { kind: "ok", rows: parsed.rows };
+  return { kind: "unknown", reason: `manifest: ${parsed.reason}, line ${parsed.line}` };
+}
+export interface UpstreamIdFact {
+  readonly status: "locked" | "superseded";
+  readonly successor: string | null;
+  /** The blob id of the listed path at that commit, or null when the tree does not hold it. */
+  readonly blob: string | null;
+}
+export type UpstreamIdFacts = ReadonlyMap<string, UpstreamIdFact>;
+export function upstreamIdFacts(
+  rows: readonly UpstreamManifestRow[],
+  blobsByPath: ReadonlyMap<string, string>,
+): UpstreamIdFacts {
+  const facts = new Map<string, UpstreamIdFact>();
+  for (const row of rows) {
+    facts.set(row.id, { status: row.status, successor: row.supersededBy, blob: blobsByPath.get(row.path) ?? null });
+  }
+  return facts;
+}
+export function upstreamChangedIds(ids: readonly string[], before: UpstreamIdFacts, after: UpstreamIdFacts): string[] {
+  return ids.filter((id) => {
+    const a = before.get(id);
+    const b = after.get(id);
+    if (a === undefined || b === undefined) return a !== b;
+    return a.status !== b.status || a.successor !== b.successor || a.blob !== b.blob;
+  });
+}
 // from scripts/upstream-git.ts
 export const UPSTREAM_GIT_TIMEOUT_MS = 20000;
 export const UPSTREAM_GIT_LAZY_FETCH_SINCE: readonly [number, number] = [2, 45];
@@ -1073,12 +1120,107 @@ export function upstreamGitEntryAtPin(sourceReal: string, commit: string, path: 
   }
   return null;
 }
+export function upstreamGitUnknownOf(e: unknown): { readonly kind: "unknown"; readonly reason: string } {
+  if (e instanceof UpstreamGitUnknown) return { kind: "unknown", reason: e.message };
+  return { kind: "unknown", reason: `the read failed unexpectedly (${e instanceof Error ? e.name : typeof e})` };
+}
 export function upstreamGitCommitProblem(source: UpstreamSource, commit: string): string | null {
   if (!UPSTREAM_OBJECT_ID_RE.test(commit)) return "a commit is not a full-length lowercase object id (40 or 64 hex)";
   if (commit.length !== source.commit.length) {
     return `commit ${commit} is ${commit.length}-hex but source ${source.id} is pinned with ${source.commit.length}-hex object ids`;
   }
   return null;
+}
+export function upstreamGitCommitPresent(real: string, commit: string): void {
+  const verified = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`], [0, 1]);
+  if (verified.status !== 0) upstreamGitUnknownBecause(`commit ${commit} is not in the checkout (shallow clone or not fetched)`);
+  if (upstreamGitText(verified) !== commit) upstreamGitUnknownBecause(`object ${commit} is not a commit`);
+}
+export function upstreamGitManifestAt(root: string, source: UpstreamSource, index: number, commit: string): UpstreamManifestAt {
+  const problem = upstreamGitCommitProblem(source, commit);
+  if (problem !== null) return { kind: "unknown", reason: problem };
+  try {
+    if (commit === source.commit) {
+      const { answers } = upstreamGitAnswers(root, source, index, false);
+      if (answers.entryBlobAtPin !== source.entry_blob) {
+        return {
+          kind: "unknown",
+          reason: `drift: blob-mismatch (declared ${source.entry_blob}, at the pin ${answers.entryBlobAtPin})`,
+        };
+      }
+      return answers.manifest === null
+        ? { kind: "unknown", reason: "manifest: it was not read" }
+        : upstreamManifestAtOf(answers.manifest);
+    }
+    const { real, format } = upstreamGitOpen(root, source, index);
+    upstreamGitCommitPresent(real, commit);
+    const entry = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${commit}:${source.entry}`], [0, 1]);
+    if (entry.status !== 0) upstreamGitUnknownBecause(`entry ${source.entry} is not in commit ${commit}`);
+    if (!UPSTREAM_GIT_REGULAR_FILE_MODES.has(upstreamGitModesAtPin(real, commit, [source.entry]).get(source.entry) ?? "")) {
+      upstreamGitUnknownBecause(`entry ${source.entry} is not a regular file at ${commit}`);
+    }
+    const blob = upstreamGitText(entry);
+    return upstreamManifestAtOf(parseManifest(upstreamGitBlobText(real, blob, format, `entry ${source.entry} at ${commit}`)));
+  } catch (e) {
+    return upstreamGitUnknownOf(e);
+  }
+}
+export type UpstreamGitListed =
+  | { readonly kind: "ok"; readonly entries: ReadonlyMap<string, { readonly mode: string; readonly blob: string }> }
+  | { readonly kind: "unknown"; readonly reason: string };
+export function upstreamGitListedBlobs(
+  root: string,
+  source: UpstreamSource,
+  index: number,
+  commit: string,
+  paths: readonly string[],
+): UpstreamGitListed {
+  const problem = upstreamGitCommitProblem(source, commit);
+  if (problem !== null) return { kind: "unknown", reason: problem };
+  if (!paths.every((p) => isManifestPath(p))) return { kind: "unknown", reason: "a listed path is not a manifest path" };
+  if (paths.length === 0) return { kind: "ok", entries: new Map() };
+  try {
+    const { real } = upstreamGitOpen(root, source, index);
+    upstreamGitCommitPresent(real, commit);
+    const wanted = new Set(paths);
+    const run = upstreamGitAnswer(real, ["ls-tree", "-r", "-z", "--full-tree", commit, "--", ...wanted]);
+    const entries = new Map<string, { readonly mode: string; readonly blob: string }>();
+    for (const record of run.stdout.toString("utf8").split("\0")) {
+      const tab = record.indexOf("\t");
+      if (tab < 0 || !wanted.has(record.slice(tab + 1))) continue;
+      const [mode, , blob] = record.slice(0, tab).split(" ");
+      if (mode !== undefined && blob !== undefined) entries.set(record.slice(tab + 1), { mode, blob });
+    }
+    return { kind: "ok", entries };
+  } catch (e) {
+    return upstreamGitUnknownOf(e);
+  }
+}
+export type UpstreamGitAncestry =
+  | { readonly kind: "descendant" }
+  | { readonly kind: "not-descendant" }
+  | { readonly kind: "unknown"; readonly reason: string };
+export function upstreamGitDescends(
+  root: string,
+  source: UpstreamSource,
+  index: number,
+  ancestor: string,
+  descendant: string,
+): UpstreamGitAncestry {
+  const problem = upstreamGitCommitProblem(source, ancestor) ?? upstreamGitCommitProblem(source, descendant);
+  if (problem !== null) return { kind: "unknown", reason: problem };
+  try {
+    const { real } = upstreamGitOpen(root, source, index);
+    upstreamGitCommitPresent(real, ancestor);
+    upstreamGitCommitPresent(real, descendant);
+    if (upstreamGitText(upstreamGitAnswer(real, ["rev-parse", "--is-shallow-repository"])) === "true") {
+      upstreamGitUnknownBecause("shallow clone; ancestry cannot be decided");
+    }
+    const run = upstreamGitAnswer(real, ["merge-base", "--is-ancestor", ancestor, descendant], [0, 1], { GIT_GRAFT_FILE: devNull });
+    return run.status === 0 ? { kind: "descendant" } : { kind: "not-descendant" };
+  } catch (e) {
+    return upstreamGitUnknownOf(e);
+  }
 }
 // from scripts/build-request-model.ts
 export const BUILD_REQUEST_KEYS = Object.freeze(["id", "status", "source", "pin", "raised"] as const);
@@ -2043,11 +2185,74 @@ function readReport(sourceId: string, target: string): { readonly out: string; r
   }
 }
 
+/** The manifests `requests` read in this run, per (source, commit): each is asked of git once (plan 45-07). */
+const requestsManifests = new Map<string, UpstreamManifestAt>();
+
+/** The listed blobs `requests` read in this run, per (source, commit, paths): each is asked of git once. */
+const requestsListed = new Map<string, UpstreamGitListed>();
+
+/** The manifest of `source` at `commit`, read once per run. */
+function requestsManifestAt(source: UpstreamSource, index: number, commit: string): UpstreamManifestAt {
+  const key = `${source.id}\0${commit}`;
+  let answer = requestsManifests.get(key);
+  if (answer === undefined) {
+    answer = upstreamGitManifestAt(root, source, index, commit);
+    requestsManifests.set(key, answer);
+  }
+  return answer;
+}
+
+/** The mode and blob of each of `paths` at `commit`, read once per run for that path set. */
+function requestsListedAt(source: UpstreamSource, index: number, commit: string, paths: readonly string[]): UpstreamGitListed {
+  const key = [source.id, commit, ...paths].join("\0");
+  let answer = requestsListed.get(key);
+  if (answer === undefined) {
+    answer = upstreamGitListedBlobs(root, source, index, commit, paths);
+    requestsListed.set(key, answer);
+  }
+  return answer;
+}
+
+/**
+ * The answer proposal for a `carried` request whose raising pin differs from the declared pin (plan 45-07, BR-05, D-10,
+ * D-11). The manifest is read at both commits, and the blob of each listed path of the request's IDs, through the one
+ * git module; an unknown answer gives one `unknown` item and nothing else. Otherwise `answer-candidate` names the IDs
+ * that changed (upstreamChangedIds, in the request's order), or `pin-moved` says none did. Then the ancestry: a pin now
+ * that does not descend from the raising pin adds `not-descendant`, a warning for the human who decides the answer;
+ * an ancestry git cannot decide (a shallow clone) adds `unknown`. Nothing is written and no pin is moved.
+ */
+function answerItems(doc: BuildRequestDocument, source: UpstreamSource, index: number): BuildRequestReportItem[] {
+  const pins = { id: doc.id, source: doc.source, raisedAt: doc.pin, pinNow: source.commit };
+  const unknown = (reason: string): BuildRequestReportItem => ({ kind: "unknown", id: doc.id, source: doc.source, reason });
+  const facts: UpstreamIdFacts[] = [];
+  for (const commit of [doc.pin, source.commit]) {
+    const manifest = requestsManifestAt(source, index, commit);
+    if (manifest.kind === "unknown") return [unknown(manifest.reason)];
+    const paths = [
+      ...new Set(manifest.rows.filter((row) => doc.upstreamIds.includes(row.id)).map((row) => row.path)),
+    ].sort();
+    const listed = requestsListedAt(source, index, commit, paths);
+    if (listed.kind === "unknown") return [unknown(listed.reason)];
+    const blobs = new Map<string, string>();
+    for (const [path, entry] of listed.entries) blobs.set(path, entry.blob);
+    facts.push(upstreamIdFacts(manifest.rows, blobs));
+  }
+  const changed = upstreamChangedIds(doc.upstreamIds, facts[0] as UpstreamIdFacts, facts[1] as UpstreamIdFacts);
+  const items: BuildRequestReportItem[] = [
+    changed.length > 0 ? { kind: "answer-candidate", ...pins, changed } : { kind: "pin-moved", ...pins },
+  ];
+  const ancestry = upstreamGitDescends(root, source, index, doc.pin, source.commit);
+  if (ancestry.kind === "not-descendant") items.push({ kind: "not-descendant", ...pins });
+  else if (ancestry.kind === "unknown") items.push(unknown(ancestry.reason));
+  return items;
+}
+
 /**
  * The items one parsed `open` or `carried` request gives, in the fixed kind order (plan 45-07): its carry item
  * (`carry-open`, or `carry-changed` when it was edited after its last carry), a `wait` item when it has waited longer
- * than `threshold` days since its last status move, then one `unknown` item when its source is not declared or its
- * raising pin has another length than the declared pin. `today` is read once per run.
+ * than `threshold` days since its last status move, the answer proposal of a `carried` request whose raising pin is not
+ * the declared pin (answerItems), then one `unknown` item when its source is not declared or its raising pin has
+ * another length than the declared pin. `today` is read once per run.
  */
 function requestItems(
   doc: BuildRequestDocument,
@@ -2065,13 +2270,18 @@ function requestItems(
   if (days !== null && buildRequestIsOverdue(days, threshold)) {
     items.push({ kind: "wait", id: doc.id, source: doc.source, status: doc.status, days, threshold });
   }
-  const source = sources.find((s) => s.id === doc.source);
+  const index = sources.findIndex((s) => s.id === doc.source);
+  const source = sources[index];
   if (source === undefined) {
     items.push({ kind: "unknown", id: doc.id, source: doc.source, reason: `source ${doc.source} is not declared` });
     return items;
   }
   const lengthProblem = upstreamGitCommitProblem(source, doc.pin);
-  if (lengthProblem !== null) items.push({ kind: "unknown", id: doc.id, source: doc.source, reason: lengthProblem });
+  if (lengthProblem !== null) {
+    items.push({ kind: "unknown", id: doc.id, source: doc.source, reason: lengthProblem });
+  } else if (doc.status === "carried" && doc.pin !== source.commit) {
+    items.push(...answerItems(doc, source, index));
+  }
   return items;
 }
 

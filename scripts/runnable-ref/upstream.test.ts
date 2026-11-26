@@ -2611,9 +2611,12 @@ describe("upstream.js — requests: the answer proposal after a pin move (plan 4
         expect(call[0], call.join(" ")).toBe("-C");
         expect(call[1], call.join(" ")).toBe(dir);
       }
-      const seen = [...new Set(calls.map((c) => c[2]))].sort();
-      expect(seen).toEqual(["cat-file", "config", "ls-tree", "merge-base", "rev-parse", "version"]);
-      expect(seen).toContain("merge-base");
+      // Every subcommand is in the requests set. `version` runs only when the checkout is a partial clone, so this full
+      // clone need not show it; the reads and the ancestry call must be there.
+      const allowed = ["cat-file", "config", "ls-tree", "merge-base", "rev-parse", "version"];
+      const seen = [...new Set(calls.map((c) => c[2] as string))].sort();
+      for (const sub of seen) expect(allowed, `git ${sub} is outside the requests set`).toContain(sub);
+      for (const sub of ["cat-file", "ls-tree", "merge-base", "rev-parse"]) expect(seen).toContain(sub);
     },
   );
 

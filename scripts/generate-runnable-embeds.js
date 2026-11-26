@@ -208,6 +208,9 @@ export function runnableSpecs(set) {
  * buildRequestChangedSinceCarried, buildRequestLastMoveDate, buildRequestWaitDays and buildRequestIsOverdue (plan 45-03)
  * and buildRequestOverlaps to the scripts/build-request-model.ts roots: the `requests` verb's carry, wait, overlap and
  * undeclared-source lines. EMBED_SPEC_COUNT stays 7.
+ * Plan 45-07 Task 2 (2026-11-26, BR-05, D-10, D-11) adds upstreamIdFacts and upstreamChangedIds to the
+ * scripts/upstream-model.ts roots and upstreamGitManifestAt, upstreamGitListedBlobs and upstreamGitDescends to the
+ * scripts/upstream-git.ts roots: the answer proposal after a pin move and its ancestry warning. EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -487,12 +490,19 @@ export const EMBED_SPECS = Object.freeze([
                     "UPSTREAM_OBJECT_ID_RE",
                     "UPSTREAM_ID_RE",
                     "UPSTREAM_ESCALATION_DAYS_DEFAULT",
+                    "upstreamIdFacts",
+                    "upstreamChangedIds",
+                    "UpstreamManifestAt",
+                    "upstreamManifestAtOf",
                 ],
             },
             {
                 module: "scripts/upstream-git.ts",
                 roots: [
                     "upstreamGitCommitProblem",
+                    "upstreamGitManifestAt",
+                    "upstreamGitListedBlobs",
+                    "upstreamGitDescends",
                     "upstreamGitAnswers",
                     "upstreamGitAnswer",
                     "upstreamGitText",
