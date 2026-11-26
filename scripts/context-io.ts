@@ -184,7 +184,8 @@ export type ReservedIdentity = (typeof RESERVED_IDENTITIES)[number];
 // There is NO separate passing-test-reference grammar: a passing test IS a green gate run, so the
 // gate grammar already covers it (D-05/D-06). The id/name segment reuses the task-name allowlist.
 const GATE_STAMP_RE = /^§14-gate#[A-Za-z0-9._-]+$/;
-const HUMAN_STAMP_RE = /^human:[A-Za-z0-9._-]+$/;
+// Exported (plan 45-03, BR-03): the build-request History grammar reuses this stamp for its carried and answered lines.
+export const HUMAN_STAMP_RE = /^human:[A-Za-z0-9._-]+$/;
 
 // ── The provenance hex allowlist for `sha` and `content_hash` (Phase 31, D-01/D-02) ─────────────
 // An ANCHORED charset allowlist in the same idiom as TASK_NAME_RE and the two stamp grammars
