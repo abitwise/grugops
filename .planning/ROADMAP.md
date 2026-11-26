@@ -227,7 +227,7 @@ Plans:
   4. The human sees a carry list of open build requests to take upstream, and grugops writes nothing into the upstream repository; a request is answered only when a human sets a new pin, and the answer enters the shared context as a `claim` citing the upstream ID and pin (BR-04, BR-05)
   5. When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`) and a deviation becomes a build request; a conflict with a grugops floor (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) becomes a build request plus a human stop, and the floor does not move (ARCH-01, ARCH-02)
 
-**Plans**: 9/11 plans executed
+**Plans**: 10/11 plans executed
 
 Plans:
 **Wave 1**
@@ -252,7 +252,7 @@ Plans:
 - [x] 45-09-PLAN.md — The build-request contract, the upstream and board contract changes, the install guide line, gate registrations
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 45-10-PLAN.md — Workflow 20's build-request procedure, per-bullet escalation rule and human-only stop; `escalation_days` in the config reference
+- [x] 45-10-PLAN.md — Workflow 20's build-request procedure, per-bullet escalation rule and human-only stop; `escalation_days` in the config reference
 
 **Wave 8** *(blocked on Wave 7 completion)*
 - [ ] 45-11-PLAN.md — Workflows 03, 09 and 17 call the procedure: citation or statement, the sweep's upstream-waits line, session-start `requests`
@@ -309,7 +309,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 44. Upstream source declaration and pin check | v3.1 | 14/14 | Complete    | 2026-11-25 |
-| 45. Traceability, build requests and architecture as input | v3.1 | 9/11 | In Progress | - |
+| 45. Traceability, build requests and architecture as input | v3.1 | 10/11 | In Progress | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
 | 48. Feature docs and the 3.1.0 release | v3.1 | 0/TBD | Not started | - |

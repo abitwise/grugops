@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-09-PLAN.md
-last_updated: "2026-11-26T13:06:30.848Z"
+stopped_at: Completed 45-10-PLAN.md
+last_updated: "2026-11-26T13:18:51.942Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: e7dc02ef4458c9bd8943193b91a52ff9ee1270b7
+state_head: 55a9259718cca5d5a0f7f3520c5a752e88b93e72
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 10 of 11
+Plan: 11 of 11
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -926,6 +926,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P07 | 18 min | 2 tasks | 20 files |
 | Phase 45 P08 | 17 min | 2 tasks | 10 files |
 | Phase 45 P09 | 11min | 2 tasks | 11 files |
+| Phase 45 P10 | 10 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -2606,6 +2607,9 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-08: research A2 and A4 are recorded, reversible choices for the 45-10 UAT (any current note naming the ticket counts; warning/error/unknown split by Done)
 - [Phase 45]: 45-09: build-request forms live in agent-factory/contracts/build-request.md and the procedure in Workflow 20 (the Phase 44 split); no checkpoint ID for a pin move
 - [Phase 45]: 45-09: install/fixtures/v3.0-blocked-board/ excluded by name from the banned-claim scan, as pre-v3-chess is (0 occurrences measured over 16 files)
+- [Phase 45]: 45-10: both new Workflow 20 stop bullets are untagged (no dial lets an agent stand in for a named human; a refused file is a real error); WORKFLOW_STOP_BULLET_COUNT 56 -> 58
+- [Phase 45]: 45-10: upstream.escalation_days is documented in its own table beside the per-source table; the zero-config sentence states what upstream.js requests does with no upstream key
+- [Phase 45]: 45-10: the Pitfall 8 validator cross-check stays not adopted; Workflow 20's Done condition names the residual check
 
 ### Pending Todos
 
@@ -3013,8 +3017,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T13:06:30.582Z
-Stopped at: Completed 45-09-PLAN.md
+Last session: 2026-11-26T13:18:51.678Z
+Stopped at: Completed 45-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -201,3 +201,7 @@ None.
 ---
 *Phase: 45-traceability-build-requests-and-architecture-as-input*
 *Completed: 2026-11-26*
+
+## Self-Check: PASSED
+- FOUND: docs/audit/29-style-dispositions/45-10.md, agent-factory/workflows/20-upstream-sources.md, agent-factory/config/factory.config.md
+- FOUND (ancestors of HEAD): 86f9631b, d58c03e5
