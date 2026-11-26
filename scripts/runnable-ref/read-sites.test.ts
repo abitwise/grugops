@@ -47,6 +47,7 @@ import {
   BOARD_DONE_ARCHIVE_REL,
   BOARD_REL,
   BUDGETS,
+  BUILD_REQUESTS_REL,
   CONTEXT_ARCHIVE_REL,
   CONTEXT_REL,
   DECISIONS_ARCHIVE_REL,
@@ -304,6 +305,9 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
     "<top>#0",
     "<top>#1",
     "<top>#2",
+    // 2026-11-26, plan 45-04 (BR-07): the build-request folder is listed after the NFR folder, so the trace
+    // directory's listing moves from <top>#2 to <top>#3.
+    "<top>#3",
   ]),
   ...rows("state-check", SC, "confirmListed:lstatSync#0"),
   ...rows("state-check", SC, "listDir:readdirSync#0", ["compareTraceTree#0", "traceReport#0"]),
@@ -499,6 +503,16 @@ const PROGRESS_OVER_BUDGET =
   "# Progress\n\n" + section("2026-10-01 sweep", 5_000) + section("Standing directive", 40) + section("2026-10-10 later", BUDGETS.progressBytes);
 
 /**
+ * An admitted build request (plan 45-04, BR-07), invented throughout (DEC-12, ABC-014), in the forms of
+ * scripts/build-request-fixture.test-support.ts.
+ */
+const BUILD_REQUEST_BR_1 =
+  "---\nid: BR-1\nstatus: open\nsource: design\npin: 0123456789abcdef0123456789abcdef01234567\nraised: 2026-12-01\n---\n" +
+  "# BR-1: Which store owns the session token\n\n## Question\n\nWhich store owns the session token after sign-out?\n\n" +
+  "## Upstream IDs\n\n- DEC-12\n\n## Options\n\n- (recommended) The server store owns it.\n- The client store owns it.\n\n" +
+  "## Blocks\n\n- ABC-014\n\n## History\n\n- 2026-12-01: open, by BA/PM\n\n## Answer\n";
+
+/**
  * state-check's full repository: the D-14 marker; a board with a Done row; a ticket; NFR-001.md with its index
  * line; a trace rendered from both context roots; a progress file over budget with a dated entry; the queue-done
  * and decision folders with their archive folders. The siblings sit beside the state-check copy.
@@ -510,6 +524,8 @@ function stateCheckRepo(): string | { readonly skip: string } {
   plant(root, `${TICKETS_REL}/ABC-001.md`, "# ABC-001\n");
   plant(root, NFR_CATALOG_REL, `# NFR catalog\n\n${NFR_LINE_001}`);
   plant(root, `${NFR_DIR_REL}/NFR-001.md`, "# NFR-001\n");
+  // Plan 45-04 (BR-07): one admitted build request, so the build-request folder's listing is reached.
+  plant(root, `${BUILD_REQUESTS_REL}/BR-1.md`, BUILD_REQUEST_BR_1);
   // Plan 37-28: taskA's `notes` is a link to `real-notes`, so the absence owner's stat of a link is reached.
   plant(root, `${CONTEXT_REL}/taskA/real-notes/n1.md`, noteText("n1", ["ABC-001", "NFR-001", "src/a.ts"]));
   const skip = linkOrSkip(
@@ -1054,6 +1070,8 @@ const ENOENT_EXEMPT: ReadonlyMap<string, ExemptRow> = new Map<string, ExemptRow>
         `${TICKETS_REL}/ABC-001.md`,
         NFR_DIR_REL,
         `${NFR_DIR_REL}/NFR-001.md`,
+        BUILD_REQUESTS_REL,
+        `${BUILD_REQUESTS_REL}/BR-1.md`,
         TRACE_DIR_REL,
         `${TRACE_DIR_REL}/ABC-001.md`,
         `${TRACE_DIR_REL}/ABC-002.md`,
