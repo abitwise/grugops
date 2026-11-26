@@ -152,6 +152,11 @@ not belong on the board row goes in the ticket body, under one of three level-tw
   `- 2026-10-21, raised by Software Engineer: waiting on ADR-0007 (owner: Architect/Design)`.
   A ticket waiting on a build request has the bullet
   `- 2026-12-01, raised by BA/PM: waiting on build request BR-3 (owner: human carrier)`.
+  A ticket held by a deviation or a floor conflict also has a human-stop bullet, owned by a named
+  human. BA/PM writes it on the hand-off and names the role that recorded the observation as its
+  raiser. One example is
+  `- 2026-12-01, raised by Architect/Design: deviation from upstream DEC-12 (owner: named human)`.
+  It names no build request, and only a named human clears it (Workflow 20).
   `agent-factory/contracts/build-request.md` states the forms of a build request.
 - `## Board notes` holds text that used to sit in a board row's trailer, copied verbatim.
 - `## Upstream` holds exactly the one line `none (build-internal)` when the repository declares

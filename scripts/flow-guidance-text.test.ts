@@ -19,6 +19,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { APPROVED_STEP_VERBS } from "./check-imperative-lexicon.js";
+import { SAFETY_FLOORS } from "./audit-model.js";
 
 const ROOT = join(import.meta.dirname, "..");
 const WF17 = readFileSync(join(ROOT, "agent-factory/workflows/17-task-claim.md"), "utf8");
@@ -1816,11 +1817,27 @@ describe("architecture as input (plan 45-02, ARCH-01, ARCH-02)", () => {
     }
   });
 
-  it("(c) Workflow 20 `## Upstream architecture` names the ADR status and every floor", () => {
-    const body = section(read(WF20_REL), "Upstream architecture");
-    for (const needle of ["Accepted (upstream)", "§14 gate", "verify-before-write", "git-host floor", FLOOR_SENTENCE]) {
-      expect(body, needle).toContain(needle);
-    }
+  it("(c) Workflow 20 `## Upstream architecture` names the ADR status, every canonical floor and the gates (human UAT decision 2)", () => {
+    const whole = read(WF20_REL);
+    const body = section(whole, "Upstream architecture");
+    // The floor ids come from the canonical list, never typed here, so a floor added later must reach Workflow 20.
+    const floorIds = SAFETY_FLOORS.map((f) => `\`${f.id}\``);
+    expect(floorIds.length).toBeGreaterThan(0);
+    const needles = [
+      "Accepted (upstream)",
+      // The config reference is named by file name: a workflow may not spell an `agent-factory/config/`
+      // path (scripts/check-kit-refs.ts, Assertion 1, D-08.1).
+      "the config reference, `factory.config.md`",
+      "§14 gate",
+      "security and NFR gates",
+      FLOOR_SENTENCE,
+      ...floorIds,
+    ];
+    for (const needle of needles) expect(body, needle).toContain(needle);
+    // The transcribed list's undefined term and the claim that the floors never move are gone.
+    expect(whole).not.toContain("verify-before-write");
+    expect(whole).not.toContain("They never move.");
+    expect(whole).not.toContain("agent-factory/config/");
   });
 
   it("(d) exactly one kit file states the floor rule, and it is Workflow 20 (ARCH-02)", () => {
@@ -1965,5 +1982,63 @@ describe("the given-input rule carries the floor exception (plan 45-14, G-45-9, 
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("`.grugops/factory.config.json` first");
     expect(lines[0]).toContain("`upstream` (Workflow 20)");
+  });
+});
+
+// Plan 45-13 (G-45-1, G-45-9, ARCH-02, 2026-11-26): the floor-conflict path files its build request before
+// the stop, every deviation or floor-conflict ticket carries a human-stop bullet that only a named human
+// lifts, and no upstream decision moves a floor. Human decision 3 rules out a program check, so the words
+// are the control and these cases pin them.
+describe("the floor stop in Workflow 20 (plan 45-13, G-45-1, G-45-9, ARCH-02)", () => {
+  const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
+  const WF20 = read("agent-factory/workflows/20-upstream-sources.md");
+  const BOARD = read("agent-factory/contracts/board.md");
+  const arch = section(WF20, "Upstream architecture");
+  const numbered = section(WF20, "Build requests")
+    .split("\n")
+    .filter((l) => /^\d+\. /.test(l));
+  const brStep = (n: number): string => {
+    const line = numbered.find((l) => l.startsWith(`${n}. `));
+    expect(line, `no build-request step ${n}`).toBeDefined();
+    return line as string;
+  };
+  /** Asserts both needles occur in `hay` and `first` comes before `second`. */
+  const before = (hay: string, first: string, second: string): void => {
+    expect(hay, first).toContain(first);
+    expect(hay, second).toContain(second);
+    expect(hay.indexOf(first), `"${first}" before "${second}"`).toBeLessThan(hay.indexOf(second));
+  };
+
+  it("(a) the request is filed per steps 1 to 5 before the stop, and only a named human lifts it (G-45-1, D-17)", () => {
+    before(arch, "steps 1 to 5", "stops for a named human");
+    expect(arch).toContain("Only a named human lifts the stop");
+    expect(arch).toContain("not taken as input");
+  });
+
+  it("(b) the one floor stop bullet has BA/PM file the request before the named human", () => {
+    const floor = bullets(section(WF20, "Stop conditions")).filter((b) => b.includes("conflicts with a grugops floor"));
+    expect(floor).toHaveLength(1);
+    before(floor[0], "BA/PM files", "named human");
+  });
+
+  it("(c) the board contract shows the human-stop bullet, owned by a named human", () => {
+    expect(BOARD).toContain("human-stop bullet");
+    expect(BOARD).toContain("(owner: named human)");
+  });
+
+  it("(d) the given-input sentence carries the floor exception (G-45-9, D-14)", () => {
+    expect(arch).toContain("given input, unless it conflicts with a floor");
+  });
+
+  it("(e) the Orchestrator names the kind and confirms the bullet; BA/PM writes both bullets before the stop", () => {
+    expect(brStep(1)).toContain("deviation or a floor conflict");
+    expect(brStep(1)).toContain("Confirm afterwards that each such ticket holds its human-stop bullet");
+    expect(brStep(5)).toContain("human-stop bullet");
+    expect(brStep(5)).toContain("Name the observing role as its raiser");
+    before(
+      arch,
+      "BA/PM gives each affected ticket the build-request bullet and the human-stop bullet",
+      "confirms both bullets, then stops for a named human",
+    );
   });
 });
