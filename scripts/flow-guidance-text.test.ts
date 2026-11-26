@@ -469,6 +469,16 @@ describe("Workflow 17 sweeps only at session start (plan 41-04; RUN-02, D-11, D-
     expect(step).not.toContain("printed reason");
   });
 
+  it("session start step 4 also runs `upstream.js requests` and reports its lines per Workflow 20 (plan 45-11, D-12, BR-04)", () => {
+    // The five-step order case above is unchanged: the `requests` run joins step 4 and adds no step.
+    const step = section(WF17, "Session start")
+      .split("\n")
+      .find((l) => l.startsWith("4. "));
+    expect(step, "no session-start step 4").toBeDefined();
+    expect(step).toContain("`node tools/grugops/upstream.js requests`");
+    expect(step).toContain("per Workflow 20");
+  });
+
   /** Step 3 of `## Session start`. */
   const respawn = (): string => {
     const line = section(WF17, "Session start")
@@ -1889,5 +1899,39 @@ describe("build requests in Workflow 20 (plan 45-10, BR-03, BR-05, BR-06)", () =
     expect(human[0]).toContain("`carried`");
     expect(human[0]).toContain("`answered`");
     expect(stops.filter((b) => b.startsWith("- `requests` prints a `refused` line"))).toHaveLength(1);
+  });
+});
+
+describe("build requests in the sweep and planning (plan 45-11, TRC-01, BR-04, BR-06)", () => {
+  // Workflows 09 and 03 call the build-request procedure by pointer. The rule itself stays in
+  // Workflow 20 alone, so neither file says `per bullet`.
+  const WF09 = readFileSync(join(ROOT, "agent-factory/workflows/09-daily-sweep.md"), "utf8");
+  const WF03 = readFileSync(join(ROOT, "agent-factory/workflows/03-epic-to-tickets.md"), "utf8");
+
+  it("(a) Workflow 09 step 7 skips a bullet naming an open or carried build request and points to Workflow 20 (BR-06)", () => {
+    const s7 = step(WF09, 7);
+    expect(s7).toContain("open or carried build request");
+    expect(s7).toContain("Workflow 20");
+  });
+
+  it("(b) Workflow 09 step 9 runs `requests` and adds an `upstream waits` line to the report (D-12, D-13, BR-04)", () => {
+    const s9 = step(WF09, 9);
+    expect(s9).toContain("upstream.js requests");
+    expect(s9).toContain("upstream waits");
+  });
+
+  it("(c) Workflow 09 counts an upstream wait in `Blocked time` (D-13)", () => {
+    expect(section(WF09, "Metrics emitted")).toContain("An upstream wait counts in `Blocked time`.");
+  });
+
+  it("(d) Workflow 03 step 8 cites an upstream ref or states `none (build-internal)` (TRC-01, D-01)", () => {
+    const s8 = step(WF03, 8);
+    expect(s8).toContain("none (build-internal)");
+    expect(s8).toContain("upstream:<source>:<ID>@<commit>");
+  });
+
+  it("(e) neither Workflow 09 nor Workflow 03 states the per-bullet rule; Workflow 20 does", () => {
+    expect(WF09).not.toContain("per bullet");
+    expect(WF03).not.toContain("per bullet");
   });
 });
