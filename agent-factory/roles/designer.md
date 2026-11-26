@@ -19,6 +19,7 @@ Need a design system for UI work (the first UI work in a repo, or a UI epic that
 - In an existing codebase, `memory-bank/brownfield-map.md` and its current styles and tokens: the starting direction, not a system to replace.
 - `agent-factory/checklists/accessibility-checklist.md`.
 - Context: read and write per `agent-factory/workflows/16-context-read-write.md`; compact per `agent-factory/workflows/18-context-compaction.md`.
+- Upstream input: Workflow 20.
 
 ## Responsibilities
 1. Set the design principles and the style direction for the product.

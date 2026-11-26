@@ -18,6 +18,7 @@ Need flows or system rules.
 - The product ticket and BA/PM's notes, pulled per Workflow 16.
 - `memory-bank/plans/traceability.md`.
 - Context: read and write per `agent-factory/workflows/16-context-read-write.md`; compact per `agent-factory/workflows/18-context-compaction.md`.
+- Upstream sources and build requests, per Workflow 20.
 
 ## Responsibilities
 1. Name the actors, use cases and business flows the ticket implies.

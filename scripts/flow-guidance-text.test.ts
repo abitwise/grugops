@@ -16,7 +16,7 @@
 // shipped file and asserts a stated phrase, an absence or an ordering.
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -1774,5 +1774,60 @@ describe("the text-only four of the override round (plan 41-26; WR-18, WR-19, IN
         "On a host, degrade to a `claim` or escalate, per Workflow 16 step 4. " +
         "No new dial, no second loop",
     );
+  });
+});
+
+// Plan 45-02 (ARCH-01, ARCH-02, 2026-11-26): an upstream architecture is given input. Workflow 00 step 1
+// applies upstream stack decisions over `default_stack`, Workflow 20 holds the ADR rule and the floor rule,
+// and five roles point there in one line each. The floor rule is stated once, so case (d) walks the kit.
+describe("architecture as input (plan 45-02, ARCH-01, ARCH-02)", () => {
+  const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
+  const WF00 = read("agent-factory/workflows/00-bootstrap-greenfield.md");
+  const WF20_REL = "agent-factory/workflows/20-upstream-sources.md";
+  const FLOOR_SENTENCE = "The floor does not move.";
+
+  it("(a) Workflow 00 holds 11 contiguous steps, and step 1 reads upstream decisions over `default_stack`", () => {
+    const numbers = section(WF00, "Steps")
+      .split("\n")
+      .filter((l) => /^\d+\. /.test(l))
+      .map((l) => Number(l.slice(0, l.indexOf("."))));
+    expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    const first = step(WF00, 1);
+    for (const needle of ["Workflow 20", "architecture", "default_stack"]) expect(first).toContain(needle);
+  });
+
+  it("(b) both ADR templates list the `Accepted (upstream)` status", () => {
+    for (const rel of [
+      "agent-factory/seed/memory-bank/50-decisions/ADR-template.md",
+      "memory-bank/50-decisions/ADR-template.md",
+    ]) {
+      expect(section(read(rel), "Status"), rel).toContain("Accepted (upstream)");
+    }
+  });
+
+  it("(c) Workflow 20 `## Upstream architecture` names the ADR status and every floor", () => {
+    const body = section(read(WF20_REL), "Upstream architecture");
+    for (const needle of ["Accepted (upstream)", "§14 gate", "verify-before-write", "git-host floor", FLOOR_SENTENCE]) {
+      expect(body, needle).toContain(needle);
+    }
+  });
+
+  it("(d) exactly one kit file states the floor rule, and it is Workflow 20 (ARCH-02)", () => {
+    const kitRoot = join(ROOT, "agent-factory");
+    const markdown = (readdirSync(kitRoot, { recursive: true, encoding: "utf8" }) as string[])
+      .filter((rel) => rel.endsWith(".md"))
+      .map((rel) => `agent-factory/${rel.split("\\").join("/")}`);
+    expect(markdown.length).toBeGreaterThan(50);
+    const stating = markdown.filter((rel) => read(rel).includes(FLOOR_SENTENCE));
+    expect(stating).toEqual([WF20_REL]);
+  });
+
+  it("(e) each of the five roles points at Workflow 20 in exactly one line", () => {
+    for (const role of ["ba-pm", "system-analyst", "architect-design", "designer", "greenfield-mapper"]) {
+      const lines = read(`agent-factory/roles/${role}.md`)
+        .split("\n")
+        .filter((l) => l.includes("Workflow 20"));
+      expect(lines, role).toHaveLength(1);
+    }
   });
 });

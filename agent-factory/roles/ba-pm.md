@@ -19,6 +19,7 @@ Need product clarity.
 - `agent-factory/checklists/definition-of-ready.md`, the bar a ticket meets before it leaves `Ready`.
 - `memory-bank/plans/traceability.md`.
 - Context: read and write per `agent-factory/workflows/16-context-read-write.md`; compact per `agent-factory/workflows/18-context-compaction.md`.
+- Upstream sources and build requests (BA/PM is the only writer), per Workflow 20.
 
 ## Responsibilities
 1. Name the user, the pain and the value, with your assumptions.
