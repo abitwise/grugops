@@ -63,6 +63,7 @@ import {
   BUDGET_COUNT,
   BUDGETS,
   BUILD_REQUESTS_REL,
+  CONTEXT_ARCHIVE_REL,
   CONTEXT_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
@@ -76,7 +77,17 @@ import {
 } from "../install/state-layout.js";
 import { skipLine, stageShapeOrSkip, stageSymlinkOrSkip } from "./check-platform-shapes.js";
 // (Plan 45-08) Synthetic upstream checkouts and the recording git, for the citation cases.
-import { recordingGitDir } from "./runnable-ref/upstream-fixture.test-support.js";
+import {
+  SYNTHETIC_ENTRY,
+  SYNTHETIC_MANIFEST,
+  commitMore,
+  fixtureEnv,
+  fixtureGit,
+  makeUpstream,
+  manifestPlus,
+  recordingGitDir,
+  syntheticFiles,
+} from "./runnable-ref/upstream-fixture.test-support.js";
 // THE SHARED SYMBOL-RESOLVING INSTRUMENT (Phase 32.1, D-01..D-03). Imported rather than
 // re-implemented: "which declaration does this name resolve to" has exactly ONE authority on this
 // tree, and a second implementation of it is the defect this phase exists to delete, not a
@@ -4727,5 +4738,187 @@ describe("upstream statement (plan 45-08, TRC-01)", () => {
     const strict = runCitation(root, "--strict");
     expect(strict.stdout, out(strict)).toBe(NO_ERRORS_LINE(1));
     expect(strict.status).toBe(0);
+  });
+});
+
+/** A product with a synthetic upstream checkout `design` beside it, and the declared source at `commit` (default: the pin). */
+function citationWorld(): {
+  readonly parent: string;
+  readonly root: string;
+  readonly env: NodeJS.ProcessEnv;
+  readonly design: string;
+  readonly pin: string;
+  readonly sourceAt: (commit: string) => Record<string, unknown>;
+} {
+  const { parent, root } = citationProduct();
+  const env = fixtureEnv(join(parent, "home"));
+  const design = join(parent, "design");
+  const up = makeUpstream(design, { files: syntheticFiles(), objectFormat: "sha1", env });
+  const sourceAt = (commit: string): Record<string, unknown> => ({
+    id: "design",
+    path: "../design",
+    commit,
+    entry: SYNTHETIC_ENTRY,
+    entry_blob: fixtureGit(design, ["rev-parse", `${commit}:${SYNTHETIC_ENTRY}`], env),
+    owns: { areas: ["product", "ux"], prefixes: ["DEC", "Q"] },
+  });
+  declareUpstream(root, [sourceAt(up.commit)]);
+  return { parent, root, env, design, pin: up.commit, sourceAt };
+}
+
+/** The git calls a recording git logged, each as its argument list. */
+function loggedGitCalls(log: string): string[][] {
+  return readFileSync(log, "utf8")
+    .split("\n")
+    .filter((l) => l !== "")
+    .map((l) => l.split("\u001f"));
+}
+
+describe("citation (plan 45-08, TRC-03)", () => {
+  it("a ticket in In Development citing DEC-1 at the pin has no citation finding", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-1@${w.pin}`]);
+    const r = runCitation(w.root);
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    expect(r.status).toBe(0);
+  });
+
+  it("citing an unlisted DEC-9 is one ERROR naming the ticket, the ID and the commit, and exit 1", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-9@${w.pin}`]);
+    const r = runCitation(w.root);
+    const errors = citationLines(r, "ERROR");
+    expect(errors, out(r)).toHaveLength(1);
+    expect(errors[0]).toContain("ABC-001");
+    expect(errors[0]).toContain("DEC-9");
+    expect(errors[0]).toContain(w.pin);
+    expect(r.status).toBe(1);
+  });
+
+  it("a ref with a 39-hex commit is one ERROR", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-1@${w.pin.slice(0, 39)}`]);
+    const r = runCitation(w.root);
+    const errors = citationLines(r, "ERROR");
+    expect(errors, out(r)).toHaveLength(1);
+    expect(errors[0]).toContain("ABC-001");
+    expect(r.status).toBe(1);
+  });
+
+  it("a malformed ref `upstream:design:dec-1@x` is one ERROR that does not quote it", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", "upstream:design:dec-1@x"]);
+    const r = runCitation(w.root);
+    const errors = citationLines(r, "ERROR");
+    expect(errors, out(r)).toHaveLength(1);
+    expect(errors[0]).toContain("malformed upstream ref");
+    expect(out(r)).not.toContain("dec-1@x");
+    expect(r.status).toBe(1);
+  });
+
+  it("citing DEC-2, superseded at the pin, is one WARNING naming DEC-3 for a ticket not Done", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-2@${w.pin}`]);
+    const r = runCitation(w.root);
+    const warnings = citationLines(r, "WARNING");
+    expect(warnings, out(r)).toHaveLength(1);
+    expect(warnings[0]).toContain("DEC-3");
+    expect(citationLines(r, "ERROR"), out(r)).toEqual([]);
+    expect(r.status).toBe(0);
+  });
+
+  it("citing DEC-2 from a Done ticket has no finding", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "Done");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-2@${w.pin}`]);
+    const r = runCitation(w.root);
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    expect(r.status).toBe(0);
+  });
+
+  it("a citation made at pin A still resolves at A after the config moves to pin B", () => {
+    const w = citationWorld();
+    const b = commitMore(w.design, { [SYNTHETIC_ENTRY]: manifestPlus([["DEC-4", "locked", "decisions/dec-4.md", ""]]), "decisions/dec-4.md": "# DEC-4\n\nA later decision.\n" }, w.env);
+    declareUpstream(w.root, [w.sourceAt(b)]);
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-1@${w.pin}`]);
+    const r = runCitation(w.root);
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    expect(r.status).toBe(0);
+  });
+
+  it("when DEC-1 is gone at the new pin B, a citation at A is one WARNING for a ticket not Done", () => {
+    const w = citationWorld();
+    const without = SYNTHETIC_MANIFEST.replace("| DEC-1 | locked | decisions/dec-1.md | |\n", "");
+    expect(without, "PREMISE: the DEC-1 row was removed").not.toContain("DEC-1");
+    const b = commitMore(w.design, { [SYNTHETIC_ENTRY]: without }, w.env);
+    declareUpstream(w.root, [w.sourceAt(b)]);
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-1@${w.pin}`]);
+    const r = runCitation(w.root);
+    const warnings = citationLines(r, "WARNING");
+    expect(warnings, out(r)).toHaveLength(1);
+    expect(warnings[0]).toContain("no longer lists");
+    expect(citationLines(r, "ERROR"), out(r)).toEqual([]);
+    expect(r.status).toBe(0);
+  });
+
+  it("with the checkout removed the citation is one UNKNOWN - verify line: exit 0 bare and under --strict, never a pass", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-1@${w.pin}`]);
+    rmSync(w.design, { recursive: true, force: true });
+    for (const flag of [undefined, "--strict"]) {
+      const r = runCitation(w.root, flag);
+      const warnings = citationLines(r, "WARNING");
+      expect(warnings, out(r)).toHaveLength(1);
+      expect(warnings[0]).toMatch(new RegExp(`^UNKNOWN - verify design@${w.pin}: .+ \\(1 upstream ref not checked\\)$`));
+      expect(citationLines(r, "ERROR"), out(r)).toEqual([]);
+      expect(r.stdout, out(r)).toBe(NO_ERRORS_LINE(1));
+      expect(r.status, out(r)).toBe(0);
+    }
+  });
+
+  it("a bad ref fixed by a correcting note that supersedes it clears the ERROR, with no sealed note edited", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-9@${w.pin}`]);
+    expect(citationLines(runCitation(w.root), "ERROR"), "PREMISE: the bad ref alone is an ERROR").toHaveLength(1);
+    citeNote(w.root, "task-a", "n2", ["ABC-001", `upstream:design:DEC-1@${w.pin}`], { supersedes: "n1", at: "2026-10-23T10:00:00Z" });
+    const r = runCitation(w.root);
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    expect(r.status).toBe(0);
+  });
+
+  it("a Done ticket's note under the archive context root citing an unlisted ID is one ERROR", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "Done");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-9@${w.pin}`], { contextRel: CONTEXT_ARCHIVE_REL });
+    const r = runCitation(w.root);
+    const errors = citationLines(r, "ERROR");
+    expect(errors, out(r)).toHaveLength(1);
+    expect(errors[0]).toContain("DEC-9");
+    expect(r.status).toBe(1);
+  });
+
+  it.skipIf(process.platform === "win32")("two tickets citing refs at one commit read the manifest once", () => {
+    const w = citationWorld();
+    citeTicket(w.root, "ABC-001", "In Development");
+    citeTicket(w.root, "ABC-002", "In Development");
+    citeNote(w.root, "task-a", "n1", ["ABC-001", `upstream:design:DEC-1@${w.pin}`]);
+    citeNote(w.root, "task-b", "n2", ["ABC-002", `upstream:design:DEC-3@${w.pin}`]);
+    const log = join(w.parent, "git-calls.log");
+    const r = runCitation(w.root, undefined, { PATH: `${recordingGitDir(log)}:${process.env.PATH ?? ""}` });
+    expect(r.stdout, out(r)).toBe("ALL CHECKS PASSED\n");
+    const entryBlob = fixtureGit(w.design, ["rev-parse", `${w.pin}:${SYNTHETIC_ENTRY}`], w.env);
+    const calls = loggedGitCalls(log);
+    expect(calls.length, "CONTROL: the recorder saw the git calls").toBeGreaterThan(0);
+    const manifestReads = calls.filter((c) => c.includes("cat-file") && c.includes("blob") && c.includes(entryBlob));
+    expect(manifestReads, calls.map((c) => c.join(" ")).join("\n")).toHaveLength(1);
   });
 });
