@@ -227,7 +227,7 @@ Plans:
   4. The human sees a carry list of open build requests to take upstream, and grugops writes nothing into the upstream repository; a request is answered only when a human sets a new pin, and the answer enters the shared context as a `claim` citing the upstream ID and pin (BR-04, BR-05)
   5. When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`) and a deviation becomes a build request; a conflict with a grugops floor (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) becomes a build request plus a human stop, and the floor does not move (ARCH-01, ARCH-02)
 
-**Plans**: 12/14 plans executed (3 gap-closure plans for UAT gaps G-45-1 and G-45-9)
+**Plans**: 13/14 plans executed (3 gap-closure plans for UAT gaps G-45-1 and G-45-9)
 
 Plans:
 **Wave 1**
@@ -260,7 +260,7 @@ Plans:
 **Gap closure (UAT 2026-11-26: G-45-1, G-45-9)**
 **Wave 1**
 - [x] 45-12-PLAN.md — Grammar: a named human's `withdrawn, by human:<name>` closes an `open` build request (grammar, embeds, contract; UAT decision 1)
-- [ ] 45-14-PLAN.md — The floor exception in every role-facing copy of the given-input rule (Architect, Greenfield Mapper, Workflow 00 step 1); orchestrator.md points at Workflow 20
+- [x] 45-14-PLAN.md — The floor exception in every role-facing copy of the given-input rule (Architect, Greenfield Mapper, Workflow 00 step 1); orchestrator.md points at Workflow 20
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 45-13-PLAN.md — Workflow 20: canonical floors plus the gates, BA/PM files before the floor stop, the floor-stop bullet only a named human lifts, human-only withdrawals of deviation and floor-conflict requests, the WR-03 unblock rule
@@ -317,7 +317,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 44. Upstream source declaration and pin check | v3.1 | 14/14 | Complete    | 2026-11-25 |
-| 45. Traceability, build requests and architecture as input | v3.1 | 12/14 | In Progress | - |
+| 45. Traceability, build requests and architecture as input | v3.1 | 13/14 | In Progress | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
 | 48. Feature docs and the 3.1.0 release | v3.1 | 0/TBD | Not started | - |

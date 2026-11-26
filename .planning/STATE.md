@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-12-PLAN.md
-last_updated: "2026-11-26T16:54:50.162Z"
+stopped_at: Completed 45-14-PLAN.md
+last_updated: "2026-11-26T17:02:16.472Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: 8c83088df924c5144af76aed32013f007e121747
+state_head: bd0861659294f11dc63692a6a887fe752fb1f793
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 28
-  completed_plans: 26
+  completed_plans: 27
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 13 of 14
+Plan: 14 of 14
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -929,6 +929,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P10 | 10 min | 2 tasks | 9 files |
 | Phase 45 P11 | 13 min | 2 tasks | 5 files |
 | Phase 45 P12 | 6 min | 2 tasks | 19 files |
+| Phase 45 P14 | 6 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -2617,6 +2618,7 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-11: the escalate_stale_blocker pointer sentence moved no checkpoint count or record; WORKFLOW_STOP_BULLET_COUNT stays 58
 - [Phase 45]: 45-12: From open, BA/PM or a human:<name> stamp may withdraw a build request; from carried, only human:<name> (UAT decision 1, refines D-06, closes G-45-9)
 - [Phase 45]: 45-12: The grammar does not decide which open requests need a named human; Workflow 20 carries that rule in prose (plan 45-13)
+- [Phase 45]: Plan 45-14: orchestrator.md gets a Workflow 20 pointer on its upstream config read instead of a floor-conflict Stop when entry (6,170 B -> 6,184 B; WARN 6,195, FAIL 6,546); the stop sequence lives once in Workflow 20 (plan 45-13)
 
 ### Pending Todos
 
@@ -3024,8 +3026,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T16:54:49.711Z
-Stopped at: Completed 45-12-PLAN.md
+Last session: 2026-11-26T17:02:16.021Z
+Stopped at: Completed 45-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
