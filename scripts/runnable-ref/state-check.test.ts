@@ -792,6 +792,21 @@ describe("state-check.js — every build-request file passes through the one gra
     expect(withoutCounts(r.stdout)).toBe("No findings.\n");
   });
 
+  it("an open build request withdrawn on a named human's word, with the marker: `No findings.`, exit 0 (plan 45-12, G-45-9)", () => {
+    const root = cleanRepo(LAYOUT_MARKER_CONTENT);
+    plant(
+      root,
+      `${BUILD_REQUESTS_REL}/BR-1.md`,
+      buildRequestDoc({
+        status: "withdrawn",
+        history: "- 2026-12-01: open, by BA/PM\n- 2026-12-02: withdrawn, by human:jane.example: floor conflict, the work is re-planned",
+      }),
+    );
+    const r = run(root);
+    expect(r.status, r.stdout).toBe(0);
+    expect(withoutCounts(r.stdout)).toBe("No findings.\n");
+  });
+
   it.each(REFUSED_BUILD_REQUESTS)("$what is one build-request-refused finding ($code) naming the file", ({ name, text, code }) => {
     const root = cleanRepo(LAYOUT_MARKER_CONTENT);
     const rel = `${BUILD_REQUESTS_REL}/${name}`;

@@ -106,6 +106,7 @@ describe("build-request grammar — admitted files, one per lifecycle shape", ()
     ["answered", "answered", 3, true],
     ["answered-not-descendant", "answered", 3, true],
     ["withdrawn-open", "withdrawn", 2, false],
+    ["withdrawn-open-human", "withdrawn", 2, false],
     ["withdrawn-carried", "withdrawn", 3, false],
   ];
   it.each(shapes)("the %s shape is admitted with status %s, %i History entries and hasAnswer %s", (shape, status, n, hasAnswer) => {
@@ -400,9 +401,14 @@ describe("build-request grammar — the closed lifecycle (bad-transition, D-06, 
     expect(refusalOf(r).code).toBe("bad-transition");
   });
 
-  it("an open request withdrawn by a human stamp is bad-transition; BA/PM withdraws an open request", () => {
-    const r = parseParts(withHistory("withdrawn", [OPEN, `- 2026-12-02: withdrawn, by ${BR_FIXTURE_HUMAN}: duplicate`]));
-    expect(refusalOf(r).code).toBe("bad-transition");
+  it("an open request withdrawn on a named human's word is admitted: status withdrawn, 2 entries, no answer (G-45-9, UAT decision 1)", () => {
+    const r = parseParts(
+      withHistory("withdrawn", [OPEN, `- 2026-12-02: withdrawn, by ${BR_FIXTURE_HUMAN}: floor conflict, the work is re-planned`]),
+    );
+    if (!r.ok) throw new Error(`refused: ${r.code} ${r.reason}`);
+    expect(r.value.status).toBe("withdrawn");
+    expect(r.value.history).toHaveLength(2);
+    expect(r.value.hasAnswer).toBe(false);
   });
 
   it("a second `open` entry and an edit by a human stamp are bad-transition", () => {
@@ -447,7 +453,7 @@ describe("build-request grammar — every refusal reason names the line and the 
     ["bad-options", { ...open, options: [`- ${MARK}`] }],
     ["bad-blocks", { ...open, blocks: [`- ${MARK}`] }],
     ["bad-history-line", { ...open, history: [OPEN, `- 2026-12-02: ${MARK}`] }],
-    ["bad-transition", { ...open, history: [OPEN, `- 2026-12-02: withdrawn, by ${BR_FIXTURE_HUMAN}: ${MARK}`] }],
+    ["bad-transition", { ...open, history: [OPEN, `- 2026-12-02: edited, by ${BR_FIXTURE_HUMAN}: ${MARK}`] }],
     ["bad-answer", { ...open, answer: [MARK] }],
   ];
   it.each(planted)("%s quotes none of the planted text", (code, parts) => {
@@ -475,6 +481,7 @@ describe("build-request derivations — changed since carried (D-08, D-12)", () 
     ["carried-resent", false],
     ["answered", false],
     ["withdrawn-open", false],
+    ["withdrawn-open-human", false],
     ["withdrawn-carried", false],
   ] as const)("the %s shape gives %s", (shape, want) => {
     expect(buildRequestChangedSinceCarried(docOf(shape))).toBe(want);
@@ -498,6 +505,7 @@ describe("build-request derivations — the last status move (D-13)", () => {
     ["answered", null],
     ["answered-not-descendant", null],
     ["withdrawn-open", null],
+    ["withdrawn-open-human", null],
     ["withdrawn-carried", null],
   ] as const)("the %s shape last moved on %s", (shape, want) => {
     expect(buildRequestLastMoveDate(docOf(shape))).toBe(want);

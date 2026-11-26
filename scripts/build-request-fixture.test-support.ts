@@ -53,6 +53,7 @@ export type BuildRequestFixtureShape =
   | "answered"
   | "answered-not-descendant"
   | "withdrawn-open"
+  | "withdrawn-open-human"
   | "withdrawn-carried";
 
 /** One section: its heading line, a blank line, its body lines, and a blank line when it has any. */
@@ -124,6 +125,12 @@ export function validBuildRequestParts(shape: BuildRequestFixtureShape): BuildRe
       };
     case "withdrawn-open":
       return { ...base, status: "withdrawn", history: [open, "- 2026-12-02: withdrawn, by BA/PM: a duplicate of BR-2"] };
+    case "withdrawn-open-human":
+      return {
+        ...base,
+        status: "withdrawn",
+        history: [open, `- 2026-12-02: withdrawn, by ${BR_FIXTURE_HUMAN}: floor conflict, the work is re-planned`],
+      };
     case "withdrawn-carried":
       return {
         ...base,

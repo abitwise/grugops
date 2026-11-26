@@ -2108,6 +2108,23 @@ describe("upstream.js — requests: the carry list (plan 45-01, BR-04, D-12)", (
     expect(r.status).toBe(0);
   });
 
+  it("(e) an open request withdrawn on a named human's word is admitted: `no build request needs a human (1 on file)`, exit 0 (plan 45-12, G-45-9)", () => {
+    const { base, env } = scratch();
+    const openText = buildRequestText({ id: "BR-9", status: "open" });
+    const withdrawnText = openText
+      .replace("status: open\n", "status: withdrawn\n")
+      .replace(
+        "- 2026-12-01: open, by BA/PM\n",
+        "- 2026-12-01: open, by BA/PM\n- 2026-12-01: withdrawn, by human:jane.example: floor conflict, the work is re-planned\n",
+      );
+    expect(withdrawnText).not.toBe(openText);
+    const product = productWithRequests(base, { "BR-9.md": withdrawnText });
+    const r = upstream(product, env, "requests");
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe("no build request needs a human (1 on file)\n");
+    expect(r.status).toBe(0);
+  });
+
   it("(e) the installed reader applies the full body grammar: a carried status over an open-only History is `refused BR-8.md: status-mismatch` (plan 45-03, BR-03)", () => {
     const { base, env } = scratch();
     const carriedText = buildRequestText({ id: "BR-8", status: "carried" });
