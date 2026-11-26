@@ -17,13 +17,26 @@
 // Hermetic: every run is inside a scratch directory removed afterwards. It drives the COMMITTED
 // install/install.js and install/uninstall.js (npm run build first).
 //
+// BUILD REQUESTS ACROSS VERSIONS (plan 45-05, BR-02). A second describe holds a board from before v3.1 to the
+// current programs. The committed fixture install/fixtures/v3.0-blocked-board/ is the v3.0.0 seed's planning state
+// with one blocked ticket; every case copies it to a scratch target. It must validate under the current validator and
+// state-check with the verdict the v3.0.0 validator gave at authoring time, and the same tree carrying a build request,
+// the new Blocked bullet and an `## Upstream` section must give the same verdict. The v3.0.0 state-check (read from the
+// tag with `git show`, so those cases skip with a printed reason in a clone without the tag) is blind to the new folder
+// but silent over it, and the deliberate skew run shows a mixed tools/grugops/ is reported by both state-check and
+// `upstream.js check`.
+//
 // Clear professional voice: this is a safety surface (installer reversal).
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, cpSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { buildRequestText, validBuildRequestParts } from "../scripts/build-request-fixture.test-support.js";
+import { BUILD_REQUESTS_REL, MEMORY_BANK_REL, TICKETS_REL } from "./state-layout.js";
+import { SYNTHETIC_ENTRY, fixtureEnv, makeProduct, makeUpstream, syntheticFiles, treeDigest } from "../scripts/runnable-ref/upstream-fixture.test-support.js";
 import { UNINSTALL_SOURCE_VARIANTS, runInstall, runUninstallWithSource, snapshotTree, type UninstallSourceVariantSpec } from "./installer-paths.test-support.js";
 import { markerLedger, type RawEntry } from "./ledger.test-support.js";
 
@@ -234,4 +247,210 @@ describe("uninstall walks the install ledger, whatever kit source runs it (plan 
     expect(verifyLines(u.stdout).filter((l) => l.includes(rel)), u.stdout).toEqual([]);
     expect(u.status, u.stdout).toBe(0);
   }, 400_000);
+});
+
+// ── a board from before v3.1 under the current programs (plan 45-05, BR-02) ─────────────────────────────────────────
+describe("build requests across versions (plan 45-05, BR-02)", () => {
+  const REPO_ROOT = resolve(import.meta.dirname, "..");
+  const FIXTURE = join(import.meta.dirname, "fixtures", "v3.0-blocked-board");
+  const VALIDATOR_JS = join(REPO_ROOT, "scripts", "validate-agent-factory.js");
+  const RUNNABLES = join(REPO_ROOT, "scripts", "runnable-ref");
+  const TICKET_REL = `${TICKETS_REL}/ABC-1.md`;
+  const BR_REL = `${BUILD_REQUESTS_REL}/BR-1.md`;
+  const OLD_BULLET = "- 2026-11-20, raised by Software Engineer: waiting on ADR-0007 (owner: Architect/Design)";
+  const NEW_BULLET = "- 2026-11-20, raised by BA/PM: waiting on build request BR-1 (owner: human carrier)";
+  // MEASURED 2026-11-26 (plan 45-05) with the v3.0.0 validator (`git archive v3.0.0`, run with VALIDATE_ROOT at a copy of
+  // the fixture and VALIDATE_KIT_ROOT at the archive): exit 0, `ALL CHECKS PASSED`, and these ERROR and WARNING lines.
+  // A literal, so case (a) needs no tag.
+  const V300_VALIDATOR_LINES = ['  WARNING  memory-bank/plans/tickets/ABC-1.md: no traceability row for ticket "ABC-1"'];
+  const TAG_PRESENT = spawnSync("git", ["rev-parse", "-q", "--verify", "refs/tags/v3.0.0"], { cwd: REPO_ROOT, encoding: "utf8" }).status === 0;
+  const TAG_SKIP_REASON =
+    "SKIPPED (plan 45-05): tag v3.0.0 is absent from this clone, so the v3.0.0 state-check.js cannot be read with git show";
+
+  let seq = 0;
+  /** A scratch target holding a copy of the fixture's memory-bank/ (the fixture itself is never written). */
+  function v30Tree(): string {
+    const target = join(SCRATCH, `br-${++seq}`, "target");
+    mkdirSync(target, { recursive: true });
+    cpSync(join(FIXTURE, MEMORY_BANK_REL), join(target, MEMORY_BANK_REL), { recursive: true });
+    return target;
+  }
+  /** The (a) tree turned into the 3.1 tree: a valid BR-1.md, the build-request bullet, and an `## Upstream` section. */
+  function v31Tree(): string {
+    const target = v30Tree();
+    const parts = validBuildRequestParts("open");
+    const br = buildRequestText({
+      ...parts,
+      id: "BR-1",
+      raised: "2026-11-20",
+      title: "# BR-1: Which store owns the session token",
+      blocks: ["- ABC-1"],
+      history: ["- 2026-11-20: open, by BA/PM"],
+    });
+    mkdirSync(join(target, ...BUILD_REQUESTS_REL.split("/")), { recursive: true });
+    writeFileSync(join(target, ...BR_REL.split("/")), br);
+    const ticketPath = join(target, ...TICKET_REL.split("/"));
+    const ticket = readFileSync(ticketPath, "utf8");
+    expect(ticket.split(OLD_BULLET).length, "PREMISE: the fixture ticket holds the v3.0 bullet once").toBe(2);
+    expect(ticket, "PREMISE: the fixture ticket has no ## Upstream section").not.toContain("## Upstream");
+    writeFileSync(ticketPath, ticket.replace(OLD_BULLET, NEW_BULLET).replace("## Blocked\n", "## Upstream\n\nnone (build-internal)\n\n## Blocked\n"));
+    return target;
+  }
+
+  interface Ran {
+    readonly status: number | null;
+    readonly stdout: string;
+    readonly stderr: string;
+  }
+  const all = (r: Ran): string => `status ${r.status}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`;
+  function validate(target: string): Ran {
+    const r = spawnSync(process.execPath, [VALIDATOR_JS], {
+      encoding: "utf8",
+      cwd: target,
+      env: { ...process.env, VALIDATE_ROOT: target, VALIDATE_KIT_ROOT: REPO_ROOT },
+      timeout: 120_000,
+    });
+    expect(r.error).toBeUndefined();
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  }
+  function stateCheck(js: string, target: string): Ran {
+    const r = spawnSync(process.execPath, [js, target], { encoding: "utf8", cwd: target, timeout: 60_000 });
+    expect(r.error).toBeUndefined();
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+  }
+  /** The validator's ERROR and WARNING lines, which it prints on stderr, then any on stdout. */
+  const verdictLines = (r: Ran): string[] => `${r.stderr}\n${r.stdout}`.split("\n").filter((l) => /^\s+(ERROR|WARNING)\s/.test(l));
+  const findingLines = (out: string): string[] => out.split("\n").filter((l) => /^(FINDING|WARN|LAYOUT) /.test(l));
+  const lastLine = (out: string): string | undefined => out.trimEnd().split("\n").at(-1);
+
+  /** The v3.0.0 state-check.js written into `<dir>/tools/grugops/` with the module package.json; returns its path. */
+  function oldStateCheckIn(dir: string): string {
+    const old = spawnSync("git", ["show", "v3.0.0:scripts/runnable-ref/state-check.js"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    expect(old.status, old.stderr).toBe(0);
+    const tools = join(dir, "tools", "grugops");
+    mkdirSync(tools, { recursive: true });
+    writeFileSync(join(tools, "package.json"), '{"type":"module"}\n');
+    writeFileSync(join(tools, "state-check.js"), old.stdout);
+    return join(tools, "state-check.js");
+  }
+
+  it("(a) the v3.0 board validates under the current validator and state-check with the v3.0.0 validator's verdict", () => {
+    const target = v30Tree();
+    const v = validate(target);
+    expect(v.status, all(v)).toBe(0);
+    expect(lastLine(v.stdout), all(v)).toBe("ALL CHECKS PASSED");
+    expect(verdictLines(v), all(v)).toEqual(V300_VALIDATOR_LINES);
+    const c = stateCheck(join(RUNNABLES, "state-check.js"), target);
+    expect(c.status, all(c)).toBe(0);
+    expect(findingLines(c.stdout), all(c)).toEqual([]);
+    expect(lastLine(c.stdout), all(c)).toBe("No findings.");
+  });
+
+  it("(b) the 3.1 tree (a build request, the new Blocked bullet, an ## Upstream section) gives the same verdict and the same state findings as (a)", () => {
+    const before = { v: validate(v30Tree()), c: stateCheck(join(RUNNABLES, "state-check.js"), v30Tree()) };
+    const target = v31Tree();
+    expect(readFileSync(join(target, ...TICKET_REL.split("/")), "utf8")).toContain(NEW_BULLET);
+    const v = validate(target);
+    expect(v.status, all(v)).toBe(before.v.status);
+    expect(lastLine(v.stdout), all(v)).toBe(lastLine(before.v.stdout));
+    expect(verdictLines(v), all(v)).toEqual(verdictLines(before.v));
+    const c = stateCheck(join(RUNNABLES, "state-check.js"), target);
+    expect(c.status, all(c)).toBe(before.c.status);
+    expect(findingLines(c.stdout), all(c)).toEqual(findingLines(before.c.stdout));
+    expect(lastLine(c.stdout), all(c)).toBe("No findings.");
+  });
+
+  it("(c) the v3.0.0 state-check prints `No findings.` and exits 0 over the v3.0 tree and over the 3.1 tree", (ctx) => {
+    if (!TAG_PRESENT) {
+      console.warn(`${TAG_SKIP_REASON}; case (c) did not run`);
+      ctx.skip();
+      return;
+    }
+    const oldJs = oldStateCheckIn(join(SCRATCH, `br-${++seq}`, "old"));
+    for (const target of [v30Tree(), v31Tree()]) {
+      const r = stateCheck(oldJs, target);
+      expect(r.status, all(r)).toBe(0);
+      expect(findingLines(r.stdout), all(r)).toEqual([]);
+      expect(lastLine(r.stdout), all(r)).toBe("No findings.");
+    }
+  });
+
+  it("(d) the deliberate skew run: the v3.0.0 state-check beside the current siblings reports runnable-version-skew and exits 1, and the current upstream.js check names state-check.js", (ctx) => {
+    if (!TAG_PRESENT) {
+      console.warn(`${TAG_SKIP_REASON}; case (d) did not run`);
+      ctx.skip();
+      return;
+    }
+    const base = join(SCRATCH, `br-${++seq}`);
+    const oldJs = oldStateCheckIn(base);
+    const tools = join(base, "tools", "grugops");
+    for (const name of ["note.js", "claim.js", "trace-render.js", "state-roll.js", "upstream.js"]) {
+      copyFileSync(join(RUNNABLES, name), join(tools, name));
+    }
+    const target = v30Tree();
+    const skewed = stateCheck(oldJs, target);
+    expect(skewed.status, all(skewed)).toBe(1);
+    const skewFindings = findingLines(skewed.stdout).filter((l) => l.endsWith("(runnable-version-skew)"));
+    expect(skewFindings.length, all(skewed)).toBeGreaterThan(0);
+    // A product declaring one synthetic source, run with the upstream.js in the same mixed directory.
+    const env = fixtureEnv(join(base, "home"));
+    const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+    const product = makeProduct(join(base, "product"), {
+      upstream: {
+        sources: [
+          {
+            id: "design",
+            path: "../design",
+            commit: design.commit,
+            entry: SYNTHETIC_ENTRY,
+            entry_blob: design.blobOf(SYNTHETIC_ENTRY),
+            owns: { areas: ["product"], prefixes: ["DEC", "Q"] },
+          },
+        ],
+      },
+    });
+    const u = spawnSync(process.execPath, [join(tools, "upstream.js"), "check"], { encoding: "utf8", cwd: product, env, timeout: 60_000 });
+    expect(u.error).toBeUndefined();
+    const ran: Ran = { status: u.status, stdout: u.stdout ?? "", stderr: u.stderr ?? "" };
+    expect(ran.stderr, all(ran)).toBe("");
+    expect(ran.stdout.split("\n")[0], all(ran)).toBe(`match design ${design.commit}`);
+    expect(ran.stdout.split("\n").filter((l) => l.startsWith("runnable-version-skew state-check.js:")), all(ran)).toHaveLength(1);
+    // A skew line never moves upstream.js check's exit code.
+    expect(ran.status, all(ran)).toBe(0);
+  });
+
+  it("[EDGE BR-02/concurrency] state-check and upstream.js requests run at the same time over one tree leave its digest unchanged", async () => {
+    const target = v31Tree();
+    mkdirSync(join(target, ".grugops"), { recursive: true });
+    const before = treeDigest(target);
+    const runAsync = (args: readonly string[]): Promise<Ran> =>
+      new Promise((done, fail) => {
+        const child = spawn(process.execPath, [...args], { cwd: target });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.setEncoding("utf8").on("data", (d: string) => (stdout += d));
+        child.stderr.setEncoding("utf8").on("data", (d: string) => (stderr += d));
+        const timer = setTimeout(() => child.kill("SIGKILL"), 60_000);
+        child.on("error", fail);
+        child.on("close", (status) => {
+          clearTimeout(timer);
+          done({ status, stdout, stderr });
+        });
+      });
+    const [c, r] = await Promise.all([
+      runAsync([join(RUNNABLES, "state-check.js"), target]),
+      runAsync([join(RUNNABLES, "upstream.js"), "requests", "--root", target]),
+    ]);
+    // state-check: exit 0, no finding. requests: one carry line for the open request, so its documented exit 1.
+    expect(c.status, all(c)).toBe(0);
+    expect(lastLine(c.stdout), all(c)).toBe("No findings.");
+    expect(r.stderr, all(r)).toBe("");
+    expect(r.stdout, all(r)).toBe("carry BR-1 design: open since 2026-11-20\n");
+    expect(r.status, all(r)).toBe(1);
+    expect(treeDigest(target), "no byte of the tree changed").toBe(before);
+  }, 120_000);
 });

@@ -1,0 +1,3 @@
+# v3.0-blocked-board
+
+This fixture is a repository's planning state as grugops 3.0.0 left it, holding one blocked ticket. The files under `memory-bank/plans/` were taken from the seed of tag `v3.0.0` (`git archive v3.0.0 agent-factory/seed/memory-bank/plans`) on 2026-11-26 by plan 45-05. Two changes were made to that seed: `tickets/ABC-1.md` was added in the eight-key v3.0 ticket form, in column `Blocked` with one `## Blocked` bullet, and `board.md` gained its matching row under `## Blocked (visible, time-tracked)`. The ticket, its title, the ADR it waits on and the dates are invented and name no real project, product or person. `install/installer-cross-version.test.ts` copies this tree to a scratch target for each case and never writes to it here.
