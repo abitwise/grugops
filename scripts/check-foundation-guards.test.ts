@@ -8422,7 +8422,13 @@ describe("check-foundation-guards.js (SDLC-02 / SC2 fail-proof harness)", () => 
   // at. No one common fraction reaches 64,001 B under both, and 0.08 no longer fits. The two cases
   // below keep their claim, that the total goes off while no role fails on its own: every role grows
   // by 0.05 and the protocol, which only the total holds, takes the remainder.
-  const ROLE_GROWTH = 0.05;
+  //
+  // Plan 45-02, 2026-11-26: five roles gained one Workflow 20 pointer line each (333 B), so the role
+  // corpus is 61,291 B with the roles alone at 58,455 B. Growing every role by 0.05 now overshoots
+  // 64,001 B before the protocol is padded (the remainder measured -205 B). 0.04 leaves the protocol
+  // about 370 B of remainder and keeps every role under its per-file FAIL, so both cases keep their
+  // claim: the total goes off while no role fails on its own.
+  const ROLE_GROWTH = 0.04;
 
   it("corpus total: every role under its per-file FAIL and the protocol (total-only) carrying the rest WARNs (PLAIN-04, D-04)", () => {
     const m = consistentMirror();
