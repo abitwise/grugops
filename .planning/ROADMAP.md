@@ -227,7 +227,7 @@ Plans:
   4. The human sees a carry list of open build requests to take upstream, and grugops writes nothing into the upstream repository; a request is answered only when a human sets a new pin, and the answer enters the shared context as a `claim` citing the upstream ID and pin (BR-04, BR-05)
   5. When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`) and a deviation becomes a build request; a conflict with a grugops floor (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) becomes a build request plus a human stop, and the floor does not move (ARCH-01, ARCH-02)
 
-**Plans**: 3/11 plans executed
+**Plans**: 4/11 plans executed
 
 Plans:
 **Wave 1**
@@ -238,7 +238,7 @@ Plans:
 - [x] 45-03-PLAN.md — The complete build-request grammar and lifecycle (TDD), opened by a decision checkpoint on the History forms; the carry and escalation derivations
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 45-04-PLAN.md — `BUDGETS.buildRequestBytes` and the one parser in the validator and `state-check` (BR-07)
+- [x] 45-04-PLAN.md — `BUDGETS.buildRequestBytes` and the one parser in the validator and `state-check` (BR-07)
 - [ ] 45-05-PLAN.md — The seeded build-request folder on install, re-install and `--migrate`; the BR-02 cross-version test and the deliberate skew run
 
 **Wave 4** *(blocked on Wave 3 completion)*
@@ -309,7 +309,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 44. Upstream source declaration and pin check | v3.1 | 14/14 | Complete    | 2026-11-25 |
-| 45. Traceability, build requests and architecture as input | v3.1 | 3/11 | In Progress | - |
+| 45. Traceability, build requests and architecture as input | v3.1 | 4/11 | In Progress | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
 | 48. Feature docs and the 3.1.0 release | v3.1 | 0/TBD | Not started | - |
