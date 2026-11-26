@@ -150,8 +150,11 @@ const WRITE_PATHS: readonly string[] = [...SET.files, ...SET.dirs];
  * 82 files and links + 40 directories on 2026-11-25, plan 44-03 (UP-02, D-08): `tools/grugops/upstream.js` entered as a
  * file, in every variant, because install materializes the host upstream reader (one more RUNNABLES row);
  * `tools/grugops` was already a directory. Measured by this test's failing run (expected 122). 121 -> 122.
+ * 83 files and links + 41 directories on 2026-11-26, plan 45-05 (BR-07): `memory-bank/plans/build-requests/.gitkeep`
+ * entered as a seeded file and `memory-bank/plans/build-requests` as a directory, in every variant, because the seed
+ * now carries the build-request folder's keeper. Measured by this test's failing run (expected 124). 122 -> 124.
  */
-const WRITE_PATH_COUNT = 122;
+const WRITE_PATH_COUNT = 124;
 
 // A stamp for the `<ISO>` segments: a planted path must be a real name.
 const STAMP = "2026-01-01T00-00-00.000Z";

@@ -169,6 +169,7 @@ import { HOST_TOOLS, HOST_TOOL_COUNT, OPENCODE_CONFIG_REL, PI_PROMPT_REL, agentC
 import {
   ARCHIVE_REL,
   BOARD_REL,
+  BUILD_REQUESTS_REL,
   CONTEXT_REL,
   EPICS_REL,
   FEATURES_REL,
@@ -949,7 +950,8 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     expect(readFileSync(markerAt(target), "utf8")).toBe(LAYOUT_MARKER_CONTENT);
     expect(labelledLines(r.stdout, "created").filter((l) => l.includes(LAYOUT_MARKER_REL)), r.stdout).toHaveLength(1);
     // The seed's keepers are present, so a keeper reported as a record would turn the check below red.
-    for (const dir of [NFR_DIR_REL, TRACE_DIR_REL, ARCHIVE_REL]) {
+    // Plan 45-05 (BR-07): the build-request folder's keeper is seeded too, and state-check reads it as no record.
+    for (const dir of [NFR_DIR_REL, TRACE_DIR_REL, ARCHIVE_REL, BUILD_REQUESTS_REL]) {
       expect(lstatSync(join(target, ...dir.split("/"), ".gitkeep")).isFile(), dir).toBe(true);
     }
     const check = runNode([join(target, "tools", "grugops", "state-check.js"), target, "--json"], target);
@@ -971,6 +973,41 @@ describe("install.js / uninstall.js — single-installer contract (folds install
     const render = runNode([join(target, "tools", "grugops", "trace-render.js"), target, "--check"], target);
     expect(render.error).toBeUndefined();
     expect(render.status, render.stdout + render.stderr).toBe(0);
+  });
+
+  // Plan 45-05 (BR-07, T-45-14): a repository installed before the build-request folder existed gains the folder's
+  // keeper on a re-install, and a request already in the folder is left byte for byte (seedState skips a file that
+  // exists). Two targets: one with the folder removed, one where the folder holds only a request.
+  it("re-install seeds the build-request folder and never overwrites a request (plan 45-05, BR-07)", () => {
+    const keeperAt = (target: string): string => join(target, ...BUILD_REQUESTS_REL.split("/"), ".gitkeep");
+    const requestAt = (target: string): string => join(target, ...BUILD_REQUESTS_REL.split("/"), "BR-1.md");
+    const requestBytes = Buffer.from("# a request written by a user before the re-install\n\nbytes the installer must keep\n", "utf8");
+    // Target 1: installed, then the whole folder removed (the shape a 3.0.0 install leaves).
+    const bare = mkTmp();
+    const bareHome = mkTmp();
+    expect(markerRun(bare, bareHome).status).toBe(0);
+    rmSync(join(bare, ...BUILD_REQUESTS_REL.split("/")), { recursive: true });
+    expect(existsSync(join(bare, ...BUILD_REQUESTS_REL.split("/")))).toBe(false);
+    // Target 2: installed, the folder removed, then recreated holding only BR-1.md.
+    const holding = mkTmp();
+    const holdingHome = mkTmp();
+    expect(markerRun(holding, holdingHome).status).toBe(0);
+    rmSync(join(holding, ...BUILD_REQUESTS_REL.split("/")), { recursive: true });
+    mkdirSync(join(holding, ...BUILD_REQUESTS_REL.split("/")), { recursive: true });
+    writeFileSync(requestAt(holding), requestBytes);
+    expect(existsSync(keeperAt(holding))).toBe(false);
+
+    const again1 = markerRun(bare, bareHome);
+    expect(again1.status, again1.stdout + again1.stderr).toBe(0);
+    expect(lstatSync(keeperAt(bare)).isFile(), again1.stdout).toBe(true);
+    expect(readFileSync(keeperAt(bare))).toEqual(seedBytes(`${BUILD_REQUESTS_REL}/.gitkeep`));
+
+    const again2 = markerRun(holding, holdingHome);
+    expect(again2.status, again2.stdout + again2.stderr).toBe(0);
+    expect(lstatSync(keeperAt(holding)).isFile(), again2.stdout).toBe(true);
+    expect(readFileSync(requestAt(holding))).toEqual(requestBytes);
+    // The request is never named in a write line of the report.
+    expect(again2.stdout.split("\n").filter((l) => l.includes(`${BUILD_REQUESTS_REL}/BR-1.md`) && /^\s+(created|updated|overwrote)\s/.test(l)), again2.stdout).toEqual([]);
   });
 
   it("layout marker: an install into a target that holds the board and no marker leaves the marker absent and prints one skipped line naming it (research Pitfall 1)", () => {

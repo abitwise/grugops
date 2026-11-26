@@ -145,7 +145,10 @@ const READ_PATHS: readonly string[] = [...new Set([...SET.files, ...READ_ONLY_IN
 // two read-only inputs), because install materializes the host upstream reader (one more RUNNABLES row) and asks its
 // destination through readForWrite; a FIFO and a directory are planted at it by derivation. Measured by this test's
 // failing run (expected 84). 83 -> 84.
-const READ_PATH_COUNT = 84;
+// 85 on 2026-11-26, plan 45-05 (BR-07): `memory-bank/plans/build-requests/.gitkeep` entered as a seeded file (83 files
+// and links written, plus the two read-only inputs), because the seed now carries the build-request folder's keeper and
+// install asks its destination through readForWrite. Measured by this test's failing run (expected 85). 84 -> 85.
+const READ_PATH_COUNT = 85;
 
 // A path that carries the run's timestamp names a rename or backup destination that does not exist
 // before the run, so nothing can be planted at it; the special file at its SOURCE (the in-repo

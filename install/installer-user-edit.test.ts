@@ -179,8 +179,10 @@ const INSTALLED_FILES: readonly string[] = INSTALLED.map((e) => e.path);
  * to it is left byte for byte by uninstall, as for every runnable. Measured by this test's failing run (expected 81). 80 -> 81.
  * 82 on 2026-11-25, plan 44-03 (UP-02, D-08): `tools/grugops/upstream.js` entered as a file (one more RUNNABLES row); an
  * edit to it is left byte for byte by uninstall, as for every runnable. Measured by this test's failing run (expected 82). 81 -> 82.
+ * 83 on 2026-11-26, plan 45-05 (BR-07): `memory-bank/plans/build-requests/.gitkeep` entered as a seeded file, because the
+ * seed now carries the build-request folder's keeper. Measured by this test's failing run (expected 83). 82 -> 83.
  */
-const INSTALLED_FILE_COUNT = 82;
+const INSTALLED_FILE_COUNT = 83;
 
 /** Every directory a copy-mode variant created, with the variant whose tree it is edited in. */
 const INSTALLED_DIRS: ReadonlyArray<{ readonly path: string; readonly variant: VariantName }> = SET.paths

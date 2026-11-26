@@ -33,9 +33,11 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import {
   BOARD_REL,
+  BUILD_REQUESTS_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   LEGACY_BOARD_REL,
@@ -329,5 +331,43 @@ describe("the --migrate state machine (plan 38-07, MIGRATE-04)", () => {
     expect(notes[0]).toContain(`${MEMORY_BANK_REL}/`);
     const after = JSON.parse(readFileSync(at(w.target, MARKER_REL), "utf8")) as { ledger: Array<{ kind: string; path: string }> };
     expect(after.ledger.filter((e) => e.kind === "backup" && e.path === recorded[0]), "the stale entry is dropped").toEqual([]);
+  });
+
+  // Plan 45-05 (BR-07): a repository installed by 3.0.0 has a valid layout marker and no build-request folder.
+  // MEASURED 2026-11-26 (plan 45-05): `--migrate` on an installed two-root repository takes the already-migrated arm,
+  // which prints the current-layout ok line and exits before the install run, so it seeds nothing (the plan expected
+  // a fall-through to seedState; install.ts has none on that arm, and the plan allows no installer change). The folder
+  // arrives with the next plain install, which re-seeds every missing seed file and touches nothing else under
+  // memory-bank/. A repository without the folder is clean in the meantime: state-check reads an absent folder as no
+  // finding (plan 45-04). S9's world already holds the keeper, so S9 stays byte-identical.
+  it("(S14) a current layout with a valid marker and no build-request folder: --migrate writes nothing, and the next install adds only the folder's keeper under memory-bank/", () => {
+    const w = installedWorld();
+    rmSync(at(w.target, BUILD_REQUESTS_REL), { recursive: true });
+    expect(existsSync(at(w.target, BUILD_REQUESTS_REL)), "PREMISE: the 3.0.0 shape has no build-request folder").toBe(false);
+    const before = snapshotTree(w.target);
+    const memoryBefore = snapshotTree(at(w.target, MEMORY_BANK_REL));
+    const r = migrate(w);
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(0);
+    const ok = labelled(r.stdout, "ok").filter((l) => l.includes("already on the v3 layout"));
+    expect(ok, r.stdout).toHaveLength(1);
+    expect(snapshotTree(w.target), "--migrate on the already-migrated arm writes nothing").toBe(before);
+    // The installed state-check reads the folder-less tree as clean.
+    const check = spawnSync("node", [join(w.target, "tools", "grugops", "state-check.js"), w.target], { encoding: "utf8" });
+    expect(check.status, check.stdout + check.stderr).toBe(0);
+    expect(check.stdout.trimEnd().split("\n").at(-1), check.stdout).toBe("No findings.");
+    // The next plain install adds the keeper and nothing else under memory-bank/.
+    const install = runInstall(w.target, w.kitHome, [], { home: w.home, timeoutMs: 180_000 });
+    expect(install.error).toBeUndefined();
+    expect(install.status, `${install.stdout}\n${install.stderr}`).toBe(0);
+    const keeper = `${BUILD_REQUESTS_REL}/.gitkeep`;
+    expect(existsSync(at(w.target, keeper)), install.stdout).toBe(true);
+    expect(readFileSync(at(w.target, keeper), "utf8")).toBe("");
+    const folderRow = `${BUILD_REQUESTS_REL.slice(MEMORY_BANK_REL.length + 1)}/ DIR`;
+    const keeperPrefix = `${keeper.slice(MEMORY_BANK_REL.length + 1)} `;
+    const memoryAfter = snapshotTree(at(w.target, MEMORY_BANK_REL))
+      .split("\n")
+      .filter((row) => row !== folderRow && !row.startsWith(keeperPrefix))
+      .join("\n");
+    expect(memoryAfter, "nothing else under memory-bank/ changed").toBe(memoryBefore);
   });
 });
