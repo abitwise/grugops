@@ -1959,4 +1959,11 @@ describe("the given-input rule carries the floor exception (plan 45-14, G-45-9, 
     expect(first).toContain("conflicts with a floor");
     expect(first).toContain("Workflow 20");
   });
+
+  it("(c) the Orchestrator names Workflow 20 in one line, its `upstream` config read (G-45-1)", () => {
+    const lines = ORCHESTRATOR.split("\n").filter((l) => l.includes("Workflow 20"));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("`.grugops/factory.config.json` first");
+    expect(lines[0]).toContain("`upstream` (Workflow 20)");
+  });
 });
