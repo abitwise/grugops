@@ -769,6 +769,17 @@ const REFUSED_BUILD_REQUESTS: readonly { readonly what: string; readonly name: s
   { what: "a frontmatter id that differs from the file name", name: "BR-1.md", text: buildRequestDoc({ id: "BR-2" }), code: "id-mismatch" },
 ];
 
+describe("state-check.js — reads no clock and runs no process (plan 45-04 prohibition)", () => {
+  it("the committed state-check.js imports no process module and names no clock: build-request ages and answers are upstream.js requests' job", () => {
+    const src = readFileSync(CHECK_JS, "utf8");
+    const specifiers = [...src.matchAll(/^import [^;]*? from "([^"]+)";/gm)].map((m) => m[1]);
+    expect(specifiers.length).toBeGreaterThan(0);
+    for (const banned of ["node:child_process", "node:worker_threads", "node:cluster"]) expect(specifiers, banned).not.toContain(banned);
+    const ids = identifierTexts(ts.createSourceFile("state-check.js", src, ts.ScriptTarget.Latest, true));
+    for (const clock of ["Date", "performance", "hrtime"]) expect(ids.has(clock), `state-check.js names ${clock}`).toBe(false);
+  });
+});
+
 /** The repository root of this checkout, for the v3.0.0 comparison below. */
 const REPO_ROOT = join(import.meta.dirname, "..", "..");
 
@@ -2655,7 +2666,8 @@ describe("flagged: a link at a listed folder is the folder's one finding, and no
   }
 
   it("every folder row ran, and none was skipped on darwin or linux", () => {
-    expect(FOLDER_ROWS).toHaveLength(9);
+    // 2026-11-26, plan 45-04 (BR-07): 9 -> 10. LISTED_FOLDERS gained BUILD_REQUESTS_REL, so one more in-root row.
+    expect(FOLDER_ROWS).toHaveLength(10);
     expect(folderRowsRun).toBe(FOLDER_ROWS.length);
     if (process.platform === "darwin" || process.platform === "linux") expect(folderRowsSkipped).toBe(0);
   });

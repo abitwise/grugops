@@ -88,6 +88,10 @@ import {
   parseTicketDocument,
   stripHtmlComments,
 } from "./board-model.js";
+// (Plan 45-04, D-05) A BUILD REQUEST IS ASKED OF ITS ONE GRAMMAR, NEVER RE-READ HERE. scripts/build-request-model.ts
+// decides whether a file is a build request and names the refusal; state-check embeds the same module, so both
+// programs refuse the same files with the same codes.
+import { BUILD_REQUEST_READ_MAX_BYTES, buildRequestIdOfFileName, parseBuildRequestDocument } from "./build-request-model.js";
 // (Plan 37-02, SPLIT-04) EVERY BUDGET RULE IS ASKED OF ITS ONE OWNER, NEVER RESTATED HERE.
 // scripts/state-rules.ts decides whether a file breaks a budget and spells the finding; the numbers are
 // BUDGETS in install/state-layout.ts. This file reads the files, passes text or sizes in, and routes each
@@ -101,6 +105,7 @@ import {
   formatMarkerWarning,
   indexLineFindings,
   markerState,
+  recordEntryNames,
   sortFindings,
   unmeasuredFinding,
   type FileBudgetKey,
@@ -945,6 +950,49 @@ function checkTickets(): void {
   }
 }
 
+// ── Check 5b: every build-request file passes through the one grammar (plan 45-04, D-05, BR-07) ──────────────────
+// WHETHER A FILE IS A BUILD REQUEST IS ASKED OF THE GRAMMAR, NOT ANSWERED HERE. parseBuildRequestDocument in
+// scripts/build-request-model.ts is the one authority, and state-check embeds the same code, so the two programs refuse
+// the same files with the same codes. A refusal is an ERROR whatever the layout marker says, like the ticket grammar's,
+// and it names the file, the code and the grammar's own sentence, which quotes no file text (T-45-13).
+//
+// Every record of the folder is checked, as recordEntryNames defines a record: a dot-named keeper is not one. A name
+// that is not `BR-<n>.md` is refused by its name and never opened. A record is opened only when its own lstat says it
+// is a regular file no larger than the reader ceiling: a FIFO, a link or a directory there is the budget pass's
+// not-a-regular-file finding by name, and a file above the ceiling is that pass's over-budget finding, so neither
+// program can hang on or swallow one (T-45-12). An absent folder is no finding (zero-config), and a folder that is
+// not a directory is the budget pass's finding by name, so it is not listed here a second time. A stat or lstat this
+// check makes and cannot complete is an ERROR naming the path and the code (READ-1), never a skipped file.
+function checkBuildRequests(): void {
+  const folderAbs = stateAbs(BUILD_REQUESTS_REL);
+  const folder = statAt(folderAbs);
+  if (folder.kind === "failed") {
+    recordReadFailure(folderAbs, `${BUILD_REQUESTS_REL}: the directory could not be inspected (${folder.code})`);
+    return;
+  }
+  if (folder.kind !== "ok" || !folder.value.isDirectory()) return;
+  for (const name of recordEntryNames(stateListDir(BUILD_REQUESTS_REL))) {
+    const rel = `${BUILD_REQUESTS_REL}/${name}`;
+    if (buildRequestIdOfFileName(name) === null) {
+      // The grammar's own refusal, asked with no text: a misnamed file is refused before its text is read.
+      const refused = parseBuildRequestDocument("", name);
+      if (!refused.ok) err(`${rel}: refused by the build-request grammar (${refused.code}): ${refused.reason}`);
+      continue;
+    }
+    const abs = stateAbs(rel);
+    const entry = lstatAt(abs);
+    if (entry.kind === "failed") {
+      recordReadFailure(abs, `${rel}: its shape could not be read (${entry.code})`);
+      continue;
+    }
+    if (entry.kind !== "ok" || !entry.value.isFile() || entry.value.size > BUILD_REQUEST_READ_MAX_BYTES) continue;
+    const text = stateRead(rel);
+    if (text === null) continue; // vanished since the listing, or unreadable: stateRead recorded it
+    const admission = parseBuildRequestDocument(text, name);
+    if (!admission.ok) err(`${rel}: refused by the build-request grammar (${admission.code}): ${admission.reason}`);
+  }
+}
+
 // ── Check 6b: state budgets (plan 37-02, SPLIT-04, D-04, D-05, D-10, D-11) ──────────────────────
 // Every budget finding is an ERROR when the layout marker is valid and a WARNING otherwise. The absence of
 // a marker is not itself a finding (research Pitfall 9): when a budget finding exists on an unmarked tree,
@@ -1226,6 +1274,7 @@ checkRoleSections();
 checkWorkflowSections();
 checkConfig();
 checkTickets();
+checkBuildRequests();
 checkBudgets();
 checkPackaging();
 checkRoleSwitchProtocol();

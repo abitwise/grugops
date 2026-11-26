@@ -20,10 +20,11 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  BUILD_REQUESTS_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   STATE_ROOT_REL,
@@ -89,9 +90,12 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
     "boardFindings#0",
     "indexFindings#0",
     "directoryFindings#0",
+    // 2026-11-26, plan 45-04 (D-05): the build-request folder, asked before any record of it is checked.
+    "checkBuildRequests#0",
   ]),
-  // lstat: the record and progress sizes, from one caller.
-  ...rows("lstatAt:lstatSync#0"),
+  // lstat: the record and progress sizes, and (since plan 45-04, D-05, 2026-11-26) the shape of each build-request
+  // record before the grammar check opens it, so the function now has two callers and one row per caller.
+  ...rows("lstatAt:lstatSync#0", ["sizeFinding#0", "checkBuildRequests#0"]),
   // read: the two text helpers, the governance positions, and the budget pass.
   ...rows("textAt:readFileSync#0", [
     "kitRead#0",
@@ -169,8 +173,19 @@ function mkTmp(prefix: string): string {
 const READY_TICKET_FIXTURE = join(HERE, "fixtures", "board-snapshot", TICKETS_REL, "ABC-200.md");
 
 /**
- * A valid state tree: the good fixture's state directory, the D-14 marker, and one ticket with its trace row. The
- * unfaulted validator passes it with no ERROR and no WARNING (asserted as the premise below).
+ * An admitted build request (plan 45-04, D-05), invented throughout (DEC-12, ABC-014), in the forms of
+ * scripts/build-request-fixture.test-support.ts, so checkBuildRequests reaches its stat, lstat and read.
+ */
+const BUILD_REQUEST_BR_1 =
+  "---\nid: BR-1\nstatus: open\nsource: design\npin: 0123456789abcdef0123456789abcdef01234567\nraised: 2026-12-01\n---\n" +
+  "# BR-1: Which store owns the session token\n\n## Question\n\nWhich store owns the session token after sign-out?\n\n" +
+  "## Upstream IDs\n\n- DEC-12\n\n## Options\n\n- (recommended) The server store owns it.\n- The client store owns it.\n\n" +
+  "## Blocks\n\n- ABC-014\n\n## History\n\n- 2026-12-01: open, by BA/PM\n\n## Answer\n";
+
+/**
+ * A valid state tree: the good fixture's state directory, the D-14 marker, one ticket with its trace row, and (since
+ * plan 45-04) one admitted build request. The unfaulted validator passes it with no ERROR and no WARNING (asserted as
+ * the premise below).
  */
 function stateRoot(): string {
   const d = mkTmp("grugops-validate-read-sites-");
@@ -178,6 +193,8 @@ function stateRoot(): string {
   writeFileSync(join(d, LAYOUT_MARKER_REL), LAYOUT_MARKER_CONTENT);
   cpSync(READY_TICKET_FIXTURE, join(d, TICKETS_REL, "ABC-200.md"));
   appendFileSync(join(d, TRACEABILITY_REL), "| ABC-200 | t | | | | | | | | |\n");
+  mkdirSync(join(d, BUILD_REQUESTS_REL), { recursive: true });
+  writeFileSync(join(d, BUILD_REQUESTS_REL, "BR-1.md"), BUILD_REQUEST_BR_1);
   return d;
 }
 

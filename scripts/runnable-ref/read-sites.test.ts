@@ -263,24 +263,28 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   // the root-chain owner since plan 37-34).
   ...rows("trace-render", TR, "listDir:readdirSync#0", ["compareTraceTree#0", "<top>#0"]),
 
-  // state-check: the embedded reader (the state reader, the trace reader, the note walk, the sibling stamp read).
+  // state-check: the embedded reader (the state reader, the trace reader, the note walk, the sibling stamp read, and
+  // since plan 45-04, 2026-11-26, D-05, each build-request record the grammar check opens: buildRequestFindings#0).
   ...rows("state-check", SC, "readRegularFileOrNull:openSync#0", [
     "readRawNotesWithSkips#0",
     "readState#0",
     "readTraceText#0",
     "runnableSkewFindings#0",
+    "buildRequestFindings#0",
   ]),
   ...rows("state-check", SC, "readRegularFileOrNull:fstatSync#0", [
     "readRawNotesWithSkips#0",
     "readState#0",
     "readTraceText#0",
     "runnableSkewFindings#0",
+    "buildRequestFindings#0",
   ]),
   ...rows("state-check", SC, "readRegularFileOrNull:readSync#0", [
     "readRawNotesWithSkips#0",
     "readState#0",
     "readTraceText#0",
     "runnableSkewFindings#0",
+    "buildRequestFindings#0",
   ]),
   ...rows("state-check", SC, "readRawNotesWithSkips:readdirSync#0"),
   // state-check: the one absence owner (plan 37-28, D-18), under each caller, and the generated listing.

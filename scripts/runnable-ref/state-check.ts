@@ -148,7 +148,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:f4095546718fdf0ded9f3074f7eedb38b0275eb382190248ec70297336f0ecf5";
+export const RUNNABLE_SET_STAMP = "sha256:514d2dfe81314d414f01f98fcb6e52fd85f07e0bc79f12acd151f31a683caca7";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"] as const);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
@@ -228,7 +228,10 @@ export type IntegrityKey =
   // Plan 37-24 (2026-10-23, D-17, WR-05): a sibling state program beside state-check whose build stamp differs
   // from state-check's own, is missing or repeated, or that could not be read, so the two may embed different
   // copies of one authority (runnable-version-skew).
-  | "runnable-version-skew";
+  | "runnable-version-skew"
+  // Plan 45-04 (2026-11-26, D-05): a build-request record the one grammar (scripts/build-request-model.ts) refuses,
+  // named by its file and the refusal code; the code is the whole detail, so no file text reaches the finding.
+  | "build-request-refused";
 export function integrityFinding(rel: string, key: IntegrityKey, note: string, line?: number): StateFinding {
   return { rel, key, measured: null, budget: null, unit: null, ...(line === undefined ? {} : { line }), note };
 }
@@ -1096,6 +1099,16 @@ function strictFenceRun(line: string): { char: string; len: number; info: string
 }
 const HEADING_AT_MOST_1 = /^# /;
 const HEADING_AT_MOST_2 = /^#{1,2} /;
+export function unfencedHeadingIndices(text: string, heading: string): number[] {
+  const lines = text.split("\n");
+  // THE STRICT PROJECTION, not the prose one (round 4, R5-2). See `blockContextFlags`.
+  const flags = blockContextFlags(text);
+  const at: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!flags[i] && lines[i].trimEnd() === heading) at.push(i);
+  }
+  return at;
+}
 export function sectionEndIndex(
   text: string,
   from: number,
@@ -1406,6 +1419,7 @@ function assertSafeTask(task: string): void {
     );
   }
 }
+export const HUMAN_STAMP_RE = /^human:[A-Za-z0-9._-]+$/;
 export interface ParsedFrontmatter {
   scalars: Record<string, string>;
   refs: string[];
@@ -1981,6 +1995,520 @@ export function readTaskNoteRefs(
 export function normalizeKind(raw: string | undefined): string {
   return (raw ?? "").trim();
 }
+// from scripts/upstream-model.ts
+export const UPSTREAM_SOURCE_ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
+export const UPSTREAM_OBJECT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+export const UPSTREAM_ID_RE = /^[A-Z][A-Z0-9]{0,15}-\d{1,9}$/;
+// from scripts/build-request-model.ts
+export const BUILD_REQUEST_KEYS = Object.freeze(["id", "status", "source", "pin", "raised"] as const);
+export const BUILD_REQUEST_STATUSES = Object.freeze(["open", "carried", "answered", "withdrawn"] as const);
+export const BUILD_REQUEST_ID_RE = /^BR-[1-9][0-9]{0,8}$/;
+export const BUILD_REQUEST_READ_MAX_BYTES = 65536;
+const BUILD_REQUEST_DELIMITER = "---";
+const BUILD_REQUEST_KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?: ([^\t]*))?$/;
+const BUILD_REQUEST_CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/;
+const BUILD_REQUEST_DATE_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+export const BUILD_REQUEST_SECTIONS = Object.freeze([
+  "## Question",
+  "## Upstream IDs",
+  "## Options",
+  "## Blocks",
+  "## History",
+  "## Answer",
+] as const);
+export const BUILD_REQUEST_RECOMMENDED_MARKER = "(recommended) ";
+export const BUILD_REQUEST_NONE_IDS = "none";
+export const BUILD_REQUEST_EVENTS = Object.freeze(["open", "edited", "carried", "answered", "withdrawn"] as const);
+export const BUILD_REQUEST_AGENT_ACTOR = "BA/PM";
+const BUILD_REQUEST_BULLET = "- ";
+const BUILD_REQUEST_TITLE_OPENING = "# ";
+const BUILD_REQUEST_HISTORY_RE =
+  /^- ([0-9]{4}-[0-9]{2}-[0-9]{2}): (open|edited|carried|answered|withdrawn), by (BA\/PM|human:[^,:\s]*)(.*)$/;
+const BUILD_REQUEST_TEXT_TAIL_RE = /^: (.*\S.*)$/;
+const BUILD_REQUEST_ANSWER_TAIL_RE = /^, pin ([0-9a-f]+)(, not-descendant)?$/;
+export type BuildRequestKey = (typeof BUILD_REQUEST_KEYS)[number];
+export type BuildRequestStatus = (typeof BUILD_REQUEST_STATUSES)[number];
+export type BuildRequestRefusalCode =
+  | "no-opening-delimiter"
+  | "no-closing-delimiter"
+  | "control-character"
+  | "unrecognized-line"
+  | "unknown-key"
+  | "duplicate-key"
+  | "missing-key"
+  | "bad-value"
+  | "bad-file-name"
+  | "id-mismatch"
+  | "bad-section"
+  | "bad-upstream-ids"
+  | "bad-options"
+  | "bad-blocks"
+  | "bad-history-line"
+  | "bad-history-order"
+  | "bad-transition"
+  | "status-mismatch"
+  | "bad-answer";
+export type BuildRequestEvent = (typeof BUILD_REQUEST_EVENTS)[number];
+export interface BuildRequestHistoryEntry {
+  readonly date: string;
+  readonly event: BuildRequestEvent;
+  readonly actor: string;
+  /** The new pin of an `answered` entry, else null. */
+  readonly pin: string | null;
+  /** True only on an `answered` entry that carries `, not-descendant` (D-11). */
+  readonly notDescendant: boolean;
+  readonly line: number;
+}
+export interface BuildRequestOption {
+  readonly text: string;
+  readonly recommended: boolean;
+}
+export interface BuildRequestDocument {
+  readonly id: string;
+  readonly status: BuildRequestStatus;
+  readonly source: string;
+  readonly pin: string;
+  readonly raised: string;
+  /** The upstream IDs the request touches; empty when `## Upstream IDs` holds the single line `none`. */
+  readonly upstreamIds: readonly string[];
+  readonly options: readonly BuildRequestOption[];
+  /** The ticket IDs the request blocks, at least one. */
+  readonly blocks: readonly string[];
+  /** The History entries in file order, the first `open`. */
+  readonly history: readonly BuildRequestHistoryEntry[];
+  /** Whether `## Answer` holds any text; true exactly when the status is `answered`. */
+  readonly hasAnswer: boolean;
+}
+export type BuildRequestResult =
+  | { readonly ok: true; readonly value: BuildRequestDocument }
+  | { readonly ok: false; readonly code: BuildRequestRefusalCode; readonly reason: string; readonly line?: number };
+export function buildRequestIdOfFileName(name: string): string | null {
+  if (!name.endsWith(".md")) return null;
+  const id = name.slice(0, -".md".length);
+  return BUILD_REQUEST_ID_RE.test(id) ? id : null;
+}
+type BuildRequestRefused = Extract<BuildRequestResult, { ok: false }>;
+function buildRequestRefusal(code: BuildRequestRefusalCode, reason: string, line?: number): BuildRequestRefused {
+  return line === undefined ? { ok: false, code, reason } : { ok: false, code, reason, line };
+}
+function buildRequestValueOk(key: BuildRequestKey, value: string): boolean {
+  if (key === "id") return BUILD_REQUEST_ID_RE.test(value);
+  if (key === "status") return (BUILD_REQUEST_STATUSES as readonly string[]).includes(value);
+  if (key === "source") return UPSTREAM_SOURCE_ID_RE.test(value);
+  if (key === "pin") return UPSTREAM_OBJECT_ID_RE.test(value);
+  return BUILD_REQUEST_DATE_RE.test(value) && isCalendarDate(value);
+}
+function buildRequestValueForm(key: BuildRequestKey): string {
+  if (key === "id") return "`BR-` then a number with no leading zero";
+  if (key === "status") return `one of ${BUILD_REQUEST_STATUSES.join(", ")}`;
+  if (key === "source") return "a declared source id: a lowercase letter, then up to 31 lowercase letters, digits and hyphens";
+  if (key === "pin") return "a full 40- or 64-character lowercase hex commit id";
+  return "a calendar date written YYYY-MM-DD";
+}
+export function parseBuildRequestDocument(text: string, fileName: string): BuildRequestResult {
+  const nameId = buildRequestIdOfFileName(fileName);
+  if (nameId === null) {
+    return buildRequestRefusal("bad-file-name", "a build-request file is named `BR-<n>.md`, with no leading zero");
+  }
+  const lines = normalizeDocument(text).split("\n");
+  if (lines[0] !== BUILD_REQUEST_DELIMITER) {
+    return buildRequestRefusal("no-opening-delimiter", "a build-request file opens with a `---` line on line 1", 1);
+  }
+  let close = -1;
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i] === BUILD_REQUEST_DELIMITER) {
+      close = i;
+      break;
+    }
+  }
+  if (close === -1) {
+    return buildRequestRefusal(
+      "no-closing-delimiter",
+      "the frontmatter opens with `---` on line 1 and no later line closes it",
+    );
+  }
+
+  const values = new Map<BuildRequestKey, string>();
+  for (let i = 1; i < close; i += 1) {
+    const line = lines[i] as string;
+    const at = i + 1;
+    if (line.trim() === "") continue;
+    if (BUILD_REQUEST_CONTROL.test(line)) {
+      return buildRequestRefusal("control-character", `line ${at} carries a control character`, at);
+    }
+    const m = BUILD_REQUEST_KEY_LINE.exec(line);
+    if (m === null) {
+      return buildRequestRefusal("unrecognized-line", `line ${at} is neither \`key: value\` nor \`key:\``, at);
+    }
+    const key = m[1] as string;
+    if (!(BUILD_REQUEST_KEYS as readonly string[]).includes(key)) {
+      return buildRequestRefusal(
+        "unknown-key",
+        `line ${at} carries a key outside the closed set (${BUILD_REQUEST_KEYS.join(", ")})`,
+        at,
+      );
+    }
+    const known = key as BuildRequestKey;
+    if (values.has(known)) {
+      return buildRequestRefusal("duplicate-key", `line ${at} writes \`${known}\` a second time`, at);
+    }
+    const value = (m[2] ?? "").trim();
+    if (value === "" || !buildRequestValueOk(known, value)) {
+      return buildRequestRefusal(
+        "bad-value",
+        `line ${at}: the value of \`${known}\` is not ${buildRequestValueForm(known)}`,
+        at,
+      );
+    }
+    values.set(known, value);
+  }
+
+  for (const key of BUILD_REQUEST_KEYS) {
+    if (!values.has(key)) {
+      return buildRequestRefusal(
+        "missing-key",
+        `the frontmatter has no \`${key}\`; every key of ${BUILD_REQUEST_KEYS.join(", ")} is required`,
+      );
+    }
+  }
+  const id = values.get("id") as string;
+  if (id !== nameId) {
+    return buildRequestRefusal("id-mismatch", "the frontmatter `id` differs from the id in the file name");
+  }
+  return buildRequestBody(lines, close, {
+    id,
+    status: values.get("status") as BuildRequestStatus,
+    source: values.get("source") as string,
+    pin: values.get("pin") as string,
+    raised: values.get("raised") as string,
+  });
+}
+type BuildRequestFrontmatter = Pick<BuildRequestDocument, "id" | "status" | "source" | "pin" | "raised">;
+interface BuildRequestItem {
+  readonly text: string;
+  readonly line: number;
+}
+type BuildRequestStep<T> = { readonly ok: true; readonly value: T } | BuildRequestRefused;
+function buildRequestSectionList(): string {
+  return BUILD_REQUEST_SECTIONS.map((s) => `\`${s}\``).join(", ");
+}
+function buildRequestSectionAt(
+  body: string,
+  bodyLines: readonly string[],
+  toLine: (i: number) => number,
+): BuildRequestStep<readonly number[]> {
+  const at: number[] = [];
+  for (const name of BUILD_REQUEST_SECTIONS) {
+    const found = unfencedHeadingIndices(body, name);
+    if (found.length === 0) {
+      return buildRequestRefusal(
+        "bad-section",
+        `the body has no \`${name}\` section; a build request holds ${buildRequestSectionList()}, each once`,
+      );
+    }
+    if (found.length > 1) {
+      const second = toLine(found[1] as number);
+      return buildRequestRefusal(
+        "bad-section",
+        `line ${second} writes \`${name}\` a second time; each section appears once`,
+        second,
+      );
+    }
+    at.push(found[0] as number);
+  }
+  const first = at[0] as number;
+  const firstHeading = sectionEndIndex(body, 0, 2);
+
+  // Every unfenced heading of level one or two, walked through the one section owner. Each must be a section heading,
+  // except one level-one title line that comes before `## Question`.
+  for (let i = firstHeading; i < bodyLines.length; i = sectionEndIndex(body, i + 1, 2)) {
+    if (at.includes(i)) continue;
+    if (i === firstHeading && i < first && (bodyLines[i] as string).startsWith(BUILD_REQUEST_TITLE_OPENING)) continue;
+    const line = toLine(i);
+    return buildRequestRefusal(
+      "bad-section",
+      `line ${line} is a heading outside the six sections (${buildRequestSectionList()}); only one level-one title line may come before \`## Question\``,
+      line,
+    );
+  }
+
+  for (let s = 1; s < at.length; s += 1) {
+    if ((at[s] as number) < (at[s - 1] as number)) {
+      const line = toLine(at[s] as number);
+      return buildRequestRefusal(
+        "bad-section",
+        `line ${line}: \`${BUILD_REQUEST_SECTIONS[s]}\` comes before \`${BUILD_REQUEST_SECTIONS[s - 1]}\`; the sections run in the order ${buildRequestSectionList()}`,
+        line,
+      );
+    }
+  }
+
+  for (let i = 0; i < first; i += 1) {
+    const text = bodyLines[i] as string;
+    if (text.trim() === "" || text.startsWith(BUILD_REQUEST_TITLE_OPENING)) continue;
+    const line = toLine(i);
+    return buildRequestRefusal(
+      "bad-section",
+      `line ${line} holds text before \`## Question\`; only one level-one title line may come before the first section`,
+      line,
+    );
+  }
+  return { ok: true, value: at };
+}
+function buildRequestItems(
+  body: string,
+  bodyLines: readonly string[],
+  heading: number,
+  toLine: (i: number) => number,
+): BuildRequestItem[] {
+  const end = sectionEndIndex(body, heading + 1, 2);
+  const items: BuildRequestItem[] = [];
+  for (let i = heading + 1; i < end; i += 1) {
+    const text = (bodyLines[i] as string).trimEnd();
+    if (text.trim() !== "") items.push({ text, line: toLine(i) });
+  }
+  return items;
+}
+function buildRequestUpstreamIds(items: readonly BuildRequestItem[], headingLine: number): BuildRequestStep<string[]> {
+  const refuse = (reason: string, line: number) =>
+    buildRequestRefusal("bad-upstream-ids", reason, line);
+  if (items.length === 0) {
+    return refuse(
+      `line ${headingLine}: \`## Upstream IDs\` is empty; it holds one \`- <ID>\` bullet per upstream ID, or the single line \`${BUILD_REQUEST_NONE_IDS}\``,
+      headingLine,
+    );
+  }
+  if (items.length === 1 && (items[0] as BuildRequestItem).text === BUILD_REQUEST_NONE_IDS) return { ok: true, value: [] };
+  const ids: string[] = [];
+  for (const item of items) {
+    if (item.text === BUILD_REQUEST_NONE_IDS) {
+      return refuse(`line ${item.line}: \`${BUILD_REQUEST_NONE_IDS}\` is the only line of a section that names no ID`, item.line);
+    }
+    const id = item.text.startsWith(BUILD_REQUEST_BULLET) ? item.text.slice(BUILD_REQUEST_BULLET.length) : "";
+    if (!UPSTREAM_ID_RE.test(id)) {
+      return refuse(
+        `line ${item.line} is not \`- <ID>\` with an upstream ID: capital letters and digits, a hyphen and a number`,
+        item.line,
+      );
+    }
+    if (ids.includes(id)) return refuse(`line ${item.line} names an upstream ID a second time`, item.line);
+    ids.push(id);
+  }
+  return { ok: true, value: ids };
+}
+function buildRequestOptions(
+  items: readonly BuildRequestItem[],
+  headingLine: number,
+): BuildRequestStep<BuildRequestOption[]> {
+  const refuse = (reason: string, line: number) =>
+    buildRequestRefusal("bad-options", reason, line);
+  const marked = BUILD_REQUEST_RECOMMENDED_MARKER.trimEnd();
+  const options: BuildRequestOption[] = [];
+  for (const item of items) {
+    if (!item.text.startsWith(BUILD_REQUEST_BULLET) || item.text.slice(BUILD_REQUEST_BULLET.length).trim() === "") {
+      return refuse(`line ${item.line} is not an option bullet \`- <text>\``, item.line);
+    }
+    const rest = item.text.slice(BUILD_REQUEST_BULLET.length);
+    if (rest.startsWith(marked)) {
+      const text = rest.startsWith(BUILD_REQUEST_RECOMMENDED_MARKER)
+        ? rest.slice(BUILD_REQUEST_RECOMMENDED_MARKER.length).trim()
+        : "";
+      if (text === "") {
+        return refuse(
+          `line ${item.line}: the recommended option is \`- ${BUILD_REQUEST_RECOMMENDED_MARKER}<text>\`, with a text`,
+          item.line,
+        );
+      }
+      options.push({ text, recommended: true });
+    } else {
+      options.push({ text: rest.trim(), recommended: false });
+    }
+  }
+  const recommended = options.filter((o) => o.recommended).length;
+  if (options.length === 0 || recommended !== 1) {
+    return refuse(
+      `line ${headingLine}: \`## Options\` holds at least one bullet and exactly one opens \`- ${BUILD_REQUEST_RECOMMENDED_MARKER}\`; it has ${options.length} bullets and ${recommended} recommended`,
+      headingLine,
+    );
+  }
+  return { ok: true, value: options };
+}
+function buildRequestBlocks(items: readonly BuildRequestItem[], headingLine: number): BuildRequestStep<string[]> {
+  const refuse = (reason: string, line: number) =>
+    buildRequestRefusal("bad-blocks", reason, line);
+  if (items.length === 0) {
+    return refuse(`line ${headingLine}: \`## Blocks\` names at least one blocked ticket as \`- <ticket ID>\``, headingLine);
+  }
+  const blocks: string[] = [];
+  for (const item of items) {
+    const id = item.text.startsWith(BUILD_REQUEST_BULLET) ? item.text.slice(BUILD_REQUEST_BULLET.length) : "";
+    if (!isTicketRef(id, isTicketId)) {
+      return refuse(
+        `line ${item.line} is not \`- <ticket ID>\` with a ticket ID; a build request, epic, decision or other structural ID is not a ticket`,
+        item.line,
+      );
+    }
+    if (blocks.includes(id)) return refuse(`line ${item.line} names a blocked ticket a second time`, item.line);
+    blocks.push(id);
+  }
+  return { ok: true, value: blocks };
+}
+function buildRequestHistoryEntry(item: BuildRequestItem): BuildRequestHistoryEntry | null {
+  const m = BUILD_REQUEST_HISTORY_RE.exec(item.text);
+  if (m === null) return null;
+  const date = m[1] as string;
+  const event = m[2] as BuildRequestEvent;
+  const actor = m[3] as string;
+  const tail = m[4] as string;
+  if (!isCalendarDate(date)) return null;
+  if (actor !== BUILD_REQUEST_AGENT_ACTOR && !HUMAN_STAMP_RE.test(actor)) return null;
+  const base = { date, event, actor, pin: null, notDescendant: false, line: item.line };
+  if (event === "open" || event === "carried") return tail === "" ? base : null;
+  if (event === "edited" || event === "withdrawn") return BUILD_REQUEST_TEXT_TAIL_RE.test(tail) ? base : null;
+  const a = BUILD_REQUEST_ANSWER_TAIL_RE.exec(tail);
+  if (a === null || !UPSTREAM_OBJECT_ID_RE.test(a[1] as string)) return null;
+  return { ...base, pin: a[1] as string, notDescendant: a[2] !== undefined };
+}
+function buildRequestHistory(
+  items: readonly BuildRequestItem[],
+  headingLine: number,
+  fm: BuildRequestFrontmatter,
+): BuildRequestStep<{ readonly entries: BuildRequestHistoryEntry[]; readonly implied: BuildRequestStatus }> {
+  const refuse = (code: BuildRequestRefusalCode, reason: string, line: number) =>
+    buildRequestRefusal(code, reason, line);
+  if (items.length === 0) {
+    return refuse(
+      "bad-history-order",
+      `line ${headingLine}: \`## History\` is empty; its first entry is \`open, by ${BUILD_REQUEST_AGENT_ACTOR}\` dated \`raised\``,
+      headingLine,
+    );
+  }
+  const entries: BuildRequestHistoryEntry[] = [];
+  let state: BuildRequestStatus = "open";
+  for (const item of items) {
+    const entry = buildRequestHistoryEntry(item);
+    const at = item.line;
+    if (entry === null) {
+      return refuse(
+        "bad-history-line",
+        `line ${at} is not a History entry: \`- YYYY-MM-DD: <event>, by <actor>\` in one of the closed forms for ${BUILD_REQUEST_EVENTS.join(", ")}`,
+        at,
+      );
+    }
+    const human = entry.actor !== BUILD_REQUEST_AGENT_ACTOR;
+    const previous = entries[entries.length - 1];
+    if (previous === undefined) {
+      if (entry.event !== "open" || entry.date !== fm.raised) {
+        return refuse("bad-history-order", `line ${at}: the first History entry is \`open\`, dated the frontmatter \`raised\``, at);
+      }
+      if (human) {
+        return refuse("bad-transition", `line ${at}: a request is opened by ${BUILD_REQUEST_AGENT_ACTOR}`, at);
+      }
+      entries.push(entry);
+      continue;
+    }
+    if (entry.date < previous.date) {
+      return refuse("bad-history-order", `line ${at} is dated before the entry above it; History dates never decrease`, at);
+    }
+    if (state === "answered" || state === "withdrawn") {
+      return refuse("bad-transition", `line ${at} follows a \`${state}\` entry; an answered or withdrawn request takes no further entry`, at);
+    }
+    if (entry.event === "open") {
+      return refuse("bad-transition", `line ${at}: \`open\` is only ever the first History entry`, at);
+    }
+    if (entry.event === "edited") {
+      if (human) return refuse("bad-transition", `line ${at}: an edit is recorded by ${BUILD_REQUEST_AGENT_ACTOR}, its single writer`, at);
+    } else if (entry.event === "carried") {
+      if (!human) {
+        return refuse("bad-transition", `line ${at}: \`carried\` names the human who carried the request, as \`human:<name>\``, at);
+      }
+      state = "carried";
+    } else if (entry.event === "answered") {
+      if (state !== "carried") {
+        return refuse("bad-transition", `line ${at}: only a carried request is answered; an open request is withdrawn instead`, at);
+      }
+      if (!human) {
+        return refuse("bad-transition", `line ${at}: \`answered\` names the human who set the new pin, as \`human:<name>\``, at);
+      }
+      const pin = entry.pin as string;
+      if (pin.length !== fm.pin.length || pin === fm.pin) {
+        return refuse(
+          "bad-transition",
+          `line ${at}: the answer pin is a new commit id of the raising pin's length, different from the raising pin`,
+          at,
+        );
+      }
+      state = "answered";
+    } else {
+      const want = state === "open" ? !human : human;
+      if (!want) {
+        return refuse(
+          "bad-transition",
+          `line ${at}: ${BUILD_REQUEST_AGENT_ACTOR} withdraws an open request, and only a named human withdraws a carried one`,
+          at,
+        );
+      }
+      state = "withdrawn";
+    }
+    entries.push(entry);
+  }
+  return { ok: true, value: { entries, implied: state } };
+}
+function buildRequestBody(lines: readonly string[], close: number, fm: BuildRequestFrontmatter): BuildRequestResult {
+  const bodyLines = lines.slice(close + 1);
+  const body = bodyLines.join("\n");
+  const toLine = (i: number): number => close + 2 + i;
+
+  for (let i = 0; i < bodyLines.length; i += 1) {
+    if (BUILD_REQUEST_CONTROL.test(bodyLines[i] as string)) {
+      return buildRequestRefusal("control-character", `line ${toLine(i)} carries a control character`, toLine(i));
+    }
+  }
+
+  const located = buildRequestSectionAt(body, bodyLines, toLine);
+  if (!located.ok) return located;
+  const at = located.value;
+  const items = at.map((h) => buildRequestItems(body, bodyLines, h, toLine));
+  const headingLine = (s: number): number => toLine(at[s] as number);
+
+  if ((items[0] as BuildRequestItem[]).length === 0) {
+    return buildRequestRefusal("bad-section", `line ${headingLine(0)}: \`## Question\` is empty`, headingLine(0));
+  }
+  const upstreamIds = buildRequestUpstreamIds(items[1] as BuildRequestItem[], headingLine(1));
+  if (!upstreamIds.ok) return upstreamIds;
+  const options = buildRequestOptions(items[2] as BuildRequestItem[], headingLine(2));
+  if (!options.ok) return options;
+  const blocks = buildRequestBlocks(items[3] as BuildRequestItem[], headingLine(3));
+  if (!blocks.ok) return blocks;
+  const history = buildRequestHistory(items[4] as BuildRequestItem[], headingLine(4), fm);
+  if (!history.ok) return history;
+  if (history.value.implied !== fm.status) {
+    return buildRequestRefusal(
+      "status-mismatch",
+      `the frontmatter \`status\` differs from the status the last History entry other than \`edited\` implies`,
+    );
+  }
+  const answer = items[5] as BuildRequestItem[];
+  const hasAnswer = answer.length > 0;
+  if (fm.status === "answered" && !hasAnswer) {
+    return buildRequestRefusal("bad-answer", `line ${headingLine(5)}: an answered request records its answer under \`## Answer\``, headingLine(5));
+  }
+  if (fm.status !== "answered" && hasAnswer) {
+    const line = (answer[0] as BuildRequestItem).line;
+    return buildRequestRefusal("bad-answer", `line ${line}: \`## Answer\` stays empty until the request is answered`, line);
+  }
+  return {
+    ok: true,
+    value: {
+      ...fm,
+      upstreamIds: upstreamIds.value,
+      options: options.value,
+      blocks: blocks.value,
+      history: history.value.entries,
+      hasAnswer,
+    },
+  };
+}
 // from scripts/runnable-stamp.ts
 export const RUNNABLE_STAMP_NAME = "RUNNABLE_SET_STAMP";
 export const RUNNABLE_STAMP_LINE = new RegExp(`^export const ${RUNNABLE_STAMP_NAME} = "(sha256:[0-9a-f]{64})";$`);
@@ -2290,6 +2818,52 @@ function confirmListed(rel: string): void {
         "say whether it exists.",
     );
   }
+}
+
+/**
+ * Every build-request record checked by the embedded build-request grammar (plan 45-04, D-05): parseBuildRequestDocument
+ * from scripts/build-request-model.ts, the one authority the structure validator imports, so both programs refuse the
+ * same files with the same codes. `listing` is the raw listing the byte budget read; a folder that is absent or that
+ * could not be listed is already the budget's answer, so nothing is checked here. Records are recordEntryNames, so a
+ * keeper is never one. A name that is not `BR-<n>.md` is refused by the grammar's file-name rule and never opened. A
+ * record is opened only when the root-chain owner's lstat of it says it is a regular file no larger than the reader
+ * ceiling, and then through the embedded non-blocking reader, which checks the shape again on the open descriptor: a
+ * FIFO, a link, a directory or a file above the ceiling is the budget's finding by name and is never read here
+ * (T-45-12). A read the reader refuses, or a file that vanished after its lstat, is a refusal by the reader's
+ * condition, as `upstream.js requests` reports it. Each finding carries the file and the code only; the grammar's
+ * reasons are not printed and no file text reaches the output (T-45-13). No clock is read and no git is run.
+ */
+function buildRequestFindings(listing: Listing): StateFinding[] {
+  if (listing.kind !== "listed") return [];
+  const findings: StateFinding[] = [];
+  const refuse = (rel: string, code: string): void => {
+    findings.push(integrityFinding(rel, "build-request-refused", `refused by the build-request grammar (${code})`));
+  };
+  for (const name of recordEntryNames(listing.names)) {
+    const rel = `${BUILD_REQUESTS_REL}/${name}`;
+    if (buildRequestIdOfFileName(name) === null) {
+      // The grammar's own file-name refusal, asked with no text: the file is never opened.
+      const refused = parseBuildRequestDocument("", name);
+      if (!refused.ok) refuse(rel, refused.code);
+      continue;
+    }
+    const at = locate(rel);
+    if (at.kind !== "inside" || !at.entry.isFile() || at.entry.size > BUILD_REQUEST_READ_MAX_BYTES) continue;
+    let text: string | null;
+    try {
+      text = readRegularFileOrNull(at.real, BUILD_REQUEST_READ_MAX_BYTES, "build-request file");
+    } catch (e) {
+      refuse(rel, e instanceof ReadPositionRefusal ? e.condition : "unopenable");
+      continue;
+    }
+    if (text === null) {
+      refuse(rel, "unopenable");
+      continue;
+    }
+    const admission = parseBuildRequestDocument(text, name);
+    if (!admission.ok) refuse(rel, admission.code);
+  }
+  return findings;
 }
 
 /** The progress file's byte finding and what the rollable report reads from it. */
@@ -2696,6 +3270,8 @@ try {
   // The build-request folder's per-file byte budget (plan 45-04, BR-07), listed once like the NFR folder.
   const buildRequestListing = listDirectory(BUILD_REQUESTS_REL);
   const buildRequestFiles = directoryFindings(BUILD_REQUESTS_REL, "buildRequestBytes", buildRequestListing);
+  // Every build-request record through the one grammar (plan 45-04, D-05), from the same listing.
+  const buildRequestRefusals = buildRequestFindings(buildRequestListing);
   const traceFiles = directoryFindings(TRACE_DIR_REL, "traceBytes", listDirectory(TRACE_DIR_REL));
   const progress = progressReport();
   // The integrity, rollable and move-only reports follow the budgets (plan 37-05, D-08, D-09, D-13, v3.0 D-7).
@@ -2716,6 +3292,7 @@ try {
     ...tickets,
     ...nfrFiles,
     ...buildRequestFiles,
+    ...buildRequestRefusals,
     ...traceFiles,
     ...progress.findings,
     ...nfrIntegrity,

@@ -188,6 +188,14 @@ export function runnableSpecs(set) {
  * Plan 45-04 (2026-11-26, BR-07) adds BUILD_REQUESTS_REL to the install/state-layout.ts roots of the state checker's
  * row: state-check lists the build-request folder and measures each record against BUDGETS.buildRequestBytes, as the
  * structure validator does. EMBED_SPEC_COUNT stays 7.
+ * Plan 45-04 (2026-11-26, D-05) also embeds the build-request grammar in the state checker's row, so state-check parses
+ * every build-request record with the code the structure validator imports: a scripts/upstream-model.ts authority with
+ * the roots UPSTREAM_SOURCE_ID_RE, UPSTREAM_OBJECT_ID_RE and UPSTREAM_ID_RE, then a scripts/build-request-model.ts
+ * authority with the roots parseBuildRequestDocument, buildRequestIdOfFileName and BUILD_REQUEST_READ_MAX_BYTES, both
+ * after scripts/context-io.ts and before scripts/runnable-stamp.ts, because build-request-model imports from every
+ * earlier sibling. Its closure adds isCalendarDate to the scripts/state-rules.ts roots, unfencedHeadingIndices to the
+ * scripts/frontmatter.ts roots, isTicketRef to the scripts/trace-model.ts roots and HUMAN_STAMP_RE to the
+ * scripts/context-io.ts roots. EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -239,13 +247,14 @@ export const EMBED_SPECS = Object.freeze([
                     "formatFinding",
                     "sortFindings",
                     "stripControlChars",
+                    "isCalendarDate",
                 ],
             },
             {
                 module: "scripts/board-model.ts",
                 roots: ["parseBoard", "normalizeDocument", "stripHtmlComments", "isTicketId"],
             },
-            { module: "scripts/frontmatter.ts", roots: ["sectionEndIndex"] },
+            { module: "scripts/frontmatter.ts", roots: ["sectionEndIndex", "unfencedHeadingIndices"] },
             {
                 module: "scripts/trace-model.ts",
                 roots: [
@@ -258,6 +267,7 @@ export const EMBED_SPECS = Object.freeze([
                     "isGeneratedTraceText",
                     "compareTraceTree",
                     "TRACE_FILE_MAX_BYTES",
+                    "isTicketRef",
                 ],
             },
             {
@@ -273,7 +283,13 @@ export const EMBED_SPECS = Object.freeze([
                     "rootChainPresence",
                     "isWithin",
                     "ROOT_CHAIN_LINK_REFUSAL",
+                    "HUMAN_STAMP_RE",
                 ],
+            },
+            { module: "scripts/upstream-model.ts", roots: ["UPSTREAM_SOURCE_ID_RE", "UPSTREAM_OBJECT_ID_RE", "UPSTREAM_ID_RE"] },
+            {
+                module: "scripts/build-request-model.ts",
+                roots: ["parseBuildRequestDocument", "buildRequestIdOfFileName", "BUILD_REQUEST_READ_MAX_BYTES"],
             },
             { module: "scripts/runnable-stamp.ts", roots: ["readRunnableStamp"] },
         ],

@@ -72,7 +72,10 @@ export type IntegrityKey =
   // Plan 37-24 (2026-10-23, D-17, WR-05): a sibling state program beside state-check whose build stamp differs
   // from state-check's own, is missing or repeated, or that could not be read, so the two may embed different
   // copies of one authority (runnable-version-skew).
-  | "runnable-version-skew";
+  | "runnable-version-skew"
+  // Plan 45-04 (2026-11-26, D-05): a build-request record the one grammar (scripts/build-request-model.ts) refuses,
+  // named by its file and the refusal code; the code is the whole detail, so no file text reaches the finding.
+  | "build-request-refused";
 
 /** An integrity finding: about no budget, so it carries its note in place of a measure. */
 export function integrityFinding(rel: string, key: IntegrityKey, note: string, line?: number): StateFinding {
