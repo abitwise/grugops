@@ -37,7 +37,7 @@ findings:
     title: "The validator prints git-derived reasons unsanitized, unlike the runnable"
   - id: IN-04
     severity: info
-    disposition: open
+    disposition: fixed
     title: "`stateConfigAbs` silently falls back to the working directory"
   - id: IN-05
     severity: info
@@ -59,7 +59,7 @@ findings:
     severity: info
     disposition: open
     title: "The ADR status vocabulary mixes cases"
-open: 14
+open: 13
 total: 14
 recorded: 2026-11-26T13:43:50.671Z
 ---
@@ -76,7 +76,7 @@ recorded: 2026-11-26T13:43:50.671Z
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
-| IN-04 | info | open | - |
+| IN-04 | info | fixed | commit 5424515f (validator no longer reads GOVERNANCE_CONFIG_CANDIDATE_KINDS; a null position is an ERROR) |
 | IN-05 | info | open | - |
 | IN-06 | info | open | - |
 | IN-07 | info | open | - |
