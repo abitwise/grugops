@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Phase 45 context gathered
-last_updated: "2026-11-26T08:27:19.628Z"
-last_activity: 2026-11-25
-last_activity_desc: Phase 44 complete, transitioned to Phase 45
-state_head: 166d44032bf3cbc371cb3f0c0531300e8a1fa1ad
+stopped_at: Completed 45-01-PLAN.md
+last_updated: "2026-11-26T09:56:19.535Z"
+last_activity: 2026-11-26
+last_activity_desc: Phase 45 execution started
+state_head: 61b613dc5df19a6c7b48af4e465248184adc31e4
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 14
+  completed_plans: 15
   percent: 20
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 
 ## Current Position
 
-Phase: 45 (Traceability, build requests and architecture as input) — READY TO EXECUTE
-Plan: Not started
+Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
+Plan: 2 of 11
 Status: Ready to execute
-Last activity: 2026-11-25 — Phase 44 complete, transitioned to Phase 45
+Last activity: 2026-11-26 — Phase 45 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
 
@@ -917,6 +917,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P12 | 9 min | 3 tasks | 4 files |
 | Phase 44 P13 | 12 min | 2 tasks | 6 files |
 | Phase 44 P14 | 10 min | 3 tasks | 7 files |
+| Phase 45 P01 | 49 min | 3 tasks | 30 files |
 
 ## Accumulated Context
 
@@ -2573,6 +2574,9 @@ Recent decisions affecting current work:
 - [Phase 44]: 44-14: the upstream contract quotes each reason the reader prints, copied from the committed code and paired in the SUMMARY; the D-17 BEGIN and END text is unchanged
 - [Phase 44]: 44-14: the contract states the first-violation order as the code applies it (cell checks row by row in column order, then the successor-listed and chain checks) and names the <listed path> redaction's limit
 - [Phase 44]: 44-14: nyquist_compliant set true from the named passing filters; the validate.test.ts ticket-frontmatter census failure (4 tests, outside those filters, no scripts/ change in 44-14) is logged open in deferred-items.md
+- [Phase 45]: Build-request records are lstat'ed before reading; any non-regular entry is refused not-a-regular-file (T-45-02)
+- [Phase 45]: scripts/upstream-git.ts is the one git launcher; upstreamGitAnswers takes the repository root as its first parameter (D-02)
+- [Phase 45]: runnable-ref/upstream.ts is exempted in NOT_A_SECOND_AUTHORITY (count 11): its generated region carries BUILD_REQUEST_KEYS status beside manifest column reasons
 
 ### Pending Todos
 
@@ -2980,9 +2984,9 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-25T22:23:54.532Z
-Stopped at: Phase 45 context gathered
-Resume file: .planning/phases/45-traceability-build-requests-and-architecture-as-input/45-CONTEXT.md
+Last session: 2026-11-26T09:56:19.268Z
+Stopped at: Completed 45-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
