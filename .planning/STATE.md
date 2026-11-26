@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-04-PLAN.md
-last_updated: "2026-11-26T11:35:41.161Z"
+stopped_at: Completed 45-05-PLAN.md
+last_updated: "2026-11-26T11:52:13.050Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: 2ad9e2a156a7a6d52e7da1c05429cae26c323f4e
+state_head: a9cb55a0dceb78afb34134a44f8884b9ca5e23ce
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 18
+  completed_plans: 19
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 5 of 11
+Plan: 6 of 11
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -921,6 +921,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P02 | 15 min | 2 tasks | 18 files |
 | Phase 45 P03 | 22min | 3 tasks | 25 files |
 | Phase 45 P04 | 20 min | 2 tasks | 30 files |
+| Phase 45 P05 | 15min | 2 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -2587,6 +2588,7 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-03: a second carried entry is a re-send and clears changed-since-carried; only BA/PM opens and edits; a carried request is withdrawn only by a human stamp
 - [Phase 45]: 45-04: build-request budget is per file, 8 KiB (BUDGETS.buildRequestBytes), research assumption A5; confirm at 45-10 UAT
 - [Phase 45]: 45-04: validator and state-check parse every build-request record with the one grammar; misnamed records refused unopened, non-regular records stay the budget's finding
+- [Phase 45]: 45-05: install --migrate on an installed v3 repository does not seed the build-request folder (its already-migrated arm exits before the install run); the next plain install adds it, and an absent folder is no finding. Open for the 45-10 UAT: whether --migrate should seed
 
 ### Pending Todos
 
@@ -2994,8 +2996,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T11:35:40.903Z
-Stopped at: Completed 45-04-PLAN.md
+Last session: 2026-11-26T11:52:12.789Z
+Stopped at: Completed 45-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
