@@ -69,11 +69,28 @@ import { CHECKPOINTS, DISPOSITIONS } from "./checkpoints.js";
 // invented third one. Spelling the two paths here instead would be a second answer to one question,
 // free to drift the day a location is added — which is precisely how the form check came to be
 // asked only at the file the reader consults second.
-import { governanceConfigCandidates } from "./context-io.js";
+import {
+  GOVERNANCE_CONFIG_CANDIDATE_KINDS,
+  currentState,
+  entryPresence,
+  governanceConfigCandidates,
+  listContextTasks,
+  readTaskNoteRecords,
+  type NoteRecord,
+} from "./context-io.js";
 // (Plan 44-04, UP-01) THE UPSTREAM GRAMMAR IS IMPORTED, NEVER RESTATED. scripts/upstream-model.ts is the one
 // authority on what an `upstream` declaration is, and the host runnable tools/grugops/upstream.js embeds the same
 // module, so the validator and the runnable cannot disagree about which declaration is well formed.
-import { parseUpstreamConfig, sourcePathFindings } from "./upstream-model.js";
+import {
+  parseUpstreamConfig,
+  sourcePathFindings,
+  upstreamCitationFindings,
+  upstreamStatementOf,
+  type UpstreamManifestAt,
+  type UpstreamSource,
+} from "./upstream-model.js";
+// (Plan 45-08, TRC-01) WHICH REF IS AN UPSTREAM CITATION is the trace grammar's prefix, imported, never retyped.
+import { UPSTREAM_REF_PREFIX } from "./trace-model.js";
 // THE BOARD GRAMMAR IS READ, NEVER RESTATED (DASH-01 / D-06). scripts/board-model.ts is the only
 // sanctioned reader of the board file (BOARD_REL), and agent-factory/contracts/board.md is the
 // normative schema it cites. This file used to carry its own two-line column parser, which made the
@@ -121,6 +138,8 @@ import {
   BOARD_REL,
   BUDGETS,
   BUILD_REQUESTS_REL,
+  CONTEXT_ARCHIVE_REL,
+  CONTEXT_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   METRICS_REL,
@@ -167,6 +186,10 @@ const err = (m: string): void => {
 const warn = (m: string): void => {
   warnings.push(m);
 };
+// (Plan 45-08, 45 D-03) THE THIRD LIST: what this run could not read. An `UNKNOWN - verify` line is never an error and
+// never a warning: it is not counted in the exit, --strict does not promote it, and while one is listed the run never
+// prints ALL CHECKS PASSED. An unread upstream source or note is not a pass and not a failure.
+const unknowns: string[] = [];
 
 // ── The read primitives (plan 37-26, D-17, 37-GAP-PLANNING-BRIEF.md READ-1) ──────────────────────
 // statAt, lstatAt, textAt and namesAt are where this file reads the file system; canonicalBase's realpath is the
@@ -621,6 +644,13 @@ function checkConfig(): void {
   // Folding the kit path into the candidate loop deletes that second arm rather than teaching it a
   // third outcome. There is now one existence test, one read, one unreadable message and one form
   // check, asked at every position under every base.
+  // (Plan 45-08, TRC-01) The state root's own `.grugops/factory.config.json`, named by the reader's own candidate list
+  // and kind, never by a path typed here: the one position whose `upstream` declaration the citation check reads.
+  const stateConfigAbs = resolve(
+    governanceConfigCandidates(canonicalBase(STATE_ROOT))[
+      GOVERNANCE_CONFIG_CANDIDATE_KINDS.indexOf("repository-state-plane")
+    ] ?? "",
+  );
   const seen = new Set<string>();
   for (let b = 0; b < GOVERNANCE_BASES.length; b += 1) {
     const base = canonicalBase(GOVERNANCE_BASES[b]);
@@ -663,7 +693,7 @@ function checkConfig(): void {
       // EXACTLY ONE ARM IS SCOPED. Every other form check — the retired scalar, the checkpoint
       // matrix, the TINT-03 carve-out, the WR-01 boolean, the dial enums, the JSON shape — runs at
       // every position under every base, and `scripts/validate.test.ts` asserts both halves.
-      checkConfigForm(label, raw, resolve(abs) === kitConfigAbs, base);
+      checkConfigForm(label, raw, resolve(abs) === kitConfigAbs, base, key === stateConfigAbs);
     }
   }
 }
@@ -684,8 +714,11 @@ function relativeToBase(base: string, abs: string): string {
  *
  * `base` is the canonical root the position was enumerated under. A `.grugops/factory.config.json` sits directly
  * under it, so it is the repository root that holds `.grugops/`, and the `upstream` path rule resolves against it.
+ *
+ * `stateOwn` is true only at the state root's own `.grugops/factory.config.json` (plan 45-08): a well-formed `upstream`
+ * declaration there is kept for the citation check, which reads no config of its own.
  */
-function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean, base: string): void {
+function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean, base: string, stateOwn: boolean): void {
   let cfg: unknown;
   try {
     cfg = JSON.parse(raw);
@@ -874,11 +907,16 @@ function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean, bas
     if (declared.kind === "invalid") {
       for (const finding of declared.findings) err(`${rel}: ${finding}`);
     } else if (declared.kind === "ok") {
+      let pathsOk = true;
       declared.sources.forEach((source, i) => {
         for (const finding of sourcePathFindings(base, source.path, `upstream.sources[${i}].path`)) {
           err(`${rel}: ${finding}`);
+          pathsOk = false;
         }
       });
+      // (Plan 45-08) Kept for checkCitations only when every source path passed its rule, so git never runs against a
+      // path this arm refused. `base` is the canonical repository root the source paths resolve against.
+      if (stateOwn && pathsOk) stateUpstream = { sources: declared.sources, root: base };
     }
   }
 
@@ -898,6 +936,24 @@ function checkConfigForm(rel: string, raw: string, requireBaseKeys: boolean, bas
     );
   }
 }
+
+// ── Module state the citation check reads (plan 45-08, TRC-01, TRC-03) ──────────────────────────
+/**
+ * The state root's own well-formed `upstream` declaration and the canonical root its source paths resolve against, set
+ * by checkConfigForm. Null when that file declares no `upstream`: the citation check then reads nothing.
+ */
+let stateUpstream: { readonly sources: readonly UpstreamSource[]; readonly root: string } | null = null;
+
+/** One ticket the ticket grammar admitted, as checkTickets read it. `done` is status `done`. */
+interface AdmittedTicket {
+  readonly id: string;
+  readonly rel: string;
+  readonly text: string;
+  readonly done: boolean;
+}
+
+/** Every ticket checkTickets admitted, in listing order. */
+const admittedTickets: AdmittedTicket[] = [];
 
 // ── Check 5+6: board<->ticket status match (vacuous on zero tickets) + traceability rows ──────
 function checkTickets(): void {
@@ -934,6 +990,8 @@ function checkTickets(): void {
       continue;
     }
     const { column, status } = admission.value;
+    // Ticket id = filename without extension, as the traceability check below keys it.
+    admittedTickets.push({ id: f.replace(/\.md$/, ""), rel, text, done: status === "done" });
     if (column && !boardHasColumn(boardModel, column)) {
       err(`${rel}: column "${column}" is not a board column`);
     }
@@ -991,6 +1049,104 @@ function checkBuildRequests(): void {
     const admission = parseBuildRequestDocument(text, name);
     if (!admission.ok) err(`${rel}: refused by the build-request grammar (${admission.code}): ${admission.reason}`);
   }
+}
+
+// ── Check 5c: the `## Upstream` statement and the upstream citations (plan 45-08, TRC-01, TRC-03) ─────────────
+// IT INHERITS THE CONTRACT OF THE `upstream` ARM ABOVE, VERBATIM: ACTIVE-WHEN-PRESENT, LENIENT-WHEN-ABSENT. With no
+// `upstream` key in the state root's own `.grugops/factory.config.json`, this check returns before it reads a note or
+// runs git, so the run prints exactly what it printed in v3.0.0 (45 D-01).
+//
+// WHAT DIFFERS, AND WHY.
+//   1. No rule is written here (45 D-02). upstreamStatementOf reads the statement, upstreamCitationFindings decides
+//      every citation case, and the manifest at a commit is read only through upstreamGitManifestAt. This check
+//      gathers the inputs and routes each finding by its severity.
+//   2. It reads notes. Every task under the live and the archive context roots is read through readTaskNoteRecords,
+//      and the records are folded with currentState, so a note that a correcting note supersedes is never read as a
+//      citation (research Pitfall 1). A citation counts from any current note whose refs name the ticket, not only a
+//      note `by: ba-pm`, because `by` is self-asserted (research assumption A2, reversible).
+//   3. A task whose notes could not be read is an `UNKNOWN - verify` line naming the task, and it marks the notes
+//      incomplete, so no ticket is warned for a citation that may sit in the unread notes (research Pitfall 5). An
+//      unsealed note is not unread: the walk refuses it by design, and it is no citation.
+function checkCitations(): void {
+  if (stateUpstream === null) return;
+  const declared = stateUpstream;
+  if (admittedTickets.length === 0) return;
+  // The canonical state root: the position the declaration was read from is `<it>/.grugops/factory.config.json`.
+  const boundary = declared.root;
+  const records: NoteRecord[] = [];
+  let notesComplete = true;
+  const unread = new Set<string>();
+  const notesUnread = (line: string): void => {
+    notesComplete = false;
+    if (unread.has(line)) return;
+    unread.add(line);
+    unknowns.push(line);
+  };
+  for (const rel of [CONTEXT_REL, CONTEXT_ARCHIVE_REL]) {
+    const contextRoot = join(boundary, rel);
+    // Asked of context-io's one absence owner, not of this file's read primitives: a context root that cannot be
+    // reached is an unread source (UNKNOWN - verify), never an ERROR, so it is not a READ-1 site of this file.
+    const root = entryPresence(contextRoot);
+    if (root.kind === "absent") continue; // no context root: no notes, not an unread source
+    if (root.kind === "unreadable") {
+      notesUnread(`UNKNOWN - verify notes: the context root ${rel} could not be inspected (${root.code})`);
+      continue;
+    }
+    let tasks: string[];
+    try {
+      tasks = listContextTasks(contextRoot);
+    } catch (e) {
+      notesUnread(`UNKNOWN - verify notes: the context root ${rel} could not be listed (${thrownCode(e)})`);
+      continue;
+    }
+    for (const task of tasks) {
+      try {
+        const read = readTaskNoteRecords(task, contextRoot, boundary);
+        records.push(...read.notes);
+        for (const skip of read.skipped) {
+          if (skip.arm !== "unsealed") notesUnread(taskUnreadLine(task, skip.arm));
+        }
+      } catch (e) {
+        notesUnread(taskUnreadLine(task, thrownCode(e)));
+      }
+    }
+  }
+  const current = currentState(records);
+  const relOf = new Map(admittedTickets.map((t) => [t.id, t.rel]));
+  const findings = upstreamCitationFindings({
+    sources: declared.sources,
+    tickets: admittedTickets.map((t) => ({
+      id: t.id,
+      done: t.done,
+      refs: current
+        .filter((n) => n.refs.includes(t.id))
+        .flatMap((n) => n.refs.filter((r) => r.startsWith(UPSTREAM_REF_PREFIX))),
+      statement: upstreamStatementOf(t.text),
+    })),
+    manifestAt: (): UpstreamManifestAt => ({ kind: "unknown", reason: "not read in this check" }),
+    notesComplete,
+  });
+  for (const f of findings) {
+    if (f.severity === "unknown") {
+      unknowns.push(f.text);
+      continue;
+    }
+    const line = f.ticket === null ? f.text : `${relOf.get(f.ticket) ?? f.ticket}: ${f.text}`;
+    if (f.severity === "error") err(line);
+    else warn(line);
+  }
+}
+
+/** The errno code of a thrown read, or `refused` for a refusal that carries none (a stray entry, a bad name). */
+function thrownCode(e: unknown): string {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === "string" && code !== "" ? code : "refused";
+}
+
+/** The unread-notes line for one task. A name with a character outside printable ASCII is quoted as JSON. */
+function taskUnreadLine(task: string, why: string): string {
+  const name = /^[\x20-\x7e]+$/.test(task) ? task : JSON.stringify(task);
+  return `UNKNOWN - verify notes: the notes of task ${name} could not be read (${why})`;
 }
 
 // ── Check 6b: state budgets (plan 37-02, SPLIT-04, D-04, D-05, D-10, D-11) ──────────────────────
@@ -1275,6 +1431,7 @@ checkWorkflowSections();
 checkConfig();
 checkTickets();
 checkBuildRequests();
+checkCitations();
 checkBudgets();
 checkPackaging();
 checkRoleSwitchProtocol();
@@ -1327,8 +1484,15 @@ console.error(
 // ── Render + exit ──────────────────────────────────────────────────────────────────────────────
 for (const e of errors) console.error(`  ERROR    ${e}`);
 for (const w of warnings) console.error(`  WARNING  ${w}`);
+// (Plan 45-08, 45 D-03) The unread sources follow the warnings. They never reach `failed`, --strict does not promote
+// them, and while any is listed the last line is the unknown count, never ALL CHECKS PASSED.
+for (const u of unknowns) console.error(`  WARNING  ${u}`);
 
 const failed = errors.length + (STRICT ? warnings.length : 0);
+if (failed === 0 && unknowns.length > 0) {
+  console.log(`NO ERRORS, ${unknowns.length} UNKNOWN - verify: an unread source is not a pass`);
+  process.exit(0);
+}
 if (failed === 0) {
   console.log("ALL CHECKS PASSED");
   process.exit(0);

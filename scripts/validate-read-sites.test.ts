@@ -107,8 +107,10 @@ const READ_SITE_ROWS: readonly ReadSiteRow[] = [
   ]),
   // list: the tickets directory of checkTickets, and the budget directories.
   ...rows("namesAt:readdirSync#0", ["stateListDir#0", "directoryFindings#0"]),
-  // realpath: the in-kit config's base, and each governance base.
-  ...rows("canonicalBase:realpathSync#0", ["checkConfig#0", "checkConfig#1"]),
+  // realpath: the in-kit config's base, each governance base, and (2026-11-26, plan 45-08, TRC-01) the state root's
+  // base, which names the one position whose `upstream` declaration the citation check reads. checkCitations itself
+  // adds no pair: it reads notes through context-io, and an unread note is UNKNOWN - verify, never an ERROR (D-03).
+  ...rows("canonicalBase:realpathSync#0", ["checkConfig#0", "checkConfig#1", "checkConfig#2"]),
 ];
 
 // ── The derived set ─────────────────────────────────────────────────────────────────────────────────────

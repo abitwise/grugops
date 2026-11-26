@@ -2367,6 +2367,38 @@ export function readTaskNoteRefs(task, contextRoot, boundary) {
         skipped: read.skipped,
     };
 }
+/**
+ * One task's notes as full records, and the walk's skip list: the structure validator's reader for current-state
+ * folding (plan 45-08, TRC-03, research Pitfall 1). The validator folds these records with currentState, so a note
+ * that a correcting note supersedes is never read as a citation; refs alone cannot say which notes are superseded.
+ *
+ * It shares readTaskNoteRefs's refusals, in the same order: a name that is not one path component, then the entry's
+ * own lstat (absent after the listing, unreachable, a symbolic link, not a directory; the three non-task refusals
+ * carry STRAY_CONTEXT_ENTRY_REMEDY), then assertSafeTask, then the notes walk with `boundary`. The steps are written
+ * out again rather than shared, because readTaskNoteRefs is embedded in the trace runnables and a shared helper
+ * would move their generated regions.
+ */
+export function readTaskNoteRecords(task, contextRoot, boundary) {
+    if (task === "" || task === "." || task === ".." || task.includes("/") || task.includes(sep) || task.includes("\0")) {
+        assertSafeTask(task);
+    }
+    const presence = entryPresence(join(contextRoot, task));
+    if (presence.kind === "absent")
+        throw new Error("it was listed and is no longer there");
+    if (presence.kind === "unreadable") {
+        if (presence.link)
+            throw strayEntryError(presence.reason, presence.code);
+        throw codedError(presence.reason, presence.code);
+    }
+    if (presence.entry.isSymbolicLink()) {
+        throw strayEntryError("it is a symbolic link, and a symbolic link is never read as a task", null);
+    }
+    if (!presence.entry.isDirectory())
+        throw strayEntryError("it is not a directory, so it is not a task", null);
+    assertSafeTask(task);
+    const read = readRawNotesWithSkips(task, contextRoot, boundary);
+    return { notes: read.notes.map((raw) => recordFromParsed(raw.parsed, raw.id)), skipped: read.skipped };
+}
 // ── readContext: parse every notes/<id>.md into a NoteRecord[] (id from the filename). ──────────
 export function readContext(task, contextRoot = DEFAULT_CONTEXT_ROOT) {
     return readRawNotes(task, contextRoot).map((raw) => recordFromParsed(raw.parsed, raw.id));

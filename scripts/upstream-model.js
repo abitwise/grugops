@@ -586,7 +586,8 @@ export function upstreamCitationFindings(input) {
         }
         if (cited.length === 0 && t.statement.kind === "absent" && !t.done && input.notesComplete) {
             push("warning", `${t.id} cites no upstream ID and has no \`${UPSTREAM_STATEMENT_HEADING}\` section; cite the upstream IDs it ` +
-                `implements, or write the one line \`${UPSTREAM_NONE_STATEMENT}\` under that heading`);
+                `implements on its ticket note (Workflow 03 step 8), or write the one line \`${UPSTREAM_NONE_STATEMENT}\` ` +
+                "under that heading");
         }
         for (const ref of cited) {
             const parsed = parseUpstreamRef(ref);
