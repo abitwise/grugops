@@ -521,6 +521,7 @@ const UNITS = {
     indexEntryBytes: "bytes",
     ticketBytes: "bytes",
     nfrBytes: "bytes",
+    buildRequestBytes: "bytes",
     traceBytes: "bytes",
     progressBytes: "bytes",
     doneRows: "rows",

@@ -246,6 +246,7 @@ its rows to that object in both directions.
 | `BUDGETS.indexEntryBytes` | 200 | UTF-8 bytes | each line of the trace index and the NFR catalog, outside HTML comments |
 | `BUDGETS.ticketBytes` | 65536 | UTF-8 bytes | each `.md` file in `memory-bank/plans/tickets/` |
 | `BUDGETS.nfrBytes` | 8192 | UTF-8 bytes | each `.md` file in `memory-bank/plans/nfr/` |
+| `BUDGETS.buildRequestBytes` | 8192 | UTF-8 bytes | each `.md` file in `memory-bank/plans/build-requests/` |
 | `BUDGETS.traceBytes` | 8192 | UTF-8 bytes | each `.md` file in `memory-bank/plans/traceability/` |
 | `BUDGETS.progressBytes` | 16384 | UTF-8 bytes | `memory-bank/60-progress.md` |
 | `BUDGETS.doneRows` | 20 | rows | rows under the Done heading of the board |

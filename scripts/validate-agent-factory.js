@@ -90,7 +90,7 @@ import { boardBudgetFindings, budgetEntryNames, doneRowFindings, fileBytesFindin
 // import edge (34-RESEARCH.md assumption A5): install/ still imports nothing from scripts/ (33.1
 // D-18/D-28), and the registry module is pure data with no imports, so no installer code comes in.
 import { HOST_TOOLS } from "../install/host-tools.js";
-import { BOARD_REL, BUDGETS, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, METRICS_REL, NFR_CATALOG_REL, NFR_DIR_REL, PROGRESS_REL, TICKETS_REL, TRACE_DIR_REL, TRACEABILITY_REL, } from "../install/state-layout.js";
+import { BOARD_REL, BUDGETS, BUILD_REQUESTS_REL, LAYOUT_MARKER_CONTENT, LAYOUT_MARKER_REL, METRICS_REL, NFR_CATALOG_REL, NFR_DIR_REL, PROGRESS_REL, TICKETS_REL, TRACE_DIR_REL, TRACEABILITY_REL, } from "../install/state-layout.js";
 // ── Two-root resolution (VAL-02 / D-08 — kit root + state root, resolved separately) ─────────
 // STATE_ROOT keeps the install.ts back-compat shape: VALIDATE_ROOT, else the repo root.
 // KIT_ROOT comes ONLY from VALIDATE_KIT_ROOT and has NO default — the deliberate C3 override
@@ -977,6 +977,7 @@ function checkBudgets() {
         ...indexFindings(NFR_CATALOG_REL),
         ...directoryFindings(TICKETS_REL, "ticketBytes"),
         ...directoryFindings(NFR_DIR_REL, "nfrBytes"),
+        ...directoryFindings(BUILD_REQUESTS_REL, "buildRequestBytes"),
         ...directoryFindings(TRACE_DIR_REL, "traceBytes"),
         ...sizeFinding(PROGRESS_REL, "progressBytes", true),
     ]);

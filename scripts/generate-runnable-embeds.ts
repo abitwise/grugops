@@ -217,6 +217,9 @@ export function runnableSpecs(set: readonly EmbedSpec[]): readonly EmbedSpec[] {
  * same plan adds HUMAN_STAMP_RE to the scripts/context-io.ts roots (the History grammar's human stamp), isTicketRef to
  * the scripts/trace-model.ts roots and isTicketId to the scripts/board-model.ts roots (the `## Blocks` ticket rule), and
  * UPSTREAM_ID_RE to the scripts/upstream-model.ts roots (the `## Upstream IDs` rule). EMBED_SPEC_COUNT stays 7.
+ * Plan 45-04 (2026-11-26, BR-07) adds BUILD_REQUESTS_REL to the install/state-layout.ts roots of the state checker's
+ * row: state-check lists the build-request folder and measures each record against BUDGETS.buildRequestBytes, as the
+ * structure validator does. EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -241,6 +244,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "QUEUE_DONE_ARCHIVE_REL",
           "CONTEXT_REL",
           "CONTEXT_ARCHIVE_REL",
+          "BUILD_REQUESTS_REL",
         ],
       },
       {

@@ -93,6 +93,7 @@ export type StateBudgets = {
   readonly indexEntryBytes: number;
   readonly ticketBytes: number;
   readonly nfrBytes: number;
+  readonly buildRequestBytes: number;
   readonly traceBytes: number;
   readonly progressBytes: number;
   readonly doneRows: number;
@@ -179,6 +180,7 @@ const UNITS: { readonly [K in keyof StateBudgets]: StateUnit } = {
   indexEntryBytes: "bytes",
   ticketBytes: "bytes",
   nfrBytes: "bytes",
+  buildRequestBytes: "bytes",
   traceBytes: "bytes",
   progressBytes: "bytes",
   doneRows: "rows",
@@ -320,7 +322,7 @@ export function indexLineFindings(rel: string, texts: DocumentTexts, budgets: St
 // ── Record files measured by size (ticketBytes, nfrBytes, traceBytes, progressBytes) ──────────────
 
 /** The byte budgets a file is measured against by its lstat size. */
-export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "traceBytes" | "progressBytes";
+export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "buildRequestBytes" | "traceBytes" | "progressBytes";
 
 /**
  * The finding for one file of `bytes` bytes (its lstat size), or null when it is within its budget. A trace

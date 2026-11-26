@@ -115,6 +115,7 @@ import { HOST_TOOLS } from "../install/host-tools.js";
 import {
   BOARD_REL,
   BUDGETS,
+  BUILD_REQUESTS_REL,
   LAYOUT_MARKER_CONTENT,
   LAYOUT_MARKER_REL,
   METRICS_REL,
@@ -1080,6 +1081,7 @@ function checkBudgets(): void {
     ...indexFindings(NFR_CATALOG_REL),
     ...directoryFindings(TICKETS_REL, "ticketBytes"),
     ...directoryFindings(NFR_DIR_REL, "nfrBytes"),
+    ...directoryFindings(BUILD_REQUESTS_REL, "buildRequestBytes"),
     ...directoryFindings(TRACE_DIR_REL, "traceBytes"),
     ...sizeFinding(PROGRESS_REL, "progressBytes", true),
   ]);

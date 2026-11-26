@@ -180,6 +180,8 @@ export const BUDGETS = Object.freeze({
     ticketBytes: 65_536,
     /** UTF-8 bytes of each NFR `.md` file (8 KiB). */
     nfrBytes: 8_192,
+    /** UTF-8 bytes of each build-request `.md` file (8 KiB). */
+    buildRequestBytes: 8_192,
     /** UTF-8 bytes of each trace `.md` file (8 KiB). */
     traceBytes: 8_192,
     /** UTF-8 bytes of the progress file (16 KiB). */
@@ -192,5 +194,7 @@ export const BUDGETS = Object.freeze({
  * Object.keys(BUDGETS).length in both directions, so a budget added or removed without moving this pin
  * fails red.
  * 2026-10-21, plan 37-01: the nine D-10 budgets.
+ * 2026-11-26, plan 45-04 (BR-07): 9 -> 10. `buildRequestBytes` joins, a per-file budget for the build-request folder
+ * like the ticket, NFR and trace folders (research assumption A5: per file, not a folder total).
  */
-export const BUDGET_COUNT = 9;
+export const BUDGET_COUNT = 10;

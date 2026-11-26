@@ -649,6 +649,7 @@ export type StateBudgets = {
   readonly indexEntryBytes: number;
   readonly ticketBytes: number;
   readonly nfrBytes: number;
+  readonly buildRequestBytes: number;
   readonly traceBytes: number;
   readonly progressBytes: number;
   readonly doneRows: number;
@@ -704,6 +705,7 @@ const UNITS: { readonly [K in keyof StateBudgets]: StateUnit } = {
   indexEntryBytes: "bytes",
   ticketBytes: "bytes",
   nfrBytes: "bytes",
+  buildRequestBytes: "bytes",
   traceBytes: "bytes",
   progressBytes: "bytes",
   doneRows: "rows",
@@ -787,7 +789,7 @@ export function indexLineFindings(rel: string, texts: DocumentTexts, budgets: St
   });
   return findings;
 }
-export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "traceBytes" | "progressBytes";
+export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "buildRequestBytes" | "traceBytes" | "progressBytes";
 export function fileBytesFinding(
   rel: string,
   bytes: number,

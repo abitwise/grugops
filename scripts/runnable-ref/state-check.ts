@@ -148,7 +148,7 @@ import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:5421ecc668f4b38f7a0bd54a844ad1d5c09cf12285badf0d17bb0dda125d246e";
+export const RUNNABLE_SET_STAMP = "sha256:f4095546718fdf0ded9f3074f7eedb38b0275eb382190248ec70297336f0ecf5";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"] as const);
 export const RUNNABLE_SELF = "state-check.js";
 // from install/state-layout.ts
@@ -159,6 +159,7 @@ export const NFR_CATALOG_REL = `${STATE_ROOT_REL}/nfr-catalog.md`;
 export const TRACEABILITY_REL = `${STATE_ROOT_REL}/traceability.md`;
 export const MEMORY_BANK_REL = "memory-bank";
 export const NFR_DIR_REL = `${STATE_ROOT_REL}/nfr`;
+export const BUILD_REQUESTS_REL = `${STATE_ROOT_REL}/build-requests`;
 export const TRACE_DIR_REL = `${STATE_ROOT_REL}/traceability`;
 export const ARCHIVE_REL = `${STATE_ROOT_REL}/archive`;
 export const PROGRESS_REL = `${MEMORY_BANK_REL}/60-progress.md`;
@@ -186,6 +187,8 @@ export const BUDGETS = Object.freeze({
   ticketBytes: 65_536,
   /** UTF-8 bytes of each NFR `.md` file (8 KiB). */
   nfrBytes: 8_192,
+  /** UTF-8 bytes of each build-request `.md` file (8 KiB). */
+  buildRequestBytes: 8_192,
   /** UTF-8 bytes of each trace `.md` file (8 KiB). */
   traceBytes: 8_192,
   /** UTF-8 bytes of the progress file (16 KiB). */
@@ -240,6 +243,7 @@ export type StateBudgets = {
   readonly indexEntryBytes: number;
   readonly ticketBytes: number;
   readonly nfrBytes: number;
+  readonly buildRequestBytes: number;
   readonly traceBytes: number;
   readonly progressBytes: number;
   readonly doneRows: number;
@@ -298,6 +302,7 @@ const UNITS: { readonly [K in keyof StateBudgets]: StateUnit } = {
   indexEntryBytes: "bytes",
   ticketBytes: "bytes",
   nfrBytes: "bytes",
+  buildRequestBytes: "bytes",
   traceBytes: "bytes",
   progressBytes: "bytes",
   doneRows: "rows",
@@ -389,7 +394,7 @@ export function indexLineFindings(rel: string, texts: DocumentTexts, budgets: St
   });
   return findings;
 }
-export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "traceBytes" | "progressBytes";
+export type FileBudgetKey = "ticketBytes" | "nfrBytes" | "buildRequestBytes" | "traceBytes" | "progressBytes";
 export function fileBytesFinding(
   rel: string,
   bytes: number,
@@ -2688,6 +2693,9 @@ try {
   const tickets = directoryFindings(TICKETS_REL, "ticketBytes", listDirectory(TICKETS_REL));
   const nfrListing = listDirectory(NFR_DIR_REL);
   const nfrFiles = directoryFindings(NFR_DIR_REL, "nfrBytes", nfrListing);
+  // The build-request folder's per-file byte budget (plan 45-04, BR-07), listed once like the NFR folder.
+  const buildRequestListing = listDirectory(BUILD_REQUESTS_REL);
+  const buildRequestFiles = directoryFindings(BUILD_REQUESTS_REL, "buildRequestBytes", buildRequestListing);
   const traceFiles = directoryFindings(TRACE_DIR_REL, "traceBytes", listDirectory(TRACE_DIR_REL));
   const progress = progressReport();
   // The integrity, rollable and move-only reports follow the budgets (plan 37-05, D-08, D-09, D-13, v3.0 D-7).
@@ -2707,6 +2715,7 @@ try {
     ...nfrIndex,
     ...tickets,
     ...nfrFiles,
+    ...buildRequestFiles,
     ...traceFiles,
     ...progress.findings,
     ...nfrIntegrity,
