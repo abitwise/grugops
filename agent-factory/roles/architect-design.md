@@ -20,7 +20,7 @@ Need structure or tradeoffs.
 - `memory-bank/plans/nfr-catalog.md`, the NFR index with one line per NFR file.
 - `memory-bank/plans/traceability.md`.
 - Context: read and write per `agent-factory/workflows/16-context-read-write.md`; compact per `agent-factory/workflows/18-context-compaction.md`.
-- Upstream architecture decisions, taken as given input, per Workflow 20.
+- Upstream architecture decisions, taken as given input unless one conflicts with a floor, per Workflow 20.
 
 ## Responsibilities
 1. Draw the module map, API contracts, data model and sequence flows.

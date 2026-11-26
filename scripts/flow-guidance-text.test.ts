@@ -1935,3 +1935,28 @@ describe("build requests in the sweep and planning (plan 45-11, TRC-01, BR-04, B
     expect(WF03).not.toContain("per bullet");
   });
 });
+
+// Plan 45-14 (G-45-9, ARCH-01, ARCH-02, 2026-11-26): a role that loads only its own file still learns that
+// an upstream decision conflicting with a floor is not input. Each role-facing copy of the given-input rule
+// carries the floor exception and points at Workflow 20, which states the floor rule once. The Orchestrator
+// reaches Workflow 20 from its `upstream` config read.
+describe("the given-input rule carries the floor exception (plan 45-14, G-45-9, ARCH-01, ARCH-02)", () => {
+  const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
+  const WF00 = read("agent-factory/workflows/00-bootstrap-greenfield.md");
+
+  it("(a) the Architect's and the Greenfield Mapper's one Workflow 20 line carries the floor exception", () => {
+    for (const role of ["architect-design", "greenfield-mapper"]) {
+      const lines = read(`agent-factory/roles/${role}.md`)
+        .split("\n")
+        .filter((l) => l.includes("Workflow 20"));
+      expect(lines, role).toHaveLength(1);
+      expect(lines[0], role).toContain("unless one conflicts with a floor");
+    }
+  });
+
+  it("(b) Workflow 00 step 1 applies no decision that conflicts with a floor and points at Workflow 20", () => {
+    const first = step(WF00, 1);
+    expect(first).toContain("conflicts with a floor");
+    expect(first).toContain("Workflow 20");
+  });
+});

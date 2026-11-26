@@ -17,7 +17,7 @@ Need shaping of empty land.
 - The product goal or user request, your only input for empty land.
 - `memory-bank/plans/traceability.md`.
 - Context: read and write per `agent-factory/workflows/16-context-read-write.md`; compact per `agent-factory/workflows/18-context-compaction.md`.
-- Upstream stack decisions, taken over `default_stack`, per Workflow 20 and Workflow 00.
+- Upstream stack decisions, taken over `default_stack` unless one conflicts with a floor, per Workflow 20 and Workflow 00.
 
 ## Responsibilities
 1. State the product goal and your assumptions.

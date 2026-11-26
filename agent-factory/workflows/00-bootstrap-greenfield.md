@@ -24,7 +24,7 @@ Each role reads the shared verified context before it works. Each role records i
 - `upstream` in `.grugops/factory.config.json`; a source whose `owns.areas` lists `architecture` decides the stack items it names (Workflow 20).
 
 ## Steps
-1. Read each stack or architecture decision of a source that owns `architecture`, through the reader, per Workflow 20 (Greenfield Mapper). Skip this step when no source owns `architecture`. Apply each decision over `default_stack` item by item. Upstream decides the items it names, and `default_stack` fills only the rest. Record in `memory-bank/greenfield-plan.md` which source and pin gave each item.
+1. Read each stack or architecture decision of a source that owns `architecture`, through the reader, per Workflow 20 (Greenfield Mapper). Skip this step when no source owns `architecture`. Apply each decision over `default_stack` item by item. Upstream decides the items it names, and `default_stack` fills only the rest. Apply no decision that conflicts with a floor; Workflow 20 says what happens instead. Record in `memory-bank/greenfield-plan.md` which source and pin gave each item.
 2. Draft `memory-bank/greenfield-plan.md` from the raw idea (Greenfield Mapper) — the project plan of record. Leave `memory-bank/plans/initial-plan.md` a thin stub; the greenfield plan is the planning output.
 3. Write the root `AGENTS.md` (AGENTS.md Scribe). Leave the command slots at `UNKNOWN - verify` — the Scribe fills them per-project once the real commands are confirmed. Never fabricate a command here.
 4. Establish the product definition (BA/PM). Record the product decisions and findings as typed notes per `agent-factory/workflows/16-context-read-write.md`.
