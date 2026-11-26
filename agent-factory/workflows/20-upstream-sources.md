@@ -62,7 +62,7 @@ A source whose `owns.areas` lists `architecture` owns the stack and architecture
 - The ADR cites `upstream:<source>:<ID>@<commit>` in its Context section, and the decision note carries the same ref.
 - The ADR body is a short paraphrase and what the decision means for the build. Never copy upstream text into it.
 - When upstream supersedes the decision, supersede the ADR the usual way.
-- At bootstrap, Workflow 00 step 1 applies upstream stack decisions over `default_stack`. The Greenfield Mapper records only which source and pin gave each stack item.
+- At bootstrap, Workflow 00 step 1 applies upstream stack decisions over `default_stack`. The Greenfield Mapper records which source and pin gave each stack item, and reports a floor conflict as below.
 - A deviation from an upstream decision is a build request. The Architect records a `Build-request:` observation, and BA/PM files or merges the request per this workflow.
 - The affected tickets go to `Blocked`, naming the request. Nobody builds the deviation until a new pin answers the request. Each affected ticket also carries the human-stop bullet, and only a named human's word removes it. When a named human withdraws the request instead, re-plan the tickets without the deviation.
 

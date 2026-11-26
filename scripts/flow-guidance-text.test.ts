@@ -2123,4 +2123,11 @@ describe("the bootstrap floor path (plan 45-15, G-45-9b, WR-06, ARCH-02)", () =>
     before(arch, "Only a named human lifts the stop", "At bootstrap no ticket exists");
     expect(arch.trimEnd().endsWith("The floor does not move.")).toBe(true);
   });
+
+  it("(d) the provenance bullet no longer limits the Greenfield Mapper to provenance (WR-06)", () => {
+    const provenance = bullets(arch).filter((b) => b.startsWith("- At bootstrap, Workflow 00 step 1"));
+    expect(provenance).toHaveLength(1);
+    expect(provenance[0]).toContain("reports a floor conflict as below");
+    expect(provenance[0]).not.toContain("records only");
+  });
 });
