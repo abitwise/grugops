@@ -19,6 +19,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   callingSites,
   deriveReadSites,
@@ -2421,5 +2422,240 @@ describe("upstream.js — requests: carry changed, waits, overlaps and an undecl
       expect(text).not.toContain("move the pin");
       expect(text).not.toContain("session token");
     }
+  });
+});
+
+// ── plan 45-07 Task 2: the answer proposal after a pin move (BR-05, D-10, D-11) ──────────────────────────
+
+/** The synthetic manifest with DEC-1 superseded by DEC-3. */
+const MANIFEST_DEC1_SUPERSEDED = SYNTHETIC_MANIFEST.replace(
+  "| DEC-1 | locked | decisions/dec-1.md | |",
+  "| DEC-1 | superseded | decisions/dec-1.md | DEC-3 |",
+);
+
+/**
+ * A synthetic upstream at `<base>/design` whose first commit is the synthetic export and each later commit writes one
+ * entry of `changes`. Returns the directory and every commit, oldest first.
+ */
+function designHistory(
+  base: string,
+  env: NodeJS.ProcessEnv,
+  changes: readonly Readonly<Record<string, string>>[],
+): { readonly dir: string; readonly commits: readonly string[] } {
+  const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
+  const commits = [design.commit];
+  for (const files of changes) commits.push(commitMore(design.dir, files, env));
+  return { dir: design.dir, commits };
+}
+
+/** A config declaring `design` at `path`, pinned at `commit` with that commit's entry blob (so `check` is `match`). */
+function pinnedDesign(dir: string, path: string, commit: string, env: NodeJS.ProcessEnv): unknown {
+  return {
+    upstream: {
+      sources: [
+        {
+          id: "design",
+          path,
+          commit,
+          entry: SYNTHETIC_ENTRY,
+          entry_blob: blobAt(dir, commit, SYNTHETIC_ENTRY, env),
+          owns: OWNS[0],
+        },
+      ],
+      escalation_days: 10,
+    },
+  };
+}
+
+/** A carried request for `design` raised at `pin`, carried yesterday, naming `ids`. */
+function carriedAt(id: string, pin: string, ids: readonly string[]): Record<string, string> {
+  return requestFile({ id, raised: utcDaysAgo(2), pin, upstreamIds: ids, after: [["carried", utcDaysAgo(1)]] });
+}
+
+describe("upstream.js — requests: the answer proposal after a pin move (plan 45-07, BR-05, D-10, D-11)", () => {
+  it("DEC-1's listed file changed between the raising pin and the pin now: `answer-candidate BR-1 design: changed DEC-1 (…)`, exit 1", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [{ "decisions/dec-1.md": "# DEC-1\n\nThe product has two main screens.\n" }]);
+    const [a, b] = commits as [string, string];
+    const product = productWithRequests(base, carriedAt("BR-1", a, ["DEC-1"]), pinnedDesign(dir, "../design", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stderr, outcome(r)).toBe("");
+    expect(r.stdout, outcome(r)).toBe(`answer-candidate BR-1 design: changed DEC-1 (raised at ${a}, pin now ${b})\n`);
+    expect(r.status, outcome(r)).toBe(1);
+  });
+
+  it("no listed file of DEC-1 changed: `pin-moved BR-1 design: no listed ID changed (…)`, so an upstream no-change answer stays visible", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [{ "questions/q-1.md": "# Q-1\n\nAnswer: the accent colour.\n" }]);
+    const [a, b] = commits as [string, string];
+    const product = productWithRequests(base, carriedAt("BR-1", a, ["DEC-1"]), pinnedDesign(dir, "../design", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stdout, outcome(r)).toBe(`pin-moved BR-1 design: no listed ID changed (raised at ${a}, pin now ${b})\n`);
+    expect(r.status, outcome(r)).toBe(1);
+  });
+
+  it("DEC-1 superseded at the pin now counts as changed", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [{ [SYNTHETIC_ENTRY]: MANIFEST_DEC1_SUPERSEDED }]);
+    const [a, b] = commits as [string, string];
+    const product = productWithRequests(base, carriedAt("BR-1", a, ["DEC-1"]), pinnedDesign(dir, "../design", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stdout, outcome(r)).toBe(`answer-candidate BR-1 design: changed DEC-1 (raised at ${a}, pin now ${b})\n`);
+  });
+
+  it("an ID listed only at the pin now counts as changed", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [
+      { [SYNTHETIC_ENTRY]: manifestPlus([["DEC-4", "locked", "decisions/dec-4.md", ""]]), "decisions/dec-4.md": "# DEC-4\n\nA footer.\n" },
+    ]);
+    const [a, b] = commits as [string, string];
+    const product = productWithRequests(base, carriedAt("BR-1", a, ["DEC-4"]), pinnedDesign(dir, "../design", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stdout, outcome(r)).toBe(`answer-candidate BR-1 design: changed DEC-4 (raised at ${a}, pin now ${b})\n`);
+  });
+
+  it("[EDGE BR-05/ordering] a request naming DEC-2 then DEC-1, both changed, prints `changed DEC-2, DEC-1`", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [
+      { "decisions/dec-1.md": "# DEC-1\n\nChanged.\n", "decisions/dec-2.md": "# DEC-2\n\nChanged.\n" },
+    ]);
+    const [a, b] = commits as [string, string];
+    const product = productWithRequests(base, carriedAt("BR-1", a, ["DEC-2", "DEC-1"]), pinnedDesign(dir, "../design", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stdout, outcome(r)).toBe(`answer-candidate BR-1 design: changed DEC-2, DEC-1 (raised at ${a}, pin now ${b})\n`);
+  });
+
+  it("[EDGE BR-05/empty] a carried request whose `## Upstream IDs` is `none` prints `pin-moved`, never `answer-candidate`", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [{ "decisions/dec-1.md": "# DEC-1\n\nChanged.\n" }]);
+    const [a, b] = commits as [string, string];
+    const product = productWithRequests(base, carriedAt("BR-1", a, []), pinnedDesign(dir, "../design", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stdout, outcome(r)).toBe(`pin-moved BR-1 design: no listed ID changed (raised at ${a}, pin now ${b})\n`);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "[EDGE BR-05/adjacency] a carried request raised at the pin now prints neither line, and requests spawns no git",
+    () => {
+      const { base, env } = scratch();
+      const { dir, commits } = designHistory(base, env, [{ "decisions/dec-1.md": "# DEC-1\n\nChanged.\n" }]);
+      const b = commits[1] as string;
+      const product = productWithRequests(base, carriedAt("BR-1", b, ["DEC-1"]), pinnedDesign(dir, "../design", b, env));
+      const log = join(base, "git-calls.log");
+      const bin = recordingGitDir(log);
+      const r = upstream(product, { ...env, PATH: `${bin}:${env.PATH ?? ""}` }, "requests");
+      expect(r.stdout, outcome(r)).toBe("no build request needs a human (1 on file)\n");
+      expect(r.status, outcome(r)).toBe(0);
+      expect(readFileSync(log, "utf8"), "the pin has not moved, so no git runs").toBe("");
+    },
+  );
+
+  it("the pin now is an ancestor of the raising pin: the candidate line, then `not-descendant BR-1 design: pin now <B> does not descend from <A>`", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [{ "decisions/dec-1.md": "# DEC-1\n\nChanged.\n" }]);
+    const [older, newer] = commits as [string, string];
+    const product = productWithRequests(base, carriedAt("BR-1", newer, ["DEC-1"]), pinnedDesign(dir, "../design", older, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stderr, outcome(r)).toBe("");
+    expect(r.stdout, outcome(r)).toBe(
+      `answer-candidate BR-1 design: changed DEC-1 (raised at ${newer}, pin now ${older})\n` +
+        `not-descendant BR-1 design: pin now ${older} does not descend from ${newer}\n`,
+    );
+    expect(r.status, outcome(r)).toBe(1);
+  });
+
+  it("a shallow clone holding both commits gives `UNKNOWN - verify BR-1 design: shallow clone; ancestry cannot be decided`, never `not-descendant`, exit 2", () => {
+    const { base, env } = scratch();
+    const { commits } = designHistory(base, env, [{ "decisions/dec-1.md": "# DEC-1\n\nChanged.\n" }]);
+    const [a, b] = commits as [string, string];
+    const shallow = join(base, "shallow");
+    fixtureGit(base, ["clone", "-q", "--depth", "2", pathToFileURL(join(base, "design")).href, shallow], env);
+    expect(fixtureGit(shallow, ["rev-parse", "--is-shallow-repository"], env), "PREMISE: the clone is shallow").toBe("true");
+    expect(fixtureGit(shallow, ["rev-parse", `${a}^{commit}`], env), "PREMISE: the clone holds the raising pin").toBe(a);
+    const product = productWithRequests(base, carriedAt("BR-1", a, ["DEC-1"]), pinnedDesign(shallow, "../shallow", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stdout, outcome(r)).toBe(
+      `answer-candidate BR-1 design: changed DEC-1 (raised at ${a}, pin now ${b})\n` +
+        "UNKNOWN - verify BR-1 design: shallow clone; ancestry cannot be decided\n",
+    );
+    expect(r.stdout).not.toContain("not-descendant");
+    expect(r.status, outcome(r)).toBe(2);
+  });
+
+  it("a raising pin absent from the checkout gives one `UNKNOWN - verify BR-1 design: …` line naming the commit, exit 2", () => {
+    const { base, env } = scratch();
+    const { dir, commits } = designHistory(base, env, [{ "decisions/dec-1.md": "# DEC-1\n\nChanged.\n" }]);
+    const b = commits[1] as string;
+    const product = productWithRequests(base, carriedAt("BR-1", BR_PIN, ["DEC-1"]), pinnedDesign(dir, "../design", b, env));
+    const r = upstream(product, env, "requests");
+    expect(r.stdout, outcome(r)).toBe(
+      `UNKNOWN - verify BR-1 design: commit ${BR_PIN} is not in the checkout (shallow clone or not fetched)\n`,
+    );
+    expect(r.status, outcome(r)).toBe(2);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "subcommands: a recording git shows only rev-parse, ls-tree, cat-file, config, version and merge-base after `-C <dir>` for requests",
+    () => {
+      const { base, env } = scratch();
+      const { dir, commits } = designHistory(base, env, [{ "decisions/dec-1.md": "# DEC-1\n\nChanged.\n" }]);
+      const [a, b] = commits as [string, string];
+      const product = productWithRequests(base, carriedAt("BR-1", a, ["DEC-1"]), pinnedDesign(dir, "../design", b, env));
+      const log = join(base, "git-calls.log");
+      const bin = recordingGitDir(log);
+      const r = upstream(product, { ...env, PATH: `${bin}:${env.PATH ?? ""}` }, "requests");
+      expect(r.stdout, outcome(r)).toBe(`answer-candidate BR-1 design: changed DEC-1 (raised at ${a}, pin now ${b})\n`);
+      const calls = recordedCalls(log);
+      expect(calls.length, "CONTROL: the recorder saw the git calls").toBeGreaterThan(0);
+      for (const call of calls) {
+        expect(call[0], call.join(" ")).toBe("-C");
+        expect(call[1], call.join(" ")).toBe(dir);
+      }
+      const seen = [...new Set(calls.map((c) => c[2]))].sort();
+      expect(seen).toEqual(["cat-file", "config", "ls-tree", "merge-base", "rev-parse", "version"]);
+      expect(seen).toContain("merge-base");
+    },
+  );
+
+  it("[EDGE BR-04/concurrency] a run printing every line kind changes no byte of the product, the config or the upstream checkout", () => {
+    const { base, env } = scratch();
+    // A: the export. B: DEC-1 changed (the declared pin). C: Q-1 changed, after B.
+    const { dir, commits } = designHistory(base, env, [
+      { "decisions/dec-1.md": "# DEC-1\n\nChanged.\n" },
+      { "questions/q-1.md": "# Q-1\n\nAnswer: the accent colour.\n" },
+    ]);
+    const [a, b, c] = commits as [string, string, string];
+    const product = productWithRequests(
+      base,
+      {
+        ...carriedAt("BR-1", a, ["DEC-1"]),
+        ...carriedAt("BR-2", a, ["Q-1"]),
+        ...carriedAt("BR-3", c, ["DEC-1"]),
+        ...requestFile({ id: "BR-4", raised: utcDaysAgo(20), source: "ghost" }),
+        ...requestFile({ id: "BR-5", raised: utcDaysAgo(3), pin: b, after: [["carried", utcDaysAgo(2)], ["edited", utcDaysAgo(1)]] }),
+        "BR-6.md": buildRequestText({ id: "BR-6", status: "open", extraKey: "owner: someone" }),
+      },
+      pinnedDesign(dir, "../design", b, env),
+    );
+    const configPath = join(product, ".grugops", "factory.config.json");
+    const configBefore = readFileSync(configPath);
+    const before = [treeDigest(product), treeDigest(dir)];
+    const r = upstream(product, env, "requests");
+    expect(r.stdout.split("\n"), outcome(r)).toEqual([
+      "refused BR-6.md: unknown-key",
+      `answer-candidate BR-1 design: changed DEC-1 (raised at ${a}, pin now ${b})`,
+      `pin-moved BR-2 design: no listed ID changed (raised at ${a}, pin now ${b})`,
+      `pin-moved BR-3 design: no listed ID changed (raised at ${c}, pin now ${b})`,
+      `not-descendant BR-3 design: pin now ${b} does not descend from ${c}`,
+      `carry BR-4 ghost: open since ${utcDaysAgo(20)}`,
+      "wait BR-4 ghost: open for 20 days (escalation_days 10)",
+      "UNKNOWN - verify BR-4 ghost: source ghost is not declared",
+      `carry BR-5 design: changed since carried ${utcDaysAgo(2)}`,
+      "overlap BR-1 BR-3 design: DEC-1",
+      "",
+    ]);
+    expect(r.status, outcome(r)).toBe(2);
+    expect([treeDigest(product), treeDigest(dir)], "no byte of the product or the upstream checkout changed").toEqual(before);
+    expect(readFileSync(configPath).equals(configBefore), "the config bytes are unchanged").toBe(true);
   });
 });
