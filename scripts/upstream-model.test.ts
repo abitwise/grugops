@@ -21,12 +21,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   UPSTREAM_AREAS,
+  UPSTREAM_ESCALATION_DAYS_DEFAULT,
+  UPSTREAM_KEYS,
   UPSTREAM_MANIFEST_HEADER,
   UPSTREAM_NONE_DECLARED_LINE,
   UPSTREAM_OBJECT_ID_RE,
   UPSTREAM_OWNS_KEYS,
   UPSTREAM_PATH_MAX_LENGTH,
   UPSTREAM_PATH_SEGMENT_RE,
+  UPSTREAM_REQUIRED_KEYS,
   UPSTREAM_SOURCE_KEYS,
   checkExitCode,
   fenceLines,
@@ -141,14 +144,46 @@ describe("config: the upstream declaration (D-01, D-02, D-06, D-18)", () => {
     expect(findingsOf({ upstream: { sources: value } })).toContain("upstream.sources must be a non-empty array");
   });
 
+  // Moved 2026-11-26 (plan 45-06, 44 D-06): `escalation_days` now exists with its behavior, so the allowed set the
+  // unknown-key finding quotes gains it.
   it("config: an unknown key under `upstream` is refused by name, quoting the allowed set", () => {
     const findings = findingsOf({ upstream: { sources: [source()], mirror: true } });
-    expect(findings).toEqual(["upstream.mirror is not a known key; the allowed keys are: sources"]);
+    expect(findings).toEqual(["upstream.mirror is not a known key; the allowed keys are: sources, escalation_days"]);
   });
 
-  it("config: `upstream.escalation_days` is refused as unknown (D-06 names it for phase 45, not this phase)", () => {
-    const findings = findingsOf({ upstream: { sources: [source()], escalation_days: 10 } });
-    expect(findings).toEqual(["upstream.escalation_days is not a known key; the allowed keys are: sources"]);
+  // Moved 2026-11-26 (plan 45-06, 44 D-06): phase 44 refused `escalation_days` as unknown; phase 45 reads it. The
+  // cases below pin its default and its closed value domain (a safe integer of at least 1).
+  it("config: escalation_days absent gives the default of 10", () => {
+    expect(UPSTREAM_ESCALATION_DAYS_DEFAULT).toBe(10);
+    const r = parseUpstreamConfig({ upstream: { sources: [source()] } });
+    expect(r.kind).toBe("ok");
+    if (r.kind === "ok") expect(r.escalationDays).toBe(10);
+  });
+
+  it.each([1, 10, 365])("config: escalation_days %d is admitted with that value", (days) => {
+    const r = parseUpstreamConfig({ upstream: { sources: [source()], escalation_days: days } });
+    expect(r.kind).toBe("ok");
+    if (r.kind === "ok") expect(r.escalationDays).toBe(days);
+  });
+
+  it.each([
+    ["0", 0],
+    ["-1", -1],
+    ["1.5", 1.5],
+    ['the string "10"', "10"],
+    ["null", null],
+    ["true", true],
+    ["2**53 (not a safe integer)", 2 ** 53],
+  ])("config: escalation_days %s is refused by one finding naming upstream.escalation_days", (_label, value) => {
+    const findings = findingsOf({ upstream: { sources: [source()], escalation_days: value } });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain("upstream.escalation_days");
+  });
+
+  it("config: a missing sources is still required; a missing escalation_days is never a finding", () => {
+    expect(findingsOf({ upstream: { escalation_days: 10 } })).toEqual(["upstream.sources is required"]);
+    expect(UPSTREAM_REQUIRED_KEYS).toEqual(["sources"]);
+    expect(UPSTREAM_KEYS).toEqual(["sources", "escalation_days"]);
   });
 
   it("config: an unknown key on a source is refused by name, quoting the allowed set", () => {

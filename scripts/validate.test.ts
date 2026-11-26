@@ -4462,10 +4462,19 @@ describe("validate-agent-factory.js — the upstream declaration (UP-01, D-01, D
     expect(out(r)).toContain("marketing");
   });
 
-  it("refuses upstream.escalation_days, which this version does not read (D-06)", () => {
+  // Moved 2026-11-26 (plan 45-06, 44 D-06): phase 44 refused `escalation_days` as unknown; phase 45 reads it, so a
+  // declared threshold passes and only a value outside its domain (a safe integer of at least 1) is refused.
+  it("a config declaring upstream.escalation_days: 10 passes (D-06)", () => {
     const r = runFixture(kitWithUpstream({ sources: [upstreamSource()], escalation_days: 10 }));
+    expect(out(r)).toContain("ALL CHECKS PASSED");
+    expect(r.status).toBe(0);
+  });
+
+  it("refuses upstream.escalation_days: 0 with one ERROR naming upstream.escalation_days (D-06)", () => {
+    const r = runFixture(kitWithUpstream({ sources: [upstreamSource()], escalation_days: 0 }));
     expect(r.status).not.toBe(0);
-    expect(out(r)).toContain("upstream.escalation_days");
+    const errors = out(r).split("\n").filter((l) => /^\s*ERROR\b/.test(l) && l.includes("upstream.escalation_days"));
+    expect(errors, out(r)).toHaveLength(1);
   });
 
   for (const [why, path] of [
