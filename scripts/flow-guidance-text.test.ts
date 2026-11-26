@@ -2165,4 +2165,24 @@ describe("the reservation holds on every path (plan 45-16, G-45-9b, WR-07, BR-03
     before(last, "only on a named human's word", "names a ticket with a human-stop bullet");
     expect(last).not.toContain("says so in `## Question` (step 4)");
   });
+
+  it("(b) step 3 marks a merged deviation or floor-conflict request in `## Question`, in the same `edited` line (D-09)", () => {
+    const merge = brStep(3);
+    expect(merge).toContain("When the observation records a deviation or a floor conflict, also say so in `## Question`.");
+    expect(merge).toContain("Name that change in the same `edited` line.");
+    before(merge, "Add the ticket to its `## Blocks`", "also say so in `## Question`");
+  });
+
+  it("(c) the contract's Lifecycle forbids an edit that removes either mark", () => {
+    const BR = read("agent-factory/contracts/build-request.md");
+    const lifecycle = section(BR, "Lifecycle").replace(/\s+/g, " ");
+    expect(lifecycle).toContain("An edit never removes a deviation or floor-conflict statement from `## Question`.");
+    expect(lifecycle).toContain("It never removes from `## Blocks` a ticket that holds a human-stop bullet (Workflow 20).");
+  });
+
+  it("(d) the Done condition still asks that every reserved withdrawal names a human", () => {
+    expect(section(WF20, "Done condition")).toContain(
+      "Every withdrawal of a carried, deviation or floor-conflict request names a human.",
+    );
+  });
 });

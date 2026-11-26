@@ -119,6 +119,8 @@ when an `edited` entry follows its last `carried` entry. A later `carried` entry
 | `carried` | `withdrawn` | a named human | `withdrawn, by human:<name>: <reason>` |
 
 - An `edited` entry by BA/PM may follow `open` or `carried`. It changes no status.
+- An edit never removes a deviation or floor-conflict statement from `## Question`. It never
+  removes from `## Blocks` a ticket that holds a human-stop bullet (Workflow 20).
 - `answered` and `withdrawn` are terminal.
 - An `open` request is never answered directly. Withdraw it instead.
 

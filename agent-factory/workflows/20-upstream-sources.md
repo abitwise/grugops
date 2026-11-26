@@ -85,7 +85,7 @@ Every build-request form lives in `agent-factory/contracts/build-request.md`, an
 
 1. Hand each `Build-request:` observation to BA/PM as a subtask (Orchestrator). Name in the subtask whether the observation records a deviation or a floor conflict. Confirm afterwards that each such ticket holds its human-stop bullet.
 2. Run `node tools/grugops/upstream.js requests` before writing a request (BA/PM). Read each `open` or `carried` request for the same source whose upstream IDs overlap the new question.
-3. Update the request that asks the same thing, when one does (BA/PM). Add the ticket to its `## Blocks` and a dated `edited` line to its `## History`. Whether two requests ask the same thing is BA/PM's judgment.
+3. Update the request that asks the same thing, when one does (BA/PM). Add the ticket to its `## Blocks` and a dated `edited` line to its `## History`. Whether two requests ask the same thing is BA/PM's judgment. When the observation records a deviation or a floor conflict, also say so in `## Question`. Name that change in the same `edited` line.
 4. Write a new request otherwise (BA/PM). Give it the source's current pin as `pin`, and number it as the contract says. When the observation records a deviation or a floor conflict, say so in `## Question`.
 5. Mark each ticket the request blocks as `Blocked` (BA/PM). Give it the build-request bullet that `agent-factory/contracts/board.md` shows under `## Blocked`. For a deviation or a floor conflict, also give it the human-stop bullet the board contract shows. Name the observing role as its raiser.
 6. List every line `requests` prints in the session-start report and the sweep report (Orchestrator).
