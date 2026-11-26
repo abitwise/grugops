@@ -47,7 +47,7 @@
 
 ### Architecture as input
 
-- [ ] **ARCH-01**: When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`); a deviation is a build request.
+- [x] **ARCH-01**: When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`); a deviation is a build request.
 - [ ] **ARCH-02**: grugops floors (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) never move; a conflict with upstream architecture is a build request plus a human stop.
 
 ### Consultant
@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BR-05 | Phase 45 | Pending |
 | BR-06 | Phase 45 | Pending |
 | BR-07 | Phase 45 | Pending |
-| ARCH-01 | Phase 45 | Pending |
+| ARCH-01 | Phase 45 | Complete |
 | ARCH-02 | Phase 45 | Pending |
 | CON-01 | Phase 47 | Pending |
 | CON-02 | Phase 47 | Pending |

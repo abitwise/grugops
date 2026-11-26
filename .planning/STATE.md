@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-01-PLAN.md
-last_updated: "2026-11-26T09:56:19.535Z"
+stopped_at: Completed 45-02-PLAN.md
+last_updated: "2026-11-26T10:13:42.437Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: 61b613dc5df19a6c7b48af4e465248184adc31e4
+state_head: ff5b9a9e89707553eba6ba4fff227ef715ca434e
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 15
+  completed_plans: 16
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 2 of 11
+Plan: 3 of 11
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -918,6 +918,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 44 P13 | 12 min | 2 tasks | 6 files |
 | Phase 44 P14 | 10 min | 3 tasks | 7 files |
 | Phase 45 P01 | 49 min | 3 tasks | 30 files |
+| Phase 45 P02 | 15 min | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -2577,6 +2578,9 @@ Recent decisions affecting current work:
 - [Phase 45]: Build-request records are lstat'ed before reading; any non-regular entry is refused not-a-regular-file (T-45-02)
 - [Phase 45]: scripts/upstream-git.ts is the one git launcher; upstreamGitAnswers takes the repository root as its first parameter (D-02)
 - [Phase 45]: runnable-ref/upstream.ts is exempted in NOT_A_SECOND_AUTHORITY (count 11): its generated region carries BUILD_REQUEST_KEYS status beside manifest column reasons
+- [Phase 45]: The Workflow 20 floor-conflict stop is untagged (no dial lowers a floor); WORKFLOW_STOP_BULLET_COUNT 55 -> 56
+- [Phase 45]: Only the Architect writes an Accepted (upstream) ADR; the Greenfield Mapper records only which source and pin gave each stack item
+- [Phase 45]: check-foundation-guards corpus-total fixture ROLE_GROWTH 0.05 -> 0.04 after the five Workflow 20 pointer lines
 
 ### Pending Todos
 
@@ -2984,8 +2988,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T09:56:19.268Z
-Stopped at: Completed 45-01-PLAN.md
+Last session: 2026-11-26T10:13:42.152Z
+Stopped at: Completed 45-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
