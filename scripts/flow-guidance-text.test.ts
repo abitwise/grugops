@@ -2076,3 +2076,51 @@ describe("the floor stop in Workflow 20 (plan 45-13, G-45-1, G-45-9, ARCH-02)", 
     for (const needle of ["taken as input", "human-stop bullet", "names a human"]) expect(done, needle).toContain(needle);
   });
 });
+
+// Plan 45-15 (G-45-9b, WR-06, ARCH-02, 2026-11-26): a floor conflict at bootstrap gets a path that can run.
+// The Greenfield Mapper leaves the item `UNKNOWN - verify` and reports it, BA/PM files the request at
+// Workflow 00 step 6 on a real ticket, and the bootstrap stops for a named human before step 7.
+describe("the bootstrap floor path (plan 45-15, G-45-9b, WR-06, ARCH-02)", () => {
+  const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
+  const WF00 = read("agent-factory/workflows/00-bootstrap-greenfield.md");
+  const WF20 = read("agent-factory/workflows/20-upstream-sources.md");
+  const arch = section(WF20, "Upstream architecture");
+  /** Asserts both needles occur in `hay` and `first` comes before `second`. */
+  const before = (hay: string, first: string, second: string): void => {
+    expect(hay, first).toContain(first);
+    expect(hay, second).toContain(second);
+    expect(hay.indexOf(first), `"${first}" before "${second}"`).toBeLessThan(hay.indexOf(second));
+  };
+
+  it("(a) Workflow 00 step 1 leaves a floor-conflicting item `UNKNOWN - verify` and reports it to the Orchestrator", () => {
+    const first = step(WF00, 1);
+    expect(first).toContain("Apply no decision that conflicts with a floor.");
+    expect(first).toContain("Leave the conflicting decision's stack item `UNKNOWN - verify`, not filled from `default_stack`.");
+    expect(first).toContain("to the Orchestrator, which routes the conflict per Workflow 20.");
+    expect(first).not.toContain("Workflow 20 says what happens instead");
+  });
+
+  it("(b) one untagged Workflow 00 stop bullet files the request at step 6, then stops before step 7", () => {
+    const floor = bullets(section(WF00, "Stop conditions")).filter((b) => b.includes("conflicts with a floor"));
+    expect(floor).toHaveLength(1);
+    before(floor[0], "BA/PM files the request at step 6", "named human");
+    expect(floor[0]).toContain("per Workflow 20");
+    expect(floor[0]).toContain("before step 7");
+    expect(floor[0]).not.toMatch(/`checkpoint: [a-z][a-z0-9_]*`\s*$/);
+  });
+
+  it("(c) Workflow 20 routes the Mapper's report to the Architect and files at Workflow 00 step 6 on a real ticket", () => {
+    for (const needle of [
+      "or one the Greenfield Mapper reports, to the Architect, who records it",
+      "At bootstrap no ticket exists before Workflow 00 step 6",
+      "leaves the conflicting stack item `UNKNOWN - verify`",
+      "naming in `## Blocks` each ticket that needs the item",
+      "When none does, BA/PM writes that ticket first.",
+      "Workflow 00 waits before step 7 until a named human lifts the stop.",
+    ]) {
+      expect(arch, needle).toContain(needle);
+    }
+    before(arch, "Only a named human lifts the stop", "At bootstrap no ticket exists");
+    expect(arch.trimEnd().endsWith("The floor does not move.")).toBe(true);
+  });
+});

@@ -398,8 +398,17 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  *   - `requests` prints a `refused` line: a refused file is a real error, surfaced to a human and
  *     never read as absent, the same shape as the existing untagged `Error:` stop.
  * Neither the roster nor any site count moves.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (45-15, 2026-11-26): 58 -> 59. Plan `45-15` gave
+ * `agent-factory/workflows/00-bootstrap-greenfield.md` (Workflow 00) one `## Stop conditions`
+ * bullet: an upstream stack decision conflicts with a floor, so BA/PM files the request at step 6
+ * per Workflow 20, and the bootstrap stops for a named human before step 7. The derivation printed
+ * "the live stop corpus holds 59 bullet(s) against the recorded 58" before this line moved. THE
+ * TAGGING LIST WAS RE-WALKED: the bullet is UNTAGGED, because no dial value may lower a floor
+ * (ARCH-02). A tag would say a checkpoint value could let the bootstrap proceed past the conflict,
+ * which is false. Neither the roster nor any site count moves.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 58;
+export const WORKFLOW_STOP_BULLET_COUNT = 59;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the

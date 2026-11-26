@@ -70,12 +70,13 @@ The floors are the safety floors that the `checkpoints` roster in the config ref
 
 An upstream decision that conflicts with a floor is not taken as input and gets no `Accepted (upstream)` ADR. It is a build request plus a human stop, in this order:
 
-- The role that finds the conflict records a `Build-request:` observation naming the decision and the floor. The Orchestrator routes a conflict it finds to the Architect, who records it.
+- The role that finds the conflict records a `Build-request:` observation naming the decision and the floor. The Orchestrator routes a conflict it finds, or one the Greenfield Mapper reports, to the Architect, who records it.
 - The Orchestrator hands the observation to BA/PM per `## Build requests` steps 1 to 5, so the request is filed before the stop.
 - BA/PM gives each affected ticket the build-request bullet and the human-stop bullet that `agent-factory/contracts/board.md` shows. The human-stop bullet names no request, so neither a withdrawal nor step 12 removes it. It ages under `blocked_escalation_days` as usual.
 - The Orchestrator confirms both bullets, then stops for a named human. While the human-stop bullet stands, it dispatches nothing else on that work.
 - The named human decides whether the request is carried upstream, or withdrawn and the work re-planned without the conflicting decision.
 - Only a named human lifts the stop. BA/PM removes the human-stop bullet on that human's word and records a `decision` note per Workflow 16 naming the human.
+- At bootstrap no ticket exists before Workflow 00 step 6. The Greenfield Mapper leaves the conflicting stack item `UNKNOWN - verify` and reports the conflict. BA/PM files the request at Workflow 00 step 6, naming in `## Blocks` each ticket that needs the item. When none does, BA/PM writes that ticket first. Workflow 00 waits before step 7 until a named human lifts the stop.
 
 The floor does not move.
 
