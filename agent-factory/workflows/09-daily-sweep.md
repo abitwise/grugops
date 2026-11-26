@@ -17,6 +17,7 @@ The Orchestrator reads the shared verified context before it works. The Orchestr
 - `memory-bank/plans/board.md` — the current column state and per-column WIP.
 - The shared verified context for each in-flight ticket — its recorded role outputs, read per Workflow 16. The context is what lets the board be checked against the real state of the work.
 - `.grugops/factory.config.json` — `wip_limits` (the throttle) and `blocked_escalation_days` (the escalation threshold, default 2).
+- `upstream.escalation_days` in the same file, the wait threshold for a build request (default 10, Workflow 20).
 
 ## Steps
 1. Run `node tools/grugops/trace-render.js .`, then `node tools/grugops/state-check.js .`. The render rebuilds each ticket's trace file and the trace index from published note refs. state-check reads the state files and writes nothing. Read both exit codes as Workflow 05 Step 3 does. Exit `2` or no exit code is could-not-run, never a pass.
@@ -25,9 +26,9 @@ The Orchestrator reads the shared verified context before it works. The Orchestr
 4. Record the progress or the blocker for each in-flight ticket. Name what moved since the last sweep, and what is in the way.
 5. Reconcile each ticket's recorded status against the column it sits in on `memory-bank/plans/board.md`. If the context shows a ticket exited `In Review` but the board still shows it there, fix the board. The column then matches the work, and the board never lies after a sweep.
 6. Update `memory-bank/plans/board.md` (columns reconciled) and `memory-bank/plans/metrics.md` (the flow metrics below). Add one dated status entry, `## YYYY-MM-DD — <summary>`, at the end of `memory-bank/60-progress.md`. Write a standing directive or ruling as a decision record in `memory-bank/50-decisions/`, never as a progress section.
-7. Escalate anything blocked longer than `factory.config.json#blocked_escalation_days`. Move its row into the `Blocked` column. Name the blocker in the ticket body's `## Blocked` section. Give the date, who raised it, the reason and the owner. The board row keeps the overview form, `- [ID] title  (owner, since)`. The blocker is then visible and time-tracked.
+7. Escalate anything blocked longer than `factory.config.json#blocked_escalation_days`. Move its row into the `Blocked` column. Name the blocker in the ticket body's `## Blocked` section. Give the date, who raised it, the reason and the owner. The board row keeps the overview form, `- [ID] title  (owner, since)`. The blocker is then visible and time-tracked. Skip a `## Blocked` bullet that names an open or carried build request; Workflow 20 escalates it on `upstream.escalation_days`.
 8. Recommend the next pull within `wip_limits` — name what moves next. Finish before you start. Never pull past a WIP limit without a written reason.
-9. Produce the sweep report — a short done / next / blocked summary (wording is the Orchestrator's call).
+9. Produce the sweep report — a short done / next / blocked summary (wording is the Orchestrator's call). List a ticket that waits on a build request under blocked, with the request named. When `upstream` is declared, run `node tools/grugops/upstream.js requests`. Add its carry lines, and one `upstream waits` line from its `wait` lines, to the report. Report its other lines per Workflow 20.
 
 Two record folders are archive-only: `.grugops/queue/done/` and `memory-bank/50-decisions/`. Move a record out of either folder only whole. `.grugops/queue/done/` records go to `.grugops/archive/queue-done/`. `memory-bank/50-decisions/` records go to `memory-bank/plans/archive/decisions/`. Never squash, prune or rewrite a record in either place. state-check reports a name found in both a record folder and its archive folder.
 
@@ -41,14 +42,14 @@ None new — the sweep reads the shared verified context, it does not author a r
 None of its own. The sweep publishes no refs. Step 1 renders the trace from the refs other workflows published on notes per Workflow 16. The trace is then current when the board is reconciled.
 
 ## Metrics emitted
-Update `memory-bank/plans/metrics.md` with the flow metrics from the frozen set. `Cycle time` is how long a ticket takes start→Done, the kanban optimization target. `WIP` is how many tickets are in flight per column against the throttle. `Blocked time` is how long blocked items have waited. Record the values as they stand; never fake a count or invent a metric.
+Update `memory-bank/plans/metrics.md` with the flow metrics from the frozen set. `Cycle time` is how long a ticket takes start→Done, the kanban optimization target. `WIP` is how many tickets are in flight per column against the throttle. `Blocked time` is how long blocked items have waited. An upstream wait counts in `Blocked time`. Record the values as they stand; never fake a count or invent a metric.
 
 ## Stop conditions
-- A ticket has been blocked longer than `blocked_escalation_days` — do not let it hide. Escalate it to the `Blocked` column with the blocker named, and raise it for a human to clear. `checkpoint: escalate_stale_blocker`
+- A ticket has been blocked longer than `blocked_escalation_days` — do not let it hide. Escalate it to the `Blocked` column with the blocker named, and raise it for a human to clear. A bullet naming an open or carried build request is exempt (Workflow 20). `checkpoint: escalate_stale_blocker`
 - A WIP limit is already breached — do not recommend a new pull into that column. Finish work in flight first, and only exceed a WIP limit with a written reason. `checkpoint: exceed_wip_limit`
 
 ## Done condition
-A sweep report (done / next / blocked) is produced, and `memory-bank/plans/board.md`, `memory-bank/plans/metrics.md`, and `memory-bank/60-progress.md` are current. Every column matches the real ticket status, blockers past `blocked_escalation_days` are escalated, and the next pull respects `wip_limits`.
+A sweep report (done / next / blocked) is produced, and `memory-bank/plans/board.md`, `memory-bank/plans/metrics.md`, and `memory-bank/60-progress.md` are current. Every column matches the real ticket status, blockers past `blocked_escalation_days` are escalated, upstream waits past `upstream.escalation_days` are reported, and the next pull respects `wip_limits`.
 
 ## Commit
 Commit the artifacts this workflow wrote per `agent-factory/_commit-convention.md` — branch guard first (never a protected branch; switch to `grugops/daily-sweep-<id>`), then `type(scope): summary`. The artifacts are the reconciled `memory-bank/plans/board.md`, the flow metrics in `memory-bank/plans/metrics.md` and the `memory-bank/60-progress.md` record. They also include the rolled lines with their archive files, and the rendered trace files. Never merge, never deploy; humans hold both.

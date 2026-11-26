@@ -27,13 +27,13 @@ Each role reads the shared verified context before it works. Each role records i
 5. Record the clarified behavior as typed notes per Workflow 16 — the `In Analysis` exit.
 6. Confirm each ticket against `agent-factory/checklists/definition-of-ready.md`. A ticket sized `XL` is not pulled into dev — emit `SPLIT_REQUIRED` and split it first.
 7. Write each ticket to `memory-bank/plans/tickets/`.
-8. Record each ticket's epic, feature and NFR ids as refs on a note per Workflow 16. The ticket identifier is among the refs.
+8. Record each ticket's epic, feature and NFR ids as refs on a note per Workflow 16. The ticket identifier is among the refs. When `upstream` is declared, also cite each upstream ID the ticket implements as an `upstream:<source>:<ID>@<commit>` ref (Workflow 20). A ticket that implements none states `none (build-internal)` under `## Upstream` in its body.
 
 ## Board moves
 On `memory-bank/plans/board.md`, a ticket whose behavior needs analysis sits in `In Analysis`; the System Analyst owns that exit. Tickets land in `Backlog` and BA/PM moves a Definition-of-Ready-met ticket to `Ready`.
 
 ## Trace updates
-BA/PM publishes each ticket's epic, feature and NFR ids as refs on a note per Workflow 16 (Step 8). The ticket identifier is among the refs. The next trace render turns those refs into the ticket's trace file and index line. Each ticket then traces back to its epic and forward to code/test/UAT/release.
+BA/PM publishes each ticket's epic, feature and NFR ids as refs on a note per Workflow 16 (Step 8). The ticket identifier is among the refs. The next trace render turns those refs into the ticket's trace file and index line. An `upstream:` ref renders in the ticket's Requirement column. Each ticket then traces back to its epic and forward to code/test/UAT/release.
 
 ## Metrics emitted
 Record `Throughput` in `memory-bank/plans/metrics.md` as tickets are created.
