@@ -38,8 +38,8 @@
 ### Build requests
 
 - [ ] **BR-01**: A role that needs something upstream owns (an answer, or a change to what the product is) writes a build-request file with a stable ID, the upstream IDs it touches, the raising pin, options with a recommended default, and the tickets it blocks.
-- [ ] **BR-02**: A ticket waiting on a build request stays in `Blocked` with a bullet naming the request, and a board from before v3.1 validates unchanged (cross-version test).
-- [ ] **BR-03**: Build requests follow a closed lifecycle, are deduplicated, and BA/PM is their single writer.
+- [x] **BR-02**: A ticket waiting on a build request stays in `Blocked` with a bullet naming the request, and a board from before v3.1 validates unchanged (cross-version test).
+- [x] **BR-03**: Build requests follow a closed lifecycle, are deduplicated, and BA/PM is their single writer.
 - [ ] **BR-04**: The human sees a carry list of open build requests to take upstream; grugops never writes into the upstream repository.
 - [ ] **BR-05**: A build request is answered only by a new pin a human sets; the answer enters the shared context as a `claim` citing the upstream ID and pin.
 - [ ] **BR-06**: Upstream waits use their own escalation threshold, separate from `blocked_escalation_days`.
@@ -48,7 +48,7 @@
 ### Architecture as input
 
 - [x] **ARCH-01**: When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`); a deviation is a build request.
-- [ ] **ARCH-02**: grugops floors (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) never move; a conflict with upstream architecture is a build request plus a human stop.
+- [x] **ARCH-02**: grugops floors (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) never move; a conflict with upstream architecture is a build request plus a human stop.
 
 ### Consultant
 
@@ -122,14 +122,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRC-02 | Phase 44 | Complete |
 | TRC-03 | Phase 45 | Pending |
 | BR-01 | Phase 45 | Pending |
-| BR-02 | Phase 45 | Pending |
-| BR-03 | Phase 45 | Pending |
+| BR-02 | Phase 45 | Complete |
+| BR-03 | Phase 45 | Complete |
 | BR-04 | Phase 45 | Pending |
 | BR-05 | Phase 45 | Pending |
 | BR-06 | Phase 45 | Pending |
 | BR-07 | Phase 45 | Pending |
 | ARCH-01 | Phase 45 | Complete |
-| ARCH-02 | Phase 45 | Pending |
+| ARCH-02 | Phase 45 | Complete |
 | CON-01 | Phase 47 | Pending |
 | CON-02 | Phase 47 | Pending |
 | CON-03 | Phase 47 | Pending |

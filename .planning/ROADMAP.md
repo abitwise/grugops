@@ -227,7 +227,7 @@ Plans:
   4. The human sees a carry list of open build requests to take upstream, and grugops writes nothing into the upstream repository; a request is answered only when a human sets a new pin, and the answer enters the shared context as a `claim` citing the upstream ID and pin (BR-04, BR-05)
   5. When upstream provides a stack or architecture decision, the Greenfield Mapper and the Architect take it as given input (ADR status `Accepted (upstream)`) and a deviation becomes a build request; a conflict with a grugops floor (the §14 gate, security and NFR gates, verify-before-write, the git-host floor) becomes a build request plus a human stop, and the floor does not move (ARCH-01, ARCH-02)
 
-**Plans**: 13/14 plans executed (3 gap-closure plans for UAT gaps G-45-1 and G-45-9)
+**Plans**: 14/14 plans executed (3 gap-closure plans for UAT gaps G-45-1 and G-45-9)
 
 Plans:
 **Wave 1**
@@ -263,7 +263,7 @@ Plans:
 - [x] 45-14-PLAN.md — The floor exception in every role-facing copy of the given-input rule (Architect, Greenfield Mapper, Workflow 00 step 1); orchestrator.md points at Workflow 20
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 45-13-PLAN.md — Workflow 20: canonical floors plus the gates, BA/PM files before the floor stop, the floor-stop bullet only a named human lifts, human-only withdrawals of deviation and floor-conflict requests, the WR-03 unblock rule
+- [x] 45-13-PLAN.md — Workflow 20: canonical floors plus the gates, BA/PM files before the floor stop, the floor-stop bullet only a named human lifts, human-only withdrawals of deviation and floor-conflict requests, the WR-03 unblock rule
 
 **Notes**: S-01 settles the board status (a waiting ticket stays in `Blocked`; no new column), S-05 the architecture ownership, and S-07 the merge of architecture as input into this phase. If planning finds the architecture work larger than pointer lines, one Workflow 00 step and the ADR status, split it into its own phase by recorded decision. Every role edit is one pointer line (BA/PM, System Analyst, Architect, Designer, Greenfield Mapper); the procedure lives in the upstream-sources workflow. Research flag (narrow): the Blocked bullet against older installed `state-check.js` copies and the metrics "Blocked time", and the separate sweep threshold. A machine-checkable answer link stays deferred (BR-F1). Names settled in Phase 44 (S-06, 44-CONTEXT.md), to build here: the build-request statuses are `open`, `carried`, `answered` and `withdrawn`, where `carried` means a human took it upstream, and there is no `declined` (D-04); a role signals with an `observation` whose body opens with `Build-request:`, which Workflow 20 already uses for reader refusals (D-05); the threshold key is `upstream.escalation_days`, default `10`, added to the `upstream` closed key set in this phase together with its behavior (D-06); build-request files live at `memory-bank/plans/build-requests/BR-<n>.md` through a new `BUILD_REQUESTS_REL` constant in `install/state-layout.ts`, added in this phase together with its reader (D-07); `BR` is already reserved in the trace.
 
@@ -317,7 +317,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 44. Upstream source declaration and pin check | v3.1 | 14/14 | Complete    | 2026-11-25 |
-| 45. Traceability, build requests and architecture as input | v3.1 | 13/14 | In Progress | - |
+| 45. Traceability, build requests and architecture as input | v3.1 | 14/14 | In Progress | - |
 | 46. One-command install and install --migrate docs | v3.1 | 0/TBD | Not started | - |
 | 47. Universal consultant | v3.1 | 0/TBD | Not started | - |
 | 48. Feature docs and the 3.1.0 release | v3.1 | 0/TBD | Not started | - |

@@ -4,17 +4,17 @@ milestone: v3.1
 milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
-status: executing
-stopped_at: Completed 45-14-PLAN.md
-last_updated: "2026-11-26T17:02:16.472Z"
+status: verifying
+stopped_at: Completed 45-13-PLAN.md
+last_updated: "2026-11-26T17:13:00.752Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: bd0861659294f11dc63692a6a887fe752fb1f793
+state_head: d6f934793a9f19f410ee9e2d367c04b4f62fdc53
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 28
-  completed_plans: 27
+  completed_plans: 28
   percent: 20
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
 Plan: 14 of 14
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-26 — Phase 45 execution started
 
 ## Gap-closure round 7 — PLANNED 2026-08-06, ready to execute
@@ -930,6 +930,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P11 | 13 min | 2 tasks | 5 files |
 | Phase 45 P12 | 6 min | 2 tasks | 19 files |
 | Phase 45 P14 | 6 min | 2 tasks | 6 files |
+| Phase 45 P13 | 8 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -2619,6 +2620,10 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-12: From open, BA/PM or a human:<name> stamp may withdraw a build request; from carried, only human:<name> (UAT decision 1, refines D-06, closes G-45-9)
 - [Phase 45]: 45-12: The grammar does not decide which open requests need a named human; Workflow 20 carries that rule in prose (plan 45-13)
 - [Phase 45]: Plan 45-14: orchestrator.md gets a Workflow 20 pointer on its upstream config read instead of a floor-conflict Stop when entry (6,170 B -> 6,184 B; WARN 6,195, FAIL 6,546); the stop sequence lives once in Workflow 20 (plan 45-13)
+- [Phase 45]: 45-13: A deviation or floor-conflict ticket carries a human-stop bullet that names no request; BA/PM writes it at filing, the Orchestrator names the kind and confirms it, and only a named human's word removes it
+- [Phase 45]: 45-13: No role file's Board moves changed; the Architect only records the observation, BA/PM writes both Blocked bullets, the Orchestrator hands off, confirms and stops. Residual T-45-47 (bullet omitted and unconfirmed) accepted under human decision 3
+- [Phase 45]: 45-13: Human UAT decision 2 supersedes the floor list in D-17, REQUIREMENTS ARCH-02 and ROADMAP Phase 45 success criterion 5; Workflow 20 points at the canonical floors (SAFETY_FLOORS) and names the §14, security and NFR gates; planning texts left for the human to amend
+- [Phase 45]: 45-13: Review finding WR-03 fixed by 9ba0b91e: a ticket leaves Blocked only when no other ## Blocked bullet remains (Workflow 20 step 12 and Board moves)
 
 ### Pending Todos
 
@@ -3026,8 +3031,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T17:02:16.021Z
-Stopped at: Completed 45-14-PLAN.md
+Last session: 2026-11-26T17:12:50.007Z
+Stopped at: Completed 45-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
