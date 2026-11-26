@@ -127,7 +127,7 @@ import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { devNull } from "node:os";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:0a414fdd70668a6d6d372bdf2eff895e19bae22af8a9fbb50b743746ad937feb";
+export const RUNNABLE_SET_STAMP = "sha256:453a6b68b9aca928f7b3164bbd1ce463072ba7f086ea3a261c8a6889ee878273";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -1495,9 +1495,10 @@ function buildRequestHistory(items, headingLine, fm) {
             state = "answered";
         }
         else {
-            const want = state === "open" ? !human : human;
-            if (!want) {
-                return refuse("bad-transition", `line ${at}: ${BUILD_REQUEST_AGENT_ACTOR} withdraws an open request, and only a named human withdraws a carried one`, at);
+            // From `open`, BA/PM or a named human withdraws (D-06, refined by UAT decision 1, 2026-11-26, G-45-9). Which open
+            // requests need a named human is Workflow 20's prose rule; the file carries no field that marks one.
+            if (state === "carried" && !human) {
+                return refuse("bad-transition", `line ${at}: only a named human withdraws a carried request, as \`human:<name>\``, at);
             }
             state = "withdrawn";
         }

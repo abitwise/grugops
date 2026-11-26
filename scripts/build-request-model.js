@@ -20,7 +20,7 @@
 //   - YYYY-MM-DD: carried, by human:<name>
 //   - YYYY-MM-DD: answered, by human:<name>, pin <commit>[, not-descendant]
 //   - YYYY-MM-DD: withdrawn, by BA/PM: <reason>          (from open)
-//   - YYYY-MM-DD: withdrawn, by human:<name>: <reason>   (from carried)
+//   - YYYY-MM-DD: withdrawn, by human:<name>: <reason>   (from open or carried)
 // `human:<name>` is the note schema's stamp (scripts/context-io.ts HUMAN_STAMP_RE), so a role name never satisfies it.
 // It is a prose-tier record of who a human was, written by BA/PM on that human's word; it is not authentication.
 //
@@ -419,9 +419,10 @@ function buildRequestHistory(items, headingLine, fm) {
             state = "answered";
         }
         else {
-            const want = state === "open" ? !human : human;
-            if (!want) {
-                return refuse("bad-transition", `line ${at}: ${BUILD_REQUEST_AGENT_ACTOR} withdraws an open request, and only a named human withdraws a carried one`, at);
+            // From `open`, BA/PM or a named human withdraws (D-06, refined by UAT decision 1, 2026-11-26, G-45-9). Which open
+            // requests need a named human is Workflow 20's prose rule; the file carries no field that marks one.
+            if (state === "carried" && !human) {
+                return refuse("bad-transition", `line ${at}: only a named human withdraws a carried request, as \`human:<name>\``, at);
             }
             state = "withdrawn";
         }
