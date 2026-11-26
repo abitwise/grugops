@@ -5,16 +5,16 @@ milestone_name: Upstream design, consultation and one-command install
 current_phase: 45
 current_phase_name: Traceability, build requests and architecture as input
 status: executing
-stopped_at: Completed 45-07-PLAN.md
-last_updated: "2026-11-26T12:32:17.086Z"
+stopped_at: Completed 45-08-PLAN.md
+last_updated: "2026-11-26T12:52:31.874Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 45 execution started
-state_head: 03c10421ba1ffa314d9c99e6733a2d736b9af293
+state_head: 8a1776274a9a880233235f78f269ecb0586caaa1
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 25
-  completed_plans: 21
+  completed_plans: 22
   percent: 20
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-25 after Phase 44)
 ## Current Position
 
 Phase: 45 (Traceability, build requests and architecture as input) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 Status: Ready to execute
 Last activity: 2026-11-26 — Phase 45 execution started
 
@@ -924,6 +924,7 @@ Prior activity: 2026-07-30 — 27-22 closed WR-02 and WR-04, the last two plans-
 | Phase 45 P05 | 15min | 2 tasks | 23 files |
 | Phase 45 P06 | 17 min | 3 tasks | 24 files |
 | Phase 45 P07 | 18 min | 2 tasks | 20 files |
+| Phase 45 P08 | 17 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -2599,6 +2600,9 @@ Recent decisions affecting current work:
 - [Phase 45]: 45-07: a request whose source is not declared (every request when no config exists) prints UNKNOWN - verify, so requests exits 2
 - [Phase 45]: 45-07: only a carried request whose raising pin differs from the declared pin asks git; git answers are cached per (source, commit) for the run
 - [Phase 45]: 45-07: frontmatter.ts sits before upstream-model.ts in the upstream.ts embed row
+- [Phase 45]: 45-08: an unread upstream source or note is a third report list (UNKNOWN - verify): never counted, never promoted by --strict, and it replaces ALL CHECKS PASSED with the NO ERRORS count (D-03)
+- [Phase 45]: 45-08: checkCitations reads notes through context-io (entryPresence, readTaskNoteRecords), not the validator's READ-1 primitives, whose every site must fail as a named ERROR
+- [Phase 45]: 45-08: research A2 and A4 are recorded, reversible choices for the 45-10 UAT (any current note naming the ticket counts; warning/error/unknown split by Done)
 
 ### Pending Todos
 
@@ -3006,8 +3010,8 @@ Shape of the carry: **9 of 11 are pre-v2.0 carryover** from the v1.2 block above
 
 ## Session Continuity
 
-Last session: 2026-11-26T12:32:16.818Z
-Stopped at: Completed 45-07-PLAN.md
+Last session: 2026-11-26T12:52:31.607Z
+Stopped at: Completed 45-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
