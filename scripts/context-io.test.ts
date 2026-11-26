@@ -8701,6 +8701,23 @@ describe("31-15 — WR-15: the target repository's dial is read on every host", 
       expect(checked).toBe(4);
     });
 
+    it("(phase 45 fix) repositoryStateConfigPosition is the candidate the kind list calls repository-state-plane", () => {
+      // The validator asks this function for the position whose `upstream` declaration it reads, so it never
+      // reads GOVERNANCE_CONFIG_CANDIDATE_KINDS itself. The binding to the kind list lives here, in a test: a
+      // reorder of the candidate list moves the kind's index and fails this case.
+      const index = mod.GOVERNANCE_CONFIG_CANDIDATE_KINDS.indexOf("repository-state-plane");
+      expect(index, "PREMISE: the kind list no longer names repository-state-plane").toBeGreaterThanOrEqual(0);
+      for (const base of [tmp15("p45-state-pos-"), join(tmp15("p45-state-pos-kitbase-"), "agent-factory")]) {
+        const position = mod.repositoryStateConfigPosition(base);
+        expect(position).toBe(mod.governanceConfigCandidates(base)[index]);
+        expect(shapeKind(base, position as string)).toBe("repository-state-plane");
+      }
+      // WATCHED FAIL: a transposed list would hand the in-kit position to the same lookup.
+      const base = tmp15("p45-state-pos-transpose-");
+      const transposed = [...mod.governanceConfigCandidates(base)].reverse();
+      expect(transposed[index]).not.toBe(mod.repositoryStateConfigPosition(base));
+    });
+
     it("the `$HOME/agent-factory` BASE cell: its state-plane candidate is classified by the RELATIVE path", () => {
       // The named cell that measures the domain choice rather than assuming it. An absolute reading
       // would see an `agent-factory` segment in the BASE and refuse a legitimate state-plane

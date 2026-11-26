@@ -68,7 +68,7 @@ import { CHECKPOINTS, DISPOSITIONS } from "./checkpoints.js";
 // invented third one. Spelling the two paths here instead would be a second answer to one question,
 // free to drift the day a location is added — which is precisely how the form check came to be
 // asked only at the file the reader consults second.
-import { GOVERNANCE_CONFIG_CANDIDATE_KINDS, currentState, entryPresence, governanceConfigCandidates, listContextTasks, readTaskNoteRecords, } from "./context-io.js";
+import { currentState, entryPresence, governanceConfigCandidates, listContextTasks, readTaskNoteRecords, repositoryStateConfigPosition, } from "./context-io.js";
 // (Plan 44-04, UP-01) THE UPSTREAM GRAMMAR IS IMPORTED, NEVER RESTATED. scripts/upstream-model.ts is the one
 // authority on what an `upstream` declaration is, and the host runnable tools/grugops/upstream.js embeds the same
 // module, so the validator and the runnable cannot disagree about which declaration is well formed.
@@ -552,9 +552,16 @@ function checkConfig() {
     // Folding the kit path into the candidate loop deletes that second arm rather than teaching it a
     // third outcome. There is now one existence test, one read, one unreadable message and one form
     // check, asked at every position under every base.
-    // (Plan 45-08, TRC-01) The state root's own `.grugops/factory.config.json`, named by the reader's own candidate list
-    // and kind, never by a path typed here: the one position whose `upstream` declaration the citation check reads.
-    const stateConfigAbs = resolve(governanceConfigCandidates(canonicalBase(STATE_ROOT))[GOVERNANCE_CONFIG_CANDIDATE_KINDS.indexOf("repository-state-plane")] ?? "");
+    // (Plan 45-08, TRC-01) The state root's own `.grugops/factory.config.json`, named by the reader's own candidate list,
+    // never by a path typed here: the one position whose `upstream` declaration the citation check reads. context-io
+    // answers it (`repositoryStateConfigPosition`), so this file does not read GOVERNANCE_CONFIG_CANDIDATE_KINDS, whose
+    // one reader is the home rule. A missing answer fails closed (review IN-04): it is an ERROR and no declaration is
+    // read, never `resolve("")`, which is the working directory and would stop the citation check without a word.
+    const statePosition = repositoryStateConfigPosition(canonicalBase(STATE_ROOT));
+    if (statePosition === null) {
+        err("the governance reader names no repository-state config position, so the upstream statement was not checked");
+    }
+    const stateConfigAbs = statePosition === null ? null : resolve(statePosition);
     const seen = new Set();
     for (let b = 0; b < GOVERNANCE_BASES.length; b += 1) {
         const base = canonicalBase(GOVERNANCE_BASES[b]);

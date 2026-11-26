@@ -4589,6 +4589,30 @@ export const GOVERNANCE_CONFIG_CANDIDATE_KINDS = Object.freeze([
     "in-kit",
 ]);
 /**
+ * The repository's own governance-config position under `base`: the precedence-first entry of
+ * `governanceConfigCandidates(base)`, which is `<base>/.grugops/factory.config.json` (phase 45, fix of
+ * plan 45-08).
+ *
+ * WHY THIS EXISTS. `scripts/validate-agent-factory.ts` reads the `upstream` declaration from the state
+ * root's own config, and nowhere else. It must name that position from this list, not type the path.
+ * Plan 45-08 found the position by looking up `"repository-state-plane"` in
+ * `GOVERNANCE_CONFIG_CANDIDATE_KINDS`, which made the validator a second reader of a classification
+ * whose one reader is the home rule (`homeConfigPositionIsProjectOwned`; the 31-23 reader pin in
+ * `scripts/context-io-writer-set.test.ts`). This function answers the validator's question from the
+ * published precedence order instead, so the classification keeps one reader.
+ *
+ * The candidate list's own documentation puts the repository's `.grugops` config first, and
+ * `scripts/context-io.test.ts` binds this answer to the candidate the kind list calls
+ * `repository-state-plane`, so a reorder of the list cannot move it silently.
+ *
+ * Returns `null` when the list publishes no first position. A caller must treat `null` as "no
+ * position", never fall back to a path of its own.
+ */
+export function repositoryStateConfigPosition(base) {
+    const [precedenceFirst] = governanceConfigCandidates(base);
+    return precedenceFirst ?? null;
+}
+/**
  * The same candidates as REPO-RELATIVE POSIX paths, for a consumer that must NAME the files rather
  * than read them — a mirror that copies them, a gate that reports one by path.
  *
