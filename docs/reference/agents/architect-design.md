@@ -8,7 +8,7 @@ Make the structure and boundaries the work is built on.
 | Tier | core |
 | Capabilities | read edit shell web |
 | Skills | none declared |
-| Workflows | [Bootstrap greenfield](../../../agent-factory/workflows/00-bootstrap-greenfield.md), [Bootstrap brownfield](../../../agent-factory/workflows/01-bootstrap-brownfield.md), [PR quality gate](../../../agent-factory/workflows/05-pr-quality-gate.md), [Backlog refinement](../../../agent-factory/workflows/07-backlog-refinement.md) |
+| Workflows | [Bootstrap greenfield](../../../agent-factory/workflows/00-bootstrap-greenfield.md), [Bootstrap brownfield](../../../agent-factory/workflows/01-bootstrap-brownfield.md), [PR quality gate](../../../agent-factory/workflows/05-pr-quality-gate.md), [Backlog refinement](../../../agent-factory/workflows/07-backlog-refinement.md), [upstream sources](../../../agent-factory/workflows/20-upstream-sources.md) |
 | Source | [agent-factory/roles/architect-design.md](../../../agent-factory/roles/architect-design.md) |
 
 ## Adapters per host

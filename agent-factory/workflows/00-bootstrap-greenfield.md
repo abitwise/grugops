@@ -21,18 +21,20 @@ Each role reads the shared verified context before it works. Each role records i
 - A raw idea or business request — the thing to stand up.
 - `.grugops/factory.config.json` for `mode` / `cadence` / `default_stack` (present after bootstrap; the kit ships it).
 - An empty (or near-empty) repo and `memory-bank/00-index.md` for orientation.
+- `upstream` in `.grugops/factory.config.json`; a source whose `owns.areas` lists `architecture` decides the stack items it names (Workflow 20).
 
 ## Steps
-1. Draft `memory-bank/greenfield-plan.md` from the raw idea (Greenfield Mapper) — the project plan of record. Leave `memory-bank/plans/initial-plan.md` a thin stub; the greenfield plan is the planning output.
-2. Write the root `AGENTS.md` (AGENTS.md Scribe). Leave the command slots at `UNKNOWN - verify` — the Scribe fills them per-project once the real commands are confirmed. Never fabricate a command here.
-3. Establish the product definition (BA/PM). Record the product decisions and findings as typed notes per `agent-factory/workflows/16-context-read-write.md`.
-4. Split the idea into epics and features (BA/PM).
-5. Write the first epics, features and tickets to `memory-bank/plans/epics/`, `memory-bank/plans/features/` and `memory-bank/plans/tickets/` (BA/PM).
-6. Clarify the behavior where the design is unclear (System Analyst). Record the clarified behavior as typed notes per Workflow 16.
-7. Set the structure (Architect/Design). Record the structural decisions as typed notes per Workflow 16, and the ADRs into `memory-bank/50-decisions/`.
-8. Seed the NFRs (Architect/Design). Write each NFR as its own file under `memory-bank/plans/nfr/`. Add one index line for each file to `memory-bank/plans/nfr-catalog.md`, in the form its comment shows.
-9. Seed `memory-bank/plans/board.md` with the standard columns and WIP limits.
-10. Confirm `.grugops/factory.config.json` is present.
+1. Read each stack or architecture decision of a source that owns `architecture`, through the reader, per Workflow 20 (Greenfield Mapper). Skip this step when no source owns `architecture`. Apply each decision over `default_stack` item by item. Upstream decides the items it names, and `default_stack` fills only the rest. Record in `memory-bank/greenfield-plan.md` which source and pin gave each item.
+2. Draft `memory-bank/greenfield-plan.md` from the raw idea (Greenfield Mapper) — the project plan of record. Leave `memory-bank/plans/initial-plan.md` a thin stub; the greenfield plan is the planning output.
+3. Write the root `AGENTS.md` (AGENTS.md Scribe). Leave the command slots at `UNKNOWN - verify` — the Scribe fills them per-project once the real commands are confirmed. Never fabricate a command here.
+4. Establish the product definition (BA/PM). Record the product decisions and findings as typed notes per `agent-factory/workflows/16-context-read-write.md`.
+5. Split the idea into epics and features (BA/PM).
+6. Write the first epics, features and tickets to `memory-bank/plans/epics/`, `memory-bank/plans/features/` and `memory-bank/plans/tickets/` (BA/PM).
+7. Clarify the behavior where the design is unclear (System Analyst). Record the clarified behavior as typed notes per Workflow 16.
+8. Set the structure (Architect/Design). Record the structural decisions as typed notes per Workflow 16, and the ADRs into `memory-bank/50-decisions/`.
+9. Seed the NFRs (Architect/Design). Write each NFR as its own file under `memory-bank/plans/nfr/`. Add one index line for each file to `memory-bank/plans/nfr-catalog.md`, in the form its comment shows.
+10. Seed `memory-bank/plans/board.md` with the standard columns and WIP limits.
+11. Confirm `.grugops/factory.config.json` is present.
 
 ## Board moves
 On `memory-bank/plans/board.md`, seed the board with its columns and per-column WIP limits. BA/PM owns the `Backlog -> Ready` exit for the first epics. The System Analyst owns the `In Analysis` exit and Architect/Design owns the `In Design` exit as the first tickets walk the early columns.

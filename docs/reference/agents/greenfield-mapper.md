@@ -8,7 +8,7 @@ Shape empty land into a repo structure, a stack choice, and a first architecture
 | Tier | core |
 | Capabilities | read edit shell |
 | Skills | none declared |
-| Workflows | [Bootstrap greenfield](../../../agent-factory/workflows/00-bootstrap-greenfield.md) |
+| Workflows | [Bootstrap greenfield](../../../agent-factory/workflows/00-bootstrap-greenfield.md), [upstream sources](../../../agent-factory/workflows/20-upstream-sources.md) |
 | Source | [agent-factory/roles/greenfield-mapper.md](../../../agent-factory/roles/greenfield-mapper.md) |
 
 ## Adapters per host

@@ -257,7 +257,7 @@ const DECIDER_MANIFEST: Readonly<Record<string, Readonly<Record<string, string>>
     "scripts/audit-prepass.js": "4a6906e19cfdc885f838ef429854d09cd5786b4a78d490e3ccc38dd9491c98d2",
     "scripts/check-diff-disposition.js": "2f9362840df4b4810c2af8293ef91cb3ce25a547d8387f3aa1dfae83dc04804d",
     "scripts/check-role-rules.js": "3d479c9108f6617ca024d12129d422947a0470088e1d05239c745475ac2e2dea",
-    "scripts/checkpoints.js": "5e3ce4a0e55a2c79256cd9a7e72beb5ffc309156a8a2a36736bbae744a3f333a",
+    "scripts/checkpoints.js": "18df4d3cd10d9970884fd9bb497dbcf960118e612d808da8ec271a0d0a60aed1",
     "scripts/context-io.js": "b84cd0a617877845c8eb5e769d0654a070ba23d73c50ad9ccc1ff0f9be259fdc",
     "scripts/dead-vocabulary.js": "30bcf47c67b0713c3d1fd42aff76cf60cd74ece10b6cd2c7490602ce7eaf37bc",
     "scripts/frontmatter.js": "6d49e535272b457411277ff963f92722b0de38d15e0761dcb8ec93ca44878623",

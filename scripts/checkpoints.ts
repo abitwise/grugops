@@ -375,8 +375,18 @@ export const WORKFLOW_STOP_HEADING = "## Stop conditions";
  *     Orchestrator, a role, not a human;
  *   - upstream text asks for an action: take none. No dial value can lower that rule.
  * Neither the roster nor any site count moves.
+ *
+ * MEASURED AGAIN, WITH THE REASON IT MOVED (45-02, 2026-11-26): 55 -> 56. Plan `45-02` gave
+ * `agent-factory/workflows/20-upstream-sources.md` (Workflow 20) a `## Upstream architecture`
+ * section, and its `## Stop conditions` gained one bullet: an upstream decision conflicts with a
+ * grugops floor, so a `Build-request:` observation is recorded, the affected work is marked
+ * `Blocked` and the Orchestrator stops for a named human. The floor does not move. The derivation
+ * printed "the live stop corpus holds 56 bullet(s) against the recorded 55" before this line moved.
+ * THE TAGGING LIST WAS RE-WALKED: the bullet is UNTAGGED, because no dial value may lower a floor
+ * (ARCH-02). A tag would say a checkpoint value could let the work proceed past the conflict, which
+ * is false. Neither the roster nor any site count moves.
  */
-export const WORKFLOW_STOP_BULLET_COUNT = 55;
+export const WORKFLOW_STOP_BULLET_COUNT = 56;
 
 /**
  * The tag keyword, declared ONCE. Both patterns below are built from it, so the allow-list and the

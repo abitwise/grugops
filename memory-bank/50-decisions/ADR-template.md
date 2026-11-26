@@ -14,7 +14,7 @@ kind: adr-template
 
 ## Status
 
-<proposed | accepted | deprecated | superseded by ADR-YYYY>
+<proposed | accepted | Accepted (upstream) | deprecated | superseded by ADR-YYYY>
 
 ## Context
 
