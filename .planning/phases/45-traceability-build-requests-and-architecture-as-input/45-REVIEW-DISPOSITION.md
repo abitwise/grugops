@@ -25,7 +25,7 @@ findings:
     title: "The floor exception added to Workflow 00 step 1 leads to a path that cannot run at bootstrap"
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The deviation or floor-conflict mark that step 13 relies on is missing when a request is merged, and BA/PM can edit it away"
   - id: WR-08
     severity: warning
@@ -87,7 +87,7 @@ findings:
     severity: info
     disposition: fixed
     title: "`stateConfigAbs` silently falls back to the working directory"
-open: 18
+open: 17
 total: 21
 recorded: 2026-11-26T17:49:59.621Z
 ---
@@ -101,7 +101,7 @@ recorded: 2026-11-26T17:49:59.621Z
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | WR-06 | warning | fixed | commit 4406d8b2 (Workflow 00 step 1 and stop bullet, Workflow 20 bootstrap bullet: a floor conflict at bootstrap files on a real ticket at step 6 and stops before step 7) |
-| WR-07 | warning | open | - |
+| WR-07 | warning | fixed | commit cd31ae5d (Workflow 20 step 13 keyed on the human-stop bullet, step 3 marks a merged request, the contract keeps both marks; the step 3 and contract edits are commit a3c57814) |
 | WR-08 | warning | open | - |
 | WR-09 | warning | open | - |
 | IN-01 | info | open | - |
