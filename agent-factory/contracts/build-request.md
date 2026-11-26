@@ -78,7 +78,7 @@ Each entry is one line `- YYYY-MM-DD: <event>, by <actor>`, dated in UTC. The fo
 - `- YYYY-MM-DD: carried, by human:<name>`
 - `- YYYY-MM-DD: answered, by human:<name>, pin <commit>`, optionally ending `, not-descendant`
 - `- YYYY-MM-DD: withdrawn, by BA/PM: <reason>`, for an `open` request
-- `- YYYY-MM-DD: withdrawn, by human:<name>: <reason>`, for a `carried` request
+- `- YYYY-MM-DD: withdrawn, by human:<name>: <reason>`, for an `open` or a `carried` request
 
 The rules on these lines:
 
@@ -87,7 +87,8 @@ The rules on these lines:
 - `<name>` follows the note schema's stamp rule, `human:[A-Za-z0-9._-]+`, so a name holds no
   space and a role name never matches it.
 - Only BA/PM opens a request and records an edit. Only a `human:<name>` entry records `carried`
-  or `answered`.
+  or `answered`, or withdraws a `carried` request. BA/PM or a named human withdraws an `open`
+  request, and Workflow 20 says which `open` requests only a named human withdraws.
 - A second `carried` entry after `carried` records a re-send.
 - The answer pin is a full commit id of the same length as `pin`, and differs from it.
 - `, not-descendant` records that the new pin does not descend from `pin` (see the
@@ -114,6 +115,7 @@ when an `edited` entry follows its last `carried` entry. A later `carried` entry
 | `carried` | `carried` | a named human | a second `carried` entry, a re-send |
 | `carried` | `answered` | a named human, by setting a new pin | `answered, by human:<name>, pin <commit>` |
 | `open` | `withdrawn` | BA/PM | `withdrawn, by BA/PM: <reason>` |
+| `open` | `withdrawn` | a named human | `withdrawn, by human:<name>: <reason>` |
 | `carried` | `withdrawn` | a named human | `withdrawn, by human:<name>: <reason>` |
 
 - An `edited` entry by BA/PM may follow `open` or `carried`. It changes no status.
