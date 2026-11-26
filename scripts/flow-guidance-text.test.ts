@@ -2041,4 +2041,38 @@ describe("the floor stop in Workflow 20 (plan 45-13, G-45-1, G-45-9, ARCH-02)", 
       "confirms both bullets, then stops for a named human",
     );
   });
+
+  it("(f) a ticket leaves `Blocked` only when no other bullet remains, in step 12 and in Board moves (WR-03)", () => {
+    expect(brStep(12)).toContain("no other `## Blocked` bullet remains");
+    const moves = section(WF20, "Board moves");
+    for (const needle of ["step 12", "no other `## Blocked` bullet remains", "human-stop bullet", "naming the observing role as raiser"]) {
+      expect(moves, needle).toContain(needle);
+    }
+  });
+
+  it("(g) step 4 marks the kind in the request, and step 13 reserves its withdrawal to a named human (UAT decision 1)", () => {
+    expect(brStep(4)).toContain("deviation or a floor conflict");
+    expect(brStep(13)).toContain("deviation or floor-conflict request");
+    expect(brStep(13)).toContain("named human");
+  });
+
+  it("(h) the human's-word stop bullet also covers those withdrawals and removing a human-stop bullet", () => {
+    const human = bullets(section(WF20, "Stop conditions")).filter(
+      (b) => b.includes("named human's word") && b.includes("write nothing"),
+    );
+    expect(human).toHaveLength(1);
+    expect(human[0]).toContain("deviation or floor-conflict request");
+    expect(human[0]).toContain("human-stop bullet");
+  });
+
+  it("(i) the deviation rule agrees with step 12: the human-stop bullet holds, or a human withdraws and re-plans (D-16)", () => {
+    expect(arch).toContain("Nobody builds the deviation until a new pin answers the request.");
+    expect(arch).toContain("Each affected ticket also carries the human-stop bullet, and only a named human's word removes it.");
+    expect(arch).toContain("without the deviation");
+  });
+
+  it("(j) the Done condition names the input rule, the human-stop bullet and the human-named withdrawals", () => {
+    const done = section(WF20, "Done condition");
+    for (const needle of ["taken as input", "human-stop bullet", "names a human"]) expect(done, needle).toContain(needle);
+  });
 });
