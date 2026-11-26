@@ -21,7 +21,7 @@ findings:
     title: "The date-relative tests can fail at UTC midnight (carried forward)"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The floor exception added to Workflow 00 step 1 leads to a path that cannot run at bootstrap"
   - id: WR-07
     severity: warning
@@ -87,7 +87,7 @@ findings:
     severity: info
     disposition: fixed
     title: "`stateConfigAbs` silently falls back to the working directory"
-open: 19
+open: 18
 total: 21
 recorded: 2026-11-26T17:49:59.621Z
 ---
@@ -100,7 +100,7 @@ recorded: 2026-11-26T17:49:59.621Z
 | WR-02 | warning | open | - |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
+| WR-06 | warning | fixed | commit 4406d8b2 (Workflow 00 step 1 and stop bullet, Workflow 20 bootstrap bullet: a floor conflict at bootstrap files on a real ticket at step 6 and stops before step 7) |
 | WR-07 | warning | open | - |
 | WR-08 | warning | open | - |
 | WR-09 | warning | open | - |
