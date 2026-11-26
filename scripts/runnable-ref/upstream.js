@@ -75,15 +75,9 @@
 // The manifest's listed-path sweep that `check` makes is not repeated here: `read` checks the mode of the one path it
 // prints, so a bad row elsewhere in the manifest is reported by `check` and does not hide a good one from `read`.
 //
-// THE GIT LAUNCHER. runGit is the only process this program starts. It runs `git -C <source real path>` with
-// `shell: false`, a 20 s timeout and stdout as bytes, under the caller's environment with every `GIT_*` variable
-// removed (an inherited GIT_DIR would answer for another repository) and four switches added: GIT_NO_REPLACE_OBJECTS=1
-// (a replace ref would substitute the pinned commit or blob), GIT_NO_LAZY_FETCH=1 (a partial clone would fetch over the
-// network; git older than 2.45 ignores it, so a partial clone on such a git is refused before any call that reads an
-// object, plan 44-12), GIT_LITERAL_PATHSPECS=1 and GIT_TERMINAL_PROMPT=0. It uses only `rev-parse`, `ls-tree`,
-// `cat-file`, `config` and `version`, never `status`, `diff`, `log`, `show` or anything that refreshes the index,
-// because those can run commands the untrusted source's own git config names. The blob bytes git returns are hashed
-// here and compared to the blob id, so a substituted object is caught even if a switch is not honored.
+// THE GIT LAUNCHER. The one git launcher and the object reads live in scripts/upstream-git.ts (moved there by plan
+// 45-01 for D-02) and reach this file through the generated region, with their read-safety rules stated there. It
+// starts only `git`, and uses only `rev-parse`, `ls-tree`, `cat-file`, `config` and `version`.
 //
 // BUILTINS ONLY. A host runs this file with no kit and no node_modules, so it imports `node:` builtins and nothing
 // else. The hand-written part below imports them as namespaces, so the names the generated region imports never
@@ -97,14 +91,14 @@
 // exit codes and the output lines.
 //
 // Voice: clear professional voice (CLAUDE.md hard rule): this program reports whether evidence can be trusted.
-import * as nodeChildProcess from "node:child_process";
 import * as nodeFs from "node:fs";
 import * as nodePath from "node:path";
 // <runnable-embeds> GENERATED — do not edit by hand; run `npm run generate:runnable-embeds`
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:ba70d85ad5253c12ae8a2761f61d6be0194e81bff92373cc7cacab597185a49b";
+export const RUNNABLE_SET_STAMP = "sha256:a72ebd56b36a906f763a5e402848580c649154a02b7a62b358fc0a203db3729a";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"]);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -690,6 +684,222 @@ export function formatCheckLine(sourceId, commit, finding) {
         return `drift ${sourceId}: ${finding.cause} (${finding.detail})`;
     return `UNKNOWN - verify ${sourceId}: ${finding.reason}`;
 }
+// from scripts/upstream-git.ts
+export const UPSTREAM_GIT_TIMEOUT_MS = 20000;
+export const UPSTREAM_GIT_LAZY_FETCH_SINCE = [2, 45];
+export const UPSTREAM_GIT_REGULAR_FILE_MODES = new Set(["100644", "100755"]);
+export function upstreamGitErrnoCode(e) {
+    return e.code ?? "unknown error";
+}
+export class UpstreamGitUnknown extends Error {
+}
+export function upstreamGitUnknownBecause(reason) {
+    throw new UpstreamGitUnknown(reason);
+}
+export function upstreamGitEnv() {
+    const env = {};
+    for (const [key, value] of Object.entries(process.env)) {
+        if (!/^GIT_/i.test(key))
+            env[key] = value;
+    }
+    env.GIT_NO_REPLACE_OBJECTS = "1";
+    env.GIT_NO_LAZY_FETCH = "1";
+    env.GIT_LITERAL_PATHSPECS = "1";
+    env.GIT_TERMINAL_PROMPT = "0";
+    return env;
+}
+export function upstreamGitRun(sourceReal, gitArgs) {
+    const r = spawnSync("git", ["-C", sourceReal, ...gitArgs], {
+        shell: false,
+        timeout: UPSTREAM_GIT_TIMEOUT_MS,
+        maxBuffer: UPSTREAM_READ_MAX_BYTES * 4,
+        env: upstreamGitEnv(),
+    });
+    const error = r.error;
+    return {
+        status: r.status,
+        stdout: r.stdout ?? Buffer.alloc(0),
+        stderr: r.stderr === null || r.stderr === undefined ? "" : r.stderr.toString("utf8"),
+        errorCode: error?.code,
+        errorMessage: error?.message,
+    };
+}
+export function upstreamGitComplaint(run, gitArgs) {
+    const line = run.stderr.split("\n").map((l) => l.trim()).find((l) => l !== "");
+    if (line === undefined)
+        return `exit status ${run.status}`;
+    const dash = gitArgs.indexOf("--");
+    const pathspecs = dash < 0 ? [] : [...new Set(gitArgs.slice(dash + 1))].filter((a) => a !== "");
+    if (pathspecs.length === 0)
+        return line;
+    const alternation = pathspecs
+        .sort((a, b) => b.length - a.length)
+        .map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("|");
+    return line.replace(new RegExp(alternation, "g"), () => "<listed path>");
+}
+export function upstreamGitAnswer(sourceReal, gitArgs, allowed = [0]) {
+    const sub = gitArgs[0];
+    const run = upstreamGitRun(sourceReal, gitArgs);
+    if (run.errorCode === "ENOENT")
+        upstreamGitUnknownBecause("git was not found on PATH");
+    if (run.errorCode === "ETIMEDOUT")
+        upstreamGitUnknownBecause(`git did not answer within ${UPSTREAM_GIT_TIMEOUT_MS / 1000} s`);
+    if (run.errorCode === "ENOBUFS")
+        upstreamGitUnknownBecause(`git ${sub} printed more than ${UPSTREAM_READ_MAX_BYTES * 4} bytes`);
+    if (run.errorMessage !== undefined)
+        upstreamGitUnknownBecause(`git ${sub} could not be started (${run.errorMessage})`);
+    if (run.status === null)
+        upstreamGitUnknownBecause(`git ${sub} was stopped before it finished`);
+    if (!allowed.includes(run.status))
+        upstreamGitUnknownBecause(`git ${sub} failed: ${upstreamGitComplaint(run, gitArgs)}`);
+    return run;
+}
+export function upstreamGitText(run) {
+    return run.stdout.toString("utf8").replace(/[\r\n]+$/, "");
+}
+export function upstreamGitModesAtPin(sourceReal, commit, paths) {
+    const run = upstreamGitAnswer(sourceReal, ["ls-tree", "-r", "-z", "--full-tree", commit, "--", ...paths]);
+    const modes = new Map();
+    for (const record of run.stdout.toString("utf8").split("\0")) {
+        const tab = record.indexOf("\t");
+        if (tab < 0)
+            continue;
+        modes.set(record.slice(tab + 1), record.slice(0, record.indexOf(" ")));
+    }
+    return modes;
+}
+export function upstreamGitBlobText(sourceReal, blob, format, label) {
+    const size = Number(upstreamGitText(upstreamGitAnswer(sourceReal, ["cat-file", "-s", blob])));
+    if (!Number.isSafeInteger(size) || size < 0)
+        upstreamGitUnknownBecause(`git cat-file gave no size for ${label}`);
+    if (size > UPSTREAM_READ_MAX_BYTES) {
+        upstreamGitUnknownBecause(`${label} is ${size} bytes, over the per-read ceiling of ${UPSTREAM_READ_MAX_BYTES} bytes; ask upstream to split it`);
+    }
+    const bytes = upstreamGitAnswer(sourceReal, ["cat-file", "blob", blob]).stdout;
+    if (gitBlobId(bytes, format) !== blob)
+        upstreamGitUnknownBecause(`the bytes git returned for ${label} do not hash to ${blob}`);
+    if (bytes.includes(0))
+        upstreamGitUnknownBecause(`${label} is not a text file (it holds a NUL byte)`);
+    try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    }
+    catch {
+        return upstreamGitUnknownBecause(`${label} is not UTF-8 text`);
+    }
+}
+export function upstreamGitHexLength(format) {
+    return format === "sha1" ? "40" : format === "sha256" ? "64" : format;
+}
+export function upstreamGitAnswers(root, source, index, sweepListed) {
+    const lexical = sourcePathFindings(root, source.path, `upstream.sources[${index}].path`);
+    if (lexical.length > 0)
+        upstreamGitUnknownBecause(lexical.join("; "));
+    let real;
+    try {
+        real = realpathSync(resolve(root, source.path));
+    }
+    catch (e) {
+        const code = upstreamGitErrnoCode(e);
+        return upstreamGitUnknownBecause(code === "ENOENT" ? `path ${source.path} does not exist` : `path ${source.path} cannot be resolved (${code})`);
+    }
+    if (isWithin(real, root))
+        upstreamGitUnknownBecause(`path ${source.path} resolves inside the product repository`);
+    if (isWithin(root, real))
+        upstreamGitUnknownBecause(`path ${source.path} resolves to a directory that contains the product repository`);
+    // A stat that throws (EACCES, or a race after realpath) is this source's UNKNOWN line, never the end of the whole
+    // report (IN-04, T-44-42). The reason names the configured path, which is product text, and the errno code.
+    let isDirectory;
+    try {
+        isDirectory = statSync(real).isDirectory();
+    }
+    catch (e) {
+        return upstreamGitUnknownBecause(`path ${source.path} cannot be inspected (${upstreamGitErrnoCode(e)})`);
+    }
+    if (!isDirectory)
+        upstreamGitUnknownBecause(`path ${source.path} is not a directory`);
+    const topArgs = ["rev-parse", "--show-toplevel"];
+    const top = upstreamGitAnswer(real, topArgs, [0, 128, 129]);
+    if (top.status !== 0 || resolve(upstreamGitText(top)) !== real) {
+        upstreamGitUnknownBecause(`${source.path} is not the top of a git checkout${top.status === 0 ? "" : ` (${upstreamGitComplaint(top, topArgs)})`}`);
+    }
+    const format = objectFormatOf(source.commit);
+    const checkoutFormat = upstreamGitText(upstreamGitAnswer(real, ["rev-parse", "--show-object-format"]));
+    if (checkoutFormat !== format) {
+        upstreamGitUnknownBecause(`the pin is ${source.commit.length}-hex but the checkout uses ${upstreamGitHexLength(checkoutFormat)}-hex object ids`);
+    }
+    // The partial-clone guard runs here, before the first call that reads an object (WR-01, T-44-11): git older than
+    // 2.45 ignores GIT_NO_LAZY_FETCH, so in a partial clone even the `^{commit}` peel below could fetch over the network
+    // and write into the upstream `.git`. Only config and version are asked before it. git marks a partial clone in two
+    // ways, and honors both: a `remote.<name>.promisor` key, and an `extensions.partialclone` key naming the promisor
+    // remote (read even at repository format version 0). One `--get-regexp` reads both; git prints key names in lower
+    // case. A promisor line set to false, no, off or 0 is not partial; any extensions.partialclone line is.
+    const partialKeys = upstreamGitAnswer(real, ["config", "--get-regexp", "^(remote\\..*\\.promisor|extensions\\.partialclone)$"], [0, 1]);
+    const isPartial = partialKeys.status === 0 &&
+        upstreamGitText(partialKeys)
+            .split("\n")
+            .filter((l) => l.trim() !== "")
+            .some((l) => {
+            const space = l.indexOf(" ");
+            const key = space < 0 ? l : l.slice(0, space);
+            if (key === "extensions.partialclone")
+                return true;
+            return space < 0 || !/^(false|no|off|0)$/i.test(l.slice(space + 1).trim());
+        });
+    if (isPartial) {
+        const version = /git version (\d+)\.(\d+)/.exec(upstreamGitText(upstreamGitAnswer(real, ["version"])));
+        const major = version === null ? 0 : Number(version[1]);
+        const minor = version === null ? 0 : Number(version[2]);
+        if (major < UPSTREAM_GIT_LAZY_FETCH_SINCE[0] || (major === UPSTREAM_GIT_LAZY_FETCH_SINCE[0] && minor < UPSTREAM_GIT_LAZY_FETCH_SINCE[1])) {
+            upstreamGitUnknownBecause("partial clone and git older than 2.45; make a full clone or upgrade git");
+        }
+    }
+    const verified = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}^{commit}`], [0, 1]);
+    if (verified.status !== 0) {
+        upstreamGitUnknownBecause(`pinned commit ${source.commit} is not in the checkout (shallow clone or not fetched)`);
+    }
+    const pinned = upstreamGitText(verified);
+    if (pinned.length !== source.commit.length) {
+        upstreamGitUnknownBecause(`the pin is ${source.commit.length}-hex but the checkout uses ${pinned.length}-hex object ids`);
+    }
+    if (pinned !== source.commit)
+        upstreamGitUnknownBecause(`pinned object ${source.commit} is not a commit`);
+    const entryAnswer = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}:${source.entry}`], [0, 1]);
+    if (entryAnswer.status !== 0)
+        upstreamGitUnknownBecause(`entry ${source.entry} is not in the pinned commit`);
+    const entryBlobAtPin = upstreamGitText(entryAnswer);
+    let manifest = null;
+    if (entryBlobAtPin === source.entry_blob) {
+        if (!UPSTREAM_GIT_REGULAR_FILE_MODES.has(upstreamGitModesAtPin(real, source.commit, [source.entry]).get(source.entry) ?? "")) {
+            upstreamGitUnknownBecause(`entry ${source.entry} is not a regular file at the pin`);
+        }
+        manifest = parseManifest(upstreamGitBlobText(real, entryBlobAtPin, format, `entry ${source.entry}`));
+        if (sweepListed && manifest.kind === "ok" && manifest.rows.length > 0) {
+            const modes = upstreamGitModesAtPin(real, source.commit, manifest.rows.map((row) => row.path));
+            for (const row of manifest.rows) {
+                if (!UPSTREAM_GIT_REGULAR_FILE_MODES.has(modes.get(row.path) ?? "")) {
+                    // The Path cell is a git argument only; the reason names the row by its ID and line (CR-02, D-13).
+                    upstreamGitUnknownBecause(`the file listed for ${row.id} (manifest line ${row.line}, column 3) is not a regular file at the pin`);
+                }
+            }
+        }
+    }
+    const headAnswer = upstreamGitAnswer(real, ["rev-parse", "--verify", "--quiet", "HEAD"], [0, 1]);
+    const head = headAnswer.status === 0 ? upstreamGitText(headAnswer) : null;
+    return { answers: { commit: source.commit, entryBlobDeclared: source.entry_blob, entryBlobAtPin, manifest, head }, real, format };
+}
+export function upstreamGitEntryAtPin(sourceReal, commit, path) {
+    const run = upstreamGitAnswer(sourceReal, ["ls-tree", "-z", "--full-tree", commit, "--", path]);
+    for (const record of run.stdout.toString("utf8").split("\0")) {
+        const tab = record.indexOf("\t");
+        if (tab < 0 || record.slice(tab + 1) !== path)
+            continue;
+        const [mode, , oid] = record.slice(0, tab).split(" ");
+        if (mode !== undefined && oid !== undefined)
+            return { mode, oid };
+    }
+    return null;
+}
 // from scripts/build-request-model.ts
 export const BUILD_REQUEST_KEYS = Object.freeze(["id", "status", "source", "pin", "raised"]);
 export const BUILD_REQUEST_STATUSES = Object.freeze(["open", "carried", "answered", "withdrawn"]);
@@ -866,12 +1076,6 @@ const CONFIG_NAME = "factory.config.json";
 const CONFIG_REL = `${GRUGOPS_DIR_REL}/${CONFIG_NAME}`;
 /** The largest config this program reads, in bytes: a reader ceiling, as the config is a few hundred bytes. */
 const CONFIG_CEILING_BYTES = 1024 * 1024;
-/** How long one git call may run, in milliseconds. */
-const GIT_TIMEOUT_MS = 20000;
-/** The first git release that honors GIT_NO_LAZY_FETCH (the 2.45.0 release notes), as major and minor. */
-const LAZY_FETCH_SINCE = [2, 45];
-/** The modes ls-tree gives a regular file. A symbolic link (120000), a directory or a gitlink (160000) is not one. */
-const REGULAR_FILE_MODES = new Set(["100644", "100755"]);
 const args = process.argv.slice(2);
 const command = args[0];
 if (command === undefined)
@@ -968,248 +1172,13 @@ function configTextOrNull() {
         couldNotRun(`${CONFIG_REL} vanished after it was seen.`);
     return text;
 }
-// --- the one git launcher -----------------------------------------------------------------------
-/** A source that cannot be checked; its message is the reason its `UNKNOWN - verify` line names. */
-class SourceUnknown extends Error {
-}
-/** The source cannot be checked, for `reason`. */
-function unknownBecause(reason) {
-    throw new SourceUnknown(reason);
-}
-/** The environment git runs under: the caller's, minus every GIT_* variable, plus the four read-safety switches. */
-function gitEnv() {
-    const env = {};
-    for (const [key, value] of Object.entries(process.env)) {
-        if (!/^GIT_/i.test(key))
-            env[key] = value;
-    }
-    env.GIT_NO_REPLACE_OBJECTS = "1";
-    env.GIT_NO_LAZY_FETCH = "1";
-    env.GIT_LITERAL_PATHSPECS = "1";
-    env.GIT_TERMINAL_PROMPT = "0";
-    return env;
-}
-/** Runs `git -C <sourceReal> <gitArgs>`: no shell, a 20 s timeout, stdout as bytes, the scrubbed environment. */
-function runGit(sourceReal, gitArgs) {
-    const r = nodeChildProcess.spawnSync("git", ["-C", sourceReal, ...gitArgs], {
-        shell: false,
-        timeout: GIT_TIMEOUT_MS,
-        maxBuffer: UPSTREAM_READ_MAX_BYTES * 4,
-        env: gitEnv(),
-    });
-    const error = r.error;
-    return {
-        status: r.status,
-        stdout: r.stdout ?? Buffer.alloc(0),
-        stderr: r.stderr === null || r.stderr === undefined ? "" : r.stderr.toString("utf8"),
-        errorCode: error?.code,
-        errorMessage: error?.message,
-    };
-}
-/**
- * The first non-empty line of git's stderr, or the exit status when it printed none, with every pathspec of the
- * failing call replaced by `<listed path>` (plan 44-12, T-44-38, UP-05, D-13, D-17). `gitArgs` is that call's own
- * argument list; each argument after its first `--` is a pathspec: a listed path, or the entry. git can echo those
- * arguments in its message, and a listed path that passes the grammar can still read as an order, so none of them may
- * appear outside the fence. Every such path passes the ASCII path grammar of plan 44-09, so git prints it unquoted and
- * a plain substring match finds each verbatim echo; the paths are matched in one pass, longest first, so a path that
- * contains another is replaced whole. The rest of git's line stays, so the human still learns which call failed and
- * why. Not replaced (the accepted T-44-38 residual): a fragment or another spelling of a path that git might print, and
- * git's text about the local `.git`, which committed upstream content cannot write. The result is printed through
- * `printable`, like every reason.
- */
-function gitComplaint(run, gitArgs) {
-    const line = run.stderr.split("\n").map((l) => l.trim()).find((l) => l !== "");
-    if (line === undefined)
-        return `exit status ${run.status}`;
-    const dash = gitArgs.indexOf("--");
-    const pathspecs = dash < 0 ? [] : [...new Set(gitArgs.slice(dash + 1))].filter((a) => a !== "");
-    if (pathspecs.length === 0)
-        return line;
-    const alternation = pathspecs
-        .sort((a, b) => b.length - a.length)
-        .map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-        .join("|");
-    return line.replace(new RegExp(alternation, "g"), () => "<listed path>");
-}
-/**
- * One git call whose exit status must be one of `allowed`. A launch failure, a timeout, an over-long answer, a signal
- * and any other status each make the source UNKNOWN with a named reason.
- */
-function gitAnswer(sourceReal, gitArgs, allowed = [0]) {
-    const sub = gitArgs[0];
-    const run = runGit(sourceReal, gitArgs);
-    if (run.errorCode === "ENOENT")
-        unknownBecause("git was not found on PATH");
-    if (run.errorCode === "ETIMEDOUT")
-        unknownBecause(`git did not answer within ${GIT_TIMEOUT_MS / 1000} s`);
-    if (run.errorCode === "ENOBUFS")
-        unknownBecause(`git ${sub} printed more than ${UPSTREAM_READ_MAX_BYTES * 4} bytes`);
-    if (run.errorMessage !== undefined)
-        unknownBecause(`git ${sub} could not be started (${run.errorMessage})`);
-    if (run.status === null)
-        unknownBecause(`git ${sub} was stopped before it finished`);
-    if (!allowed.includes(run.status))
-        unknownBecause(`git ${sub} failed: ${gitComplaint(run, gitArgs)}`);
-    return run;
-}
-/** git's stdout as text, without its trailing line ends. */
-function gitText(run) {
-    return run.stdout.toString("utf8").replace(/[\r\n]+$/, "");
-}
-/** The mode of each path `ls-tree -r -z --full-tree <commit> -- <paths>` lists at the pin, by path. */
-function modesAtPin(sourceReal, commit, paths) {
-    const run = gitAnswer(sourceReal, ["ls-tree", "-r", "-z", "--full-tree", commit, "--", ...paths]);
-    const modes = new Map();
-    for (const record of run.stdout.toString("utf8").split("\0")) {
-        const tab = record.indexOf("\t");
-        if (tab < 0)
-            continue;
-        modes.set(record.slice(tab + 1), record.slice(0, record.indexOf(" ")));
-    }
-    return modes;
-}
-/**
- * The text of the blob `blob`: at most UPSTREAM_READ_MAX_BYTES, hashing to its own id, holding no NUL byte and decoding
- * as UTF-8. Anything else makes the source UNKNOWN, named; nothing is truncated or guessed.
- */
-function blobText(sourceReal, blob, format, label) {
-    const size = Number(gitText(gitAnswer(sourceReal, ["cat-file", "-s", blob])));
-    if (!Number.isSafeInteger(size) || size < 0)
-        unknownBecause(`git cat-file gave no size for ${label}`);
-    if (size > UPSTREAM_READ_MAX_BYTES) {
-        unknownBecause(`${label} is ${size} bytes, over the per-read ceiling of ${UPSTREAM_READ_MAX_BYTES} bytes; ask upstream to split it`);
-    }
-    const bytes = gitAnswer(sourceReal, ["cat-file", "blob", blob]).stdout;
-    if (gitBlobId(bytes, format) !== blob)
-        unknownBecause(`the bytes git returned for ${label} do not hash to ${blob}`);
-    if (bytes.includes(0))
-        unknownBecause(`${label} is not a text file (it holds a NUL byte)`);
-    try {
-        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    }
-    catch {
-        return unknownBecause(`${label} is not UTF-8 text`);
-    }
-}
-/** The hex length of an object format's ids, for a message. */
-function hexLengthOf(format) {
-    return format === "sha1" ? "40" : format === "sha256" ? "64" : format;
-}
-/**
- * What git answers for one source, read only from objects at the pin. The path is checked first: the lexical rule,
- * then realpath, then the inside and ancestor test again on the real paths. The checkout must be the top of a git
- * work tree and use the pin's object format. Before any git call that reads an object, a partial clone (a
- * `remote.<name>.promisor` key not set to false, or an `extensions.partialclone` key) is refused when the git that runs
- * is older than 2.45, which ignores GIT_NO_LAZY_FETCH and would fetch a missing object over the network (WR-01,
- * T-44-11). The checkout must then hold the pinned commit. A path whose stat fails is that source's UNKNOWN (IN-04). The entry's blob at the pin is compared to the
- * declared one; only when they agree is the manifest read. With `sweepListed` (the `check` verb) every path it lists is
- * then checked to be a regular file at the pin; `read` checks only the one path it prints.
- */
-function gitAnswers(source, index, sweepListed) {
-    const lexical = sourcePathFindings(root, source.path, `upstream.sources[${index}].path`);
-    if (lexical.length > 0)
-        unknownBecause(lexical.join("; "));
-    let real;
-    try {
-        real = nodeFs.realpathSync(nodePath.resolve(root, source.path));
-    }
-    catch (e) {
-        const code = codeOf(e);
-        return unknownBecause(code === "ENOENT" ? `path ${source.path} does not exist` : `path ${source.path} cannot be resolved (${code})`);
-    }
-    if (isWithin(real, root))
-        unknownBecause(`path ${source.path} resolves inside the product repository`);
-    if (isWithin(root, real))
-        unknownBecause(`path ${source.path} resolves to a directory that contains the product repository`);
-    // A stat that throws (EACCES, or a race after realpath) is this source's UNKNOWN line, never the end of the whole
-    // report (IN-04, T-44-42). The reason names the configured path, which is product text, and the errno code.
-    let isDirectory;
-    try {
-        isDirectory = nodeFs.statSync(real).isDirectory();
-    }
-    catch (e) {
-        return unknownBecause(`path ${source.path} cannot be inspected (${codeOf(e)})`);
-    }
-    if (!isDirectory)
-        unknownBecause(`path ${source.path} is not a directory`);
-    const topArgs = ["rev-parse", "--show-toplevel"];
-    const top = gitAnswer(real, topArgs, [0, 128, 129]);
-    if (top.status !== 0 || nodePath.resolve(gitText(top)) !== real) {
-        unknownBecause(`${source.path} is not the top of a git checkout${top.status === 0 ? "" : ` (${gitComplaint(top, topArgs)})`}`);
-    }
-    const format = objectFormatOf(source.commit);
-    const checkoutFormat = gitText(gitAnswer(real, ["rev-parse", "--show-object-format"]));
-    if (checkoutFormat !== format) {
-        unknownBecause(`the pin is ${source.commit.length}-hex but the checkout uses ${hexLengthOf(checkoutFormat)}-hex object ids`);
-    }
-    // The partial-clone guard runs here, before the first call that reads an object (WR-01, T-44-11): git older than
-    // 2.45 ignores GIT_NO_LAZY_FETCH, so in a partial clone even the `^{commit}` peel below could fetch over the network
-    // and write into the upstream `.git`. Only config and version are asked before it. git marks a partial clone in two
-    // ways, and honors both: a `remote.<name>.promisor` key, and an `extensions.partialclone` key naming the promisor
-    // remote (read even at repository format version 0). One `--get-regexp` reads both; git prints key names in lower
-    // case. A promisor line set to false, no, off or 0 is not partial; any extensions.partialclone line is.
-    const partialKeys = gitAnswer(real, ["config", "--get-regexp", "^(remote\\..*\\.promisor|extensions\\.partialclone)$"], [0, 1]);
-    const isPartial = partialKeys.status === 0 &&
-        gitText(partialKeys)
-            .split("\n")
-            .filter((l) => l.trim() !== "")
-            .some((l) => {
-            const space = l.indexOf(" ");
-            const key = space < 0 ? l : l.slice(0, space);
-            if (key === "extensions.partialclone")
-                return true;
-            return space < 0 || !/^(false|no|off|0)$/i.test(l.slice(space + 1).trim());
-        });
-    if (isPartial) {
-        const version = /git version (\d+)\.(\d+)/.exec(gitText(gitAnswer(real, ["version"])));
-        const major = version === null ? 0 : Number(version[1]);
-        const minor = version === null ? 0 : Number(version[2]);
-        if (major < LAZY_FETCH_SINCE[0] || (major === LAZY_FETCH_SINCE[0] && minor < LAZY_FETCH_SINCE[1])) {
-            unknownBecause("partial clone and git older than 2.45; make a full clone or upgrade git");
-        }
-    }
-    const verified = gitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}^{commit}`], [0, 1]);
-    if (verified.status !== 0) {
-        unknownBecause(`pinned commit ${source.commit} is not in the checkout (shallow clone or not fetched)`);
-    }
-    const pinned = gitText(verified);
-    if (pinned.length !== source.commit.length) {
-        unknownBecause(`the pin is ${source.commit.length}-hex but the checkout uses ${pinned.length}-hex object ids`);
-    }
-    if (pinned !== source.commit)
-        unknownBecause(`pinned object ${source.commit} is not a commit`);
-    const entryAnswer = gitAnswer(real, ["rev-parse", "--verify", "--quiet", `${source.commit}:${source.entry}`], [0, 1]);
-    if (entryAnswer.status !== 0)
-        unknownBecause(`entry ${source.entry} is not in the pinned commit`);
-    const entryBlobAtPin = gitText(entryAnswer);
-    let manifest = null;
-    if (entryBlobAtPin === source.entry_blob) {
-        if (!REGULAR_FILE_MODES.has(modesAtPin(real, source.commit, [source.entry]).get(source.entry) ?? "")) {
-            unknownBecause(`entry ${source.entry} is not a regular file at the pin`);
-        }
-        manifest = parseManifest(blobText(real, entryBlobAtPin, format, `entry ${source.entry}`));
-        if (sweepListed && manifest.kind === "ok" && manifest.rows.length > 0) {
-            const modes = modesAtPin(real, source.commit, manifest.rows.map((row) => row.path));
-            for (const row of manifest.rows) {
-                if (!REGULAR_FILE_MODES.has(modes.get(row.path) ?? "")) {
-                    // The Path cell is a git argument only; the reason names the row by its ID and line (CR-02, D-13).
-                    unknownBecause(`the file listed for ${row.id} (manifest line ${row.line}, column 3) is not a regular file at the pin`);
-                }
-            }
-        }
-    }
-    const headAnswer = gitAnswer(real, ["rev-parse", "--verify", "--quiet", "HEAD"], [0, 1]);
-    const head = headAnswer.status === 0 ? gitText(headAnswer) : null;
-    return { answers: { commit: source.commit, entryBlobDeclared: source.entry_blob, entryBlobAtPin, manifest, head }, real, format };
-}
 /** The findings for one source: the pin decision, or the one `unknown` finding that names why it cannot be checked. */
 function checkSource(source, index) {
     try {
-        return pinState(gitAnswers(source, index, true).answers);
+        return pinState(upstreamGitAnswers(root, source, index, true).answers);
     }
     catch (e) {
-        if (e instanceof SourceUnknown)
+        if (e instanceof UpstreamGitUnknown)
             return [{ kind: "unknown", reason: e.message }];
         throw e;
     }
@@ -1318,19 +1287,6 @@ function checkReport() {
     lines.push(...siblingSkewLines());
     return { lines, code: checkExitCode(findings) };
 }
-/** The mode and object id `ls-tree -z --full-tree <commit> -- <path>` gives for exactly `path`, or null when none. */
-function entryAtPin(sourceReal, commit, path) {
-    const run = gitAnswer(sourceReal, ["ls-tree", "-z", "--full-tree", commit, "--", path]);
-    for (const record of run.stdout.toString("utf8").split("\0")) {
-        const tab = record.indexOf("\t");
-        if (tab < 0 || record.slice(tab + 1) !== path)
-            continue;
-        const [mode, , oid] = record.slice(0, tab).split(" ");
-        if (mode !== undefined && oid !== undefined)
-            return { mode, oid };
-    }
-    return null;
-}
 /**
  * The stdout text and the exit code of `read <source> <target>` (plan 44-06, D-15, D-16, D-17). Every refusal is one
  * `refused` line at exit 1; a source that cannot be checked, or bytes that do not hash to their id, stop the run at
@@ -1350,17 +1306,17 @@ function readReport(sourceId, target) {
         code: 1,
     });
     try {
-        const pinned = gitAnswers(source, index, false);
+        const pinned = upstreamGitAnswers(root, source, index, false);
         const findings = pinState(pinned.answers);
         const unknown = findings.find((f) => f.kind === "unknown");
         if (unknown !== undefined)
-            unknownBecause(unknown.reason);
+            upstreamGitUnknownBecause(unknown.reason);
         const mismatch = findings.find((f) => f.kind === "drift" && f.cause === "blob-mismatch");
         if (mismatch !== undefined && mismatch.kind === "drift")
             return refused(`${mismatch.cause} (${mismatch.detail})`);
         const manifest = pinned.answers.manifest;
         if (manifest === null || manifest.kind !== "ok")
-            return unknownBecause("manifest: it was not read");
+            return upstreamGitUnknownBecause("manifest: it was not read");
         let path = source.entry;
         let row = null;
         if (target !== MANIFEST_FLAG) {
@@ -1372,17 +1328,17 @@ function readReport(sourceId, target) {
         // What every message below names: never `path`, which is upstream text and is printed only inside the fence
         // (CR-02, D-13, D-17). `path` is a git argument and the fenceLines argument, nothing else.
         const label = row === null ? "the entry manifest" : `the file listed for ${row.id}`;
-        const entry = entryAtPin(pinned.real, source.commit, path);
-        if (entry === null || !REGULAR_FILE_MODES.has(entry.mode))
+        const entry = upstreamGitEntryAtPin(pinned.real, source.commit, path);
+        if (entry === null || !UPSTREAM_GIT_REGULAR_FILE_MODES.has(entry.mode))
             return refused(`${label} is not a regular file at the pin`);
         const blob = entry.oid;
-        const size = Number(gitText(gitAnswer(pinned.real, ["cat-file", "-s", blob])));
+        const size = Number(upstreamGitText(upstreamGitAnswer(pinned.real, ["cat-file", "-s", blob])));
         if (!Number.isSafeInteger(size) || size < 0)
-            unknownBecause(`git cat-file gave no size for ${label}`);
+            upstreamGitUnknownBecause(`git cat-file gave no size for ${label}`);
         if (size > UPSTREAM_READ_MAX_BYTES) {
             return refused(`${label} is over the per-read ceiling (${size} bytes; the ceiling is ${UPSTREAM_READ_MAX_BYTES}); ask upstream to split it`);
         }
-        const bytes = gitAnswer(pinned.real, ["cat-file", "blob", blob]).stdout;
+        const bytes = upstreamGitAnswer(pinned.real, ["cat-file", "blob", blob]).stdout;
         if (gitBlobId(bytes, pinned.format) !== blob) {
             couldNotRun(`the bytes git returned for ${label} do not hash to ${blob}. Nothing was printed.`);
         }
@@ -1402,7 +1358,7 @@ function readReport(sourceId, target) {
         return { out: `${superseded}${fence.begin}\n${body}${fence.end}\n`, code: 0 };
     }
     catch (e) {
-        if (e instanceof SourceUnknown)
+        if (e instanceof UpstreamGitUnknown)
             couldNotRun(`UNKNOWN - verify ${sourceId}: ${e.message}. Nothing was read.`);
         throw e;
     }

@@ -174,6 +174,11 @@ export function runnableSpecs(set) {
  * isCalendarDate from state-rules and normalizeDocument from board-model, each an earlier row sibling. The same plan adds
  * BUILD_REQUESTS_REL to the install/state-layout.ts roots and recordEntryNames to the scripts/state-rules.ts roots, for
  * the hand-written `requests` verb's folder listing. EMBED_SPEC_COUNT stays 7.
+ * Plan 45-01 (2026-11-26, D-02) also inserts scripts/upstream-git.ts into the upstream.ts row, after
+ * scripts/upstream-model.ts and before scripts/build-request-model.ts: the one git launcher and the object reads, moved
+ * out of the hand-written part of upstream.ts with no behavior change so the structure validator can call the same read
+ * (plan 45-08). It imports isWithin from scripts/context-io.ts and the manifest grammar, the path rule and the blob id
+ * from scripts/upstream-model.ts, each an earlier row sibling. Its roots are the names the hand-written part calls.
  */
 export const EMBED_SPECS = Object.freeze([
     {
@@ -434,6 +439,19 @@ export const EMBED_SPECS = Object.freeze([
                     "UPSTREAM_NONE_DECLARED_LINE",
                     "UPSTREAM_SOURCE_ID_RE",
                     "UPSTREAM_OBJECT_ID_RE",
+                ],
+            },
+            {
+                module: "scripts/upstream-git.ts",
+                roots: [
+                    "upstreamGitAnswers",
+                    "upstreamGitAnswer",
+                    "upstreamGitText",
+                    "upstreamGitEntryAtPin",
+                    "upstreamGitBlobText",
+                    "upstreamGitUnknownBecause",
+                    "UpstreamGitUnknown",
+                    "UPSTREAM_GIT_REGULAR_FILE_MODES",
                 ],
             },
             {

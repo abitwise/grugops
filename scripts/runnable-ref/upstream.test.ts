@@ -1838,8 +1838,10 @@ describe("upstream.js — source stat: a stat that fails is that source's own `U
     const design = makeUpstream(join(base, "design"), { files: syntheticFiles(), objectFormat: "sha1", env });
     const product = productDeclaring(base, sourceOf("design", "../design", design, 0), sourceOf("gone", "../gone", design, 1));
     const js = hostProgram();
-    const stats = deriveReadSites(js).filter((s) => s.enclosing === "gitAnswers" && s.fn === "statSync");
-    expect(stats, "PREMISE: gitAnswers stats the source's real path at one site, derived from the committed .js").toHaveLength(1);
+    // 2026-11-26, plan 45-01 (D-02): gitAnswers moved to scripts/upstream-git.ts as upstreamGitAnswers and reaches the
+    // program through the generated region; the site is located by its new enclosing name.
+    const stats = deriveReadSites(js).filter((s) => s.enclosing === "upstreamGitAnswers" && s.fn === "statSync");
+    expect(stats, "PREMISE: upstreamGitAnswers stats the source's real path at one site, derived from the committed .js").toHaveLength(1);
     const url = scriptUrl(js);
     const before = treeDigest(product);
     const r = runFaulted(
