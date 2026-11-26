@@ -483,6 +483,60 @@ function buildRequestBody(lines, close, fm) {
         },
     };
 }
+// ── The derivations (plan 45-03, D-08, D-12, D-13, BR-06) ───────────────────────────────────────────────
+// Each is computed from an admitted document every time it is asked for. None is stored in the file (research
+// Anti-Patterns), and none reads a clock: `today` is always a parameter.
+/** One UTC day in milliseconds. */
+const BUILD_REQUEST_DAY_MS = 86_400_000;
+/**
+ * True exactly when the request is `carried` and an `edited` entry follows its last `carried` entry (D-08): the human
+ * should send it again. A second `carried` entry after the edit records that re-send and clears the flag.
+ */
+export function buildRequestChangedSinceCarried(doc) {
+    if (doc.status !== "carried")
+        return false;
+    let lastCarried = -1;
+    doc.history.forEach((e, i) => {
+        if (e.event === "carried")
+            lastCarried = i;
+    });
+    return doc.history.some((e, i) => i > lastCarried && e.event === "edited");
+}
+/**
+ * The date the request last moved status (D-13): `raised` for an `open` request, the date of the last `carried` entry
+ * for a `carried` one, and null for `answered` and `withdrawn`, which no longer wait. An `edited` entry is no move.
+ */
+export function buildRequestLastMoveDate(doc) {
+    if (doc.status === "open")
+        return doc.raised;
+    if (doc.status !== "carried")
+        return null;
+    let last = null;
+    for (const e of doc.history)
+        if (e.event === "carried")
+            last = e.date;
+    return last;
+}
+/** The UTC midnight of a `YYYY-MM-DD` date, in milliseconds since the epoch. */
+function buildRequestUtcMs(date) {
+    return Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)));
+}
+/**
+ * The whole number of UTC calendar days from `from` to `today`, both `YYYY-MM-DD`: the difference of their Date.UTC
+ * values divided by one day, so no time zone, daylight saving or rounding enters it. Negative when `from` is later.
+ */
+export function buildRequestAgeDays(from, today) {
+    return (buildRequestUtcMs(today) - buildRequestUtcMs(from)) / BUILD_REQUEST_DAY_MS;
+}
+/** How many days the request has waited since its last status move on `today`, or null when it no longer waits. */
+export function buildRequestWaitDays(doc, today) {
+    const since = buildRequestLastMoveDate(doc);
+    return since === null ? null : buildRequestAgeDays(since, today);
+}
+/** Whether a wait of `days` is past the escalation threshold (`upstream.escalation_days`): strictly greater. */
+export function buildRequestIsOverdue(days, threshold) {
+    return days > threshold;
+}
 // ── The requests report ─────────────────────────────────────────────────────────────────────────────────
 /** The stdout line of one report item (plan 45-01 output grammar). */
 export function formatBuildRequestReportLine(item) {

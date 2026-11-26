@@ -211,6 +211,12 @@ export function runnableSpecs(set: readonly EmbedSpec[]): readonly EmbedSpec[] {
  * out of the hand-written part of upstream.ts with no behavior change so the structure validator can call the same read
  * (plan 45-08). It imports isWithin from scripts/context-io.ts and the manifest grammar, the path rule and the blob id
  * from scripts/upstream-model.ts, each an earlier row sibling. Its roots are the names the hand-written part calls.
+ * Plan 45-03 (2026-11-26, BR-01, BR-03) inserts scripts/frontmatter.ts into the upstream.ts row, after
+ * scripts/upstream-git.ts and before scripts/build-request-model.ts, with the roots unfencedHeadingIndices and
+ * sectionEndIndex: the build-request body grammar finds its six sections through the one section owner (LANG-07). The
+ * same plan adds HUMAN_STAMP_RE to the scripts/context-io.ts roots (the History grammar's human stamp), isTicketRef to
+ * the scripts/trace-model.ts roots and isTicketId to the scripts/board-model.ts roots (the `## Blocks` ticket rule), and
+ * UPSTREAM_ID_RE to the scripts/upstream-model.ts roots (the `## Upstream IDs` rule). EMBED_SPEC_COUNT stays 7.
  */
 export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
   {
@@ -447,11 +453,18 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
     authorities: [
       { module: "install/state-layout.ts", roots: ["GRUGOPS_DIR_REL", "BUILD_REQUESTS_REL"] },
       { module: "scripts/state-rules.ts", roots: ["stripControlChars", "isCalendarDate", "recordEntryNames"] },
-      { module: "scripts/trace-model.ts", roots: ["UPSTREAM_REF_PREFIX"] },
-      { module: "scripts/board-model.ts", roots: ["normalizeDocument"] },
+      { module: "scripts/trace-model.ts", roots: ["UPSTREAM_REF_PREFIX", "isTicketRef"] },
+      { module: "scripts/board-model.ts", roots: ["normalizeDocument", "isTicketId"] },
       {
         module: "scripts/context-io.ts",
-        roots: ["rootChainPresence", "isWithin", "ROOT_CHAIN_LINK_REFUSAL", "readRegularFileOrNull", "entryPresence"],
+        roots: [
+          "rootChainPresence",
+          "isWithin",
+          "ROOT_CHAIN_LINK_REFUSAL",
+          "readRegularFileOrNull",
+          "entryPresence",
+          "HUMAN_STAMP_RE",
+        ],
       },
       {
         module: "scripts/upstream-model.ts",
@@ -471,6 +484,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "UPSTREAM_NONE_DECLARED_LINE",
           "UPSTREAM_SOURCE_ID_RE",
           "UPSTREAM_OBJECT_ID_RE",
+          "UPSTREAM_ID_RE",
         ],
       },
       {
@@ -486,6 +500,7 @@ export const EMBED_SPECS: readonly EmbedSpec[] = Object.freeze([
           "UPSTREAM_GIT_REGULAR_FILE_MODES",
         ],
       },
+      { module: "scripts/frontmatter.ts", roots: ["unfencedHeadingIndices", "sectionEndIndex"] },
       {
         module: "scripts/build-request-model.ts",
         roots: [

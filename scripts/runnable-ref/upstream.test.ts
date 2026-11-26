@@ -1942,8 +1942,25 @@ const BR_DIR = join(...BUILD_REQUESTS_REL.split("/"));
 const BR_PIN = "0123456789abcdef0123456789abcdef01234567";
 
 /**
+ * The History lines and the answer a status implies, in the forms chosen at the plan 45-03 checkpoint (option-a): plan
+ * 45-03 made the grammar refuse a `status` the History does not imply (status-mismatch) and an answer that does not
+ * match the status (bad-answer). The answer pin is a second invented 40-hex id, different from BR_PIN (BR-05).
+ */
+function buildRequestHistoryFor(status: string, raised: string): { readonly history: string; readonly answer: string } {
+  const open = `- ${raised}: open, by BA/PM\n`;
+  const carried = `- ${raised}: carried, by human:jane.example\n`;
+  if (status === "carried") return { history: open + carried, answer: "" };
+  if (status === "answered") {
+    const answered = `- ${raised}: answered, by human:jane.example, pin 89abcdef0123456789abcdef0123456789abcdef\n`;
+    return { history: open + carried + answered, answer: "\nDEC-12 at the new pin answers it.\n" };
+  }
+  return { history: open, answer: "" };
+}
+
+/**
  * The full file form of a build request (45-RESEARCH.md Pattern 2): the five frontmatter keys, then the six sections in
- * D-05 order. `extraKey` adds a sixth frontmatter line. Invented IDs only.
+ * D-05 order, with the History the status implies (buildRequestHistoryFor). `extraKey` adds a sixth frontmatter line.
+ * Invented IDs only.
  */
 function buildRequestText(o: {
   readonly id: string;
@@ -1953,6 +1970,7 @@ function buildRequestText(o: {
   readonly extraKey?: string;
 }): string {
   const raised = o.raised ?? "2026-12-01";
+  const implied = buildRequestHistoryFor(o.status, raised);
   return (
     "---\n" +
     `id: ${o.id}\n` +
@@ -1967,8 +1985,8 @@ function buildRequestText(o: {
     "## Upstream IDs\n\n- DEC-12\n\n" +
     "## Options\n\n- (recommended) The server store owns it.\n- The client store owns it.\n\n" +
     "## Blocks\n\n- ABC-014\n\n" +
-    `## History\n\n- ${raised}: open, by BA/PM\n\n` +
-    "## Answer\n"
+    `## History\n\n${implied.history}\n` +
+    `## Answer\n${implied.answer}`
   );
 }
 
@@ -2062,6 +2080,18 @@ describe("upstream.js — requests: the carry list (plan 45-01, BR-04, D-12)", (
     expect(r.stderr).toBe("");
     expect(r.stdout).toBe("no build request needs a human (1 on file)\n");
     expect(r.status).toBe(0);
+  });
+
+  it("(e) the installed reader applies the full body grammar: a carried status over an open-only History is `refused BR-8.md: status-mismatch` (plan 45-03, BR-03)", () => {
+    const { base, env } = scratch();
+    const carriedText = buildRequestText({ id: "BR-8", status: "carried" });
+    const product = productWithRequests(base, {
+      "BR-8.md": carriedText.replace("- 2026-12-01: carried, by human:jane.example\n", ""),
+    });
+    const r = upstream(product, env, "requests");
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe("refused BR-8.md: status-mismatch\n");
+    expect(r.status).toBe(2);
   });
 
   it.skipIf(process.platform === "win32")(

@@ -154,7 +154,10 @@ const INSTALL_TEST_FILE_COUNT = 48;
 // SCRIPTS_TEST_FILE_COUNT 86 -> 87 (2026-11-25, plan 44-02, re-derived by listing scripts/, not incremented) for
 // upstream-model.test.ts, which has no chmod call and reads no `.mode` (it calls the pure upstream authority and, for
 // the sha256 blob id, runs `git hash-object` in a scratch repository).
-const SCRIPTS_TEST_FILE_COUNT = 87;
+// SCRIPTS_TEST_FILE_COUNT 87 -> 88 (2026-11-26, plan 45-03, re-derived by listing scripts/, not incremented) for
+// build-request-model.test.ts, which has no chmod call and reads no `.mode` (it calls the pure build-request grammar
+// on text built in memory and touches no file).
+const SCRIPTS_TEST_FILE_COUNT = 88;
 const SOURCE_FILE_COUNT = 11;
 
 /** Rule (a): the tagged raw chmod calls per kind, and the one untagged call (inside userModeEdit). access-denial

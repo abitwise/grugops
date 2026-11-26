@@ -822,8 +822,16 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
     // heading grammar of its own. Re-derived rather than incremented: the same `git ls-files … |
     // xargs grep -l 'from "./frontmatter.js"'` minus test files reports fifteen with this module
     // tracked (2026-11-18).
+    //
+    // (Plan 45-03, BR-01, BR-03) AND FROM FIFTEEN TO SIXTEEN, SAME DIRECTION. `build-request-model.ts`,
+    // the build-request grammar, imports `unfencedHeadingIndices` and `sectionEndIndex`, the two
+    // section-locator answers, to find its six body sections. No verdict-bearing symbol, no private
+    // fence state and no heading grammar of its own. Re-derived rather than incremented: the same
+    // `git ls-files … | xargs grep -l 'from "./frontmatter.js"'` minus test files reports sixteen with
+    // this module tracked (2026-11-26).
     expect(consumers).toEqual([
       "audit-model.ts",
+      "build-request-model.ts",
       "canonical-frontmatter.ts",
       "check-banned-claims.ts",
       "check-diff-disposition.ts",
@@ -847,6 +855,10 @@ describe("D-64 cutover: the spawn verdict is rendered by the canonical admission
       importedSymbols("check-story-docs.ts", "frontmatter"),
       "check-story-docs.ts takes the fence toggle only — no section locator and no grant predicate (plan 43-03)",
     ).toEqual(["fencedLineFlags"]);
+    expect(
+      importedSymbols("build-request-model.ts", "frontmatter"),
+      "build-request-model.ts takes the two section-locator answers only — no grant predicate (plan 45-03)",
+    ).toEqual(["sectionEndIndex", "unfencedHeadingIndices"]);
     // (Plan 29-35) …and `generate-catalog.ts`'s OWN set, pinned like every other locator consumer's.
     //
     // (Plan 29-40, G-29-1 / V-29-35-01) THE SET MOVED FROM TWO SYMBOLS TO THE SIBLING'S THREE, AND
@@ -2468,8 +2480,22 @@ const SECTION_EXTENT_OWNER_COUNT = 1;
  *     module.
  *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts` members reports 121
  *   with both modules tracked (2026-11-26, plan 45-01).
+ *
+ * 121 -> 122 (plan 45-03, BR-01, BR-03, BR-05), ONE MODULE:
+ *   - `scripts/build-request-fixture.test-support.ts` — the TEST-ONLY builder of build-request file text
+ *     (buildRequestText, validBuildRequestParts) for scripts/build-request-model.test.ts, with invented IDs, pins and
+ *     names. It is counted by file shape like the other `.test-support.ts` harnesses and excluded from emit, so it has
+ *     no `.js` twin. It imports nothing.
+ *   BOTH OWNER ANSWERS ARE UNCHANGED: it declares no function named for the frontmatter parser, builds no section
+ *     bound, reads no grant and renders no spawn verdict.
+ *   The same plan changes what scripts/build-request-model.ts imports, and adds no module for it: it now also takes
+ *     `isTicketId` from ./board-model.js, `HUMAN_STAMP_RE` from ./context-io.js, `unfencedHeadingIndices` and
+ *     `sectionEndIndex` from ./frontmatter.js (the one section owner, so it builds no section bound of its own), and
+ *     `isTicketRef` from ./trace-model.js and `UPSTREAM_ID_RE` from ./upstream-model.js.
+ *   Re-derived rather than incremented: `git ls-files '*.ts'` minus the `.test.ts` and `.d.ts` members reports 122
+ *   with the module tracked (2026-11-26, plan 45-03).
  */
-const NON_TEST_MODULE_COUNT = 121;
+const NON_TEST_MODULE_COUNT = 122;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // (Plan 29-40, gap G-29-1 of 29-UAT.md, closing V-29-35-01) THE FRONTMATTER-PARSER NAME OWNER SET.
@@ -2609,8 +2635,14 @@ const LOCATOR_FUNCTIONS = [
 // and asks `sectionEndIndex` for every section end, and it reads the board and rubric tables through
 // `unfencedHeadingIndex`. It declares NO close scan and NO fence state of its own, so it is adoption,
 // checked in that direction before the pin moved.
+// (Plan 45-03, BR-01, BR-03) RE-DERIVED AND UP BY ONE. `scripts/build-request-model.ts`, the build-request
+// grammar, joins: it finds each of its six body sections with `unfencedHeadingIndices` and walks every
+// level-one and level-two heading, and every section end, with `sectionEndIndex`. It declares NO heading
+// equality, NO close scan and NO fence state of its own, so it is adoption, checked in that direction before
+// the pin moved (2026-11-26).
 const LOCATOR_CONSUMERS = [
   "scripts/audit-model.ts",
+  "scripts/build-request-model.ts",
   "scripts/check-banned-claims.ts",
   "scripts/check-diff-disposition.ts",
   "scripts/check-imperative-lexicon.ts",
@@ -2620,7 +2652,7 @@ const LOCATOR_CONSUMERS = [
   "scripts/generate-role-adapters.ts",
   "scripts/voice-model.ts",
 ];
-const LOCATOR_CONSUMER_COUNT = 9;
+const LOCATOR_CONSUMER_COUNT = 10;
 
 /**
  * A source carrying ONE site of each construct pair — the falsifiability probe's fixture.
@@ -3127,7 +3159,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // `scripts/upstream-git.ts`, the git read moved out of the host reader. Both readers must agree on each module's
     // import set like every other module both can see. Re-derived: `ls scripts/*.ts` minus the tests and the `.d.ts`
     // files reports 77 with both modules tracked (2026-11-26).
-    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(77);
+    // 77 → 78 (plan 45-03, BR-01): `scripts/build-request-fixture.test-support.ts`, the test-only builder of
+    // build-request file text. It imports nothing, so both readers agree on its empty import set. Re-derived: `ls
+    // scripts/*.ts` minus the tests and the `.d.ts` files reports 78 with the module tracked (2026-11-26).
+    expect(flat.length, "the `scripts/`-scoped reader's own corpus").toBe(78);
     let compared = 0;
     for (const n of flat) {
       for (const spec of ["frontmatter", "canonical-frontmatter", "audit-model"]) {
@@ -3168,7 +3203,8 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
     // 73 → 74 (plan 43-03): `check-story-docs.ts`, three specs per module as ever (2026-11-18).
     // 74 → 75 (plan 44-01): `upstream-model.ts`, three specs per module as ever (2026-11-25).
     // 75 → 77 (plan 45-01): `build-request-model.ts` and `upstream-git.ts`, three specs per module as ever (2026-11-26).
-    expect(compared, "the comparison must really have run over the whole corpus").toBe(77 * 3);
+    // 77 → 78 (plan 45-03): `build-request-fixture.test-support.ts`, three specs per module as ever (2026-11-26).
+    expect(compared, "the comparison must really have run over the whole corpus").toBe(78 * 3);
     // NON-VACUITY: the comparison would be clean over two readers that both return nothing, so at
     // least one module must have produced a non-empty answer through the NEW reader.
     expect(
@@ -3414,7 +3450,10 @@ describe("LANG-07: exactly ONE module owns the section-extent predicate (plan 29
       // 75 → 77 (plan 45-01, BR-04, D-02): `build-request-model.ts` and `upstream-git.ts`, the same two modules the flat
       // reader gained; both pins move in one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests
       // reports 77 (2026-11-26).
-    ).toBe(77);
+      // 77 → 78 (plan 45-03, BR-01): `build-request-fixture.test-support.ts`, the same module the flat reader gained;
+      // both pins move in one commit for the same reason. Re-derived: `ls scripts/*.ts` minus the tests reports 78
+      // (2026-11-26).
+    ).toBe(78);
 
     // THE ELEMENT COUNT, DERIVED INDEPENDENTLY OF THE WALK THAT PRODUCES IT. A vacuity floor catches
     // an EMPTY denominator and has never caught a SILENTLY SHORT one, so the set is compared against
@@ -10211,7 +10250,13 @@ const censusRelationshipFindings = (c: TripwireCensus): string[] => {
 // upstream authority (the declaration, path, manifest, object id, blob id, fence, ref and pin-decision grammars). The
 // pin moved because a module landed, not to make a red go away. Re-derived rather than incremented: `ls
 // scripts/*.test.ts | wc -l` reports 87 on this tree (2026-11-25, plan 44-02).
-const TRIPWIRE_MODULES = 87;
+//
+// 87 -> 88 (plan 45-03, 2026-11-26): ONE test module, `scripts/build-request-model.test.ts` — the unit cases of the
+// build-request grammar (the six sections, the History line forms, the closed lifecycle, every refusal code) and its
+// derivations (changed since carried, last move date, age in UTC days, the overdue boundary). The pin moved because a
+// module landed, not to make a red go away. Re-derived rather than incremented: `ls scripts/*.test.ts | wc -l` reports
+// 88 on this tree (2026-11-26, plan 45-03).
+const TRIPWIRE_MODULES = 88;
 /**
  * Corpus-derived floors, expressed as RATES so the floor grows with the corpus it floors.
  * Each is set well below its measured live value: the point is to catch a measurement that

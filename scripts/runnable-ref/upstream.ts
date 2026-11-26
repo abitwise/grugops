@@ -100,7 +100,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { type Stats, closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, parse, resolve, sep } from "node:path";
-export const RUNNABLE_SET_STAMP = "sha256:a72ebd56b36a906f763a5e402848580c649154a02b7a62b358fc0a203db3729a";
+export const RUNNABLE_SET_STAMP = "sha256:5421ecc668f4b38f7a0bd54a844ad1d5c09cf12285badf0d17bb0dda125d246e";
 export const RUNNABLE_SET = Object.freeze(["claim.js", "note.js", "state-check.js", "state-roll.js", "trace-render.js", "upstream.js"] as const);
 export const RUNNABLE_SELF = "upstream.js";
 // from install/state-layout.ts
@@ -132,13 +132,24 @@ function codeUnitOrder(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 // from scripts/trace-model.ts
+export type TicketIdTest = (id: string) => boolean;
+const RESERVED_PREFIXES = new Set(["EPIC", "FEAT", "NFR", "ADR", "RISK", "REL", "INC", "UAT", "BR"]);
 export const UPSTREAM_REF_PREFIX = "upstream:";
+export function isTicketRef(ref: string, isTicketId: TicketIdTest): boolean {
+  return isTicketId(ref) && !RESERVED_PREFIXES.has(ref.slice(0, ref.lastIndexOf("-")));
+}
 // from scripts/board-model.ts
+const TICKET_ID = /^[A-Z][A-Z0-9]{0,15}-\d{1,9}$/;
+const EPIC_ID = /^(?:EPIC|FEAT)-\d{1,9}$/;
+export function isTicketId(id: string): boolean {
+  return TICKET_ID.test(id) && !EPIC_ID.test(id);
+}
 export function normalizeDocument(text: string): string {
   const withoutMark = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   return withoutMark.split("\r\n").join("\n");
 }
 // from scripts/context-io.ts
+export const HUMAN_STAMP_RE = /^human:[A-Za-z0-9._-]+$/;
 export const CANONICAL_READ_POSITION = "absent, or a regular file";
 export const READ_POSITION_CONDITIONS = ["unopenable", "not-a-regular-file", "above-ceiling"] as const;
 export type ReadPositionCondition = (typeof READ_POSITION_CONDITIONS)[number];
@@ -925,6 +936,96 @@ export function upstreamGitEntryAtPin(sourceReal: string, commit: string, path: 
   }
   return null;
 }
+// from scripts/frontmatter.ts
+const HTML_BLOCK_OPEN = /^ {0,3}<[!/a-zA-Z]/;
+export function blockContextFlags(text: string): boolean[] {
+  const lines = text.split("\n");
+  const flags: boolean[] = [];
+  let inside = false;
+  let openChar = "";
+  let openLen = 0;
+  let html: "none" | "comment" | "tag" = "none";
+  for (const line of lines) {
+    if (html !== "none") {
+      // A COMMENT block ends on the line carrying `-->`; a TAG block ends at the next blank line.
+      const ends = html === "comment" ? line.includes("-->") : /^[ \t]*$/.test(line);
+      flags.push(true);
+      if (ends) html = "none";
+      continue;
+    }
+    const run = strictFenceRun(line);
+    if (!inside) {
+      if (run !== null) {
+        inside = !inside;
+        openChar = run.char;
+        openLen = run.len;
+        flags.push(true);
+        continue;
+      }
+      if (HTML_BLOCK_OPEN.test(line)) {
+        html = line.includes("<!--") ? "comment" : "tag";
+        // A comment that opens and closes on one line, or a tag block on a line that is itself
+        // blank-terminated, does not carry the block past itself.
+        if (html === "comment" && line.includes("-->")) html = "none";
+        flags.push(true);
+        continue;
+      }
+    } else if (
+      run !== null &&
+      run.char === openChar &&
+      run.len >= openLen &&
+      /^[ \t]*$/.test(run.info)
+    ) {
+      // §4.5's closing rule IN FULL here: same character, at least as long, and NO info string.
+      inside = !inside;
+      flags.push(true);
+      continue;
+    }
+    flags.push(inside);
+  }
+  return flags;
+}
+function strictFenceRun(line: string): { char: string; len: number; info: string } | null {
+  const at = line.search(/[^ ]/);
+  if (at < 0 || at > 3) return null;
+  const rest = line.slice(at);
+  const char = rest[0];
+  if (char !== "`" && char !== "~") return null;
+  let len = 0;
+  while (len < rest.length && rest[len] === char) len += 1;
+  if (len < 3) return null;
+  const info = rest.slice(len);
+  if (char === "`" && info.includes("`")) return null; // a backtick fence's info string may not carry one
+  return { char, len, info };
+}
+const HEADING_AT_MOST_1 = /^# /;
+const HEADING_AT_MOST_2 = /^#{1,2} /;
+export function unfencedHeadingIndices(text: string, heading: string): number[] {
+  const lines = text.split("\n");
+  // THE STRICT PROJECTION, not the prose one (round 4, R5-2). See `blockContextFlags`.
+  const flags = blockContextFlags(text);
+  const at: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!flags[i] && lines[i].trimEnd() === heading) at.push(i);
+  }
+  return at;
+}
+export function sectionEndIndex(
+  text: string,
+  from: number,
+  level: 1 | 2,
+): number {
+  const lines = text.split("\n");
+  // THE STRICT PROJECTION (round 4, R5-2). "Does this line END a section" must agree with the
+  // renderer or every freeze built on it is fiction; "is this line governed prose" is the other
+  // question and keeps the measured lax view.
+  const flags = blockContextFlags(text);
+  const closes = level === 1 ? HEADING_AT_MOST_1 : HEADING_AT_MOST_2;
+  for (let i = Math.max(from, 0); i < lines.length; i++) {
+    if (!flags[i] && closes.test(lines[i])) return i;
+  }
+  return lines.length;
+}
 // from scripts/build-request-model.ts
 export const BUILD_REQUEST_KEYS = Object.freeze(["id", "status", "source", "pin", "raised"] as const);
 export const BUILD_REQUEST_STATUSES = Object.freeze(["open", "carried", "answered", "withdrawn"] as const);
@@ -934,6 +1035,24 @@ const BUILD_REQUEST_DELIMITER = "---";
 const BUILD_REQUEST_KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?: ([^\t]*))?$/;
 const BUILD_REQUEST_CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/;
 const BUILD_REQUEST_DATE_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+export const BUILD_REQUEST_SECTIONS = Object.freeze([
+  "## Question",
+  "## Upstream IDs",
+  "## Options",
+  "## Blocks",
+  "## History",
+  "## Answer",
+] as const);
+export const BUILD_REQUEST_RECOMMENDED_MARKER = "(recommended) ";
+export const BUILD_REQUEST_NONE_IDS = "none";
+export const BUILD_REQUEST_EVENTS = Object.freeze(["open", "edited", "carried", "answered", "withdrawn"] as const);
+export const BUILD_REQUEST_AGENT_ACTOR = "BA/PM";
+const BUILD_REQUEST_BULLET = "- ";
+const BUILD_REQUEST_TITLE_OPENING = "# ";
+const BUILD_REQUEST_HISTORY_RE =
+  /^- ([0-9]{4}-[0-9]{2}-[0-9]{2}): (open|edited|carried|answered|withdrawn), by (BA\/PM|human:[^,:\s]*)(.*)$/;
+const BUILD_REQUEST_TEXT_TAIL_RE = /^: (.*\S.*)$/;
+const BUILD_REQUEST_ANSWER_TAIL_RE = /^, pin ([0-9a-f]+)(, not-descendant)?$/;
 export type BuildRequestKey = (typeof BUILD_REQUEST_KEYS)[number];
 export type BuildRequestStatus = (typeof BUILD_REQUEST_STATUSES)[number];
 export type BuildRequestRefusalCode =
@@ -946,13 +1065,46 @@ export type BuildRequestRefusalCode =
   | "missing-key"
   | "bad-value"
   | "bad-file-name"
-  | "id-mismatch";
+  | "id-mismatch"
+  | "bad-section"
+  | "bad-upstream-ids"
+  | "bad-options"
+  | "bad-blocks"
+  | "bad-history-line"
+  | "bad-history-order"
+  | "bad-transition"
+  | "status-mismatch"
+  | "bad-answer";
+export type BuildRequestEvent = (typeof BUILD_REQUEST_EVENTS)[number];
+export interface BuildRequestHistoryEntry {
+  readonly date: string;
+  readonly event: BuildRequestEvent;
+  readonly actor: string;
+  /** The new pin of an `answered` entry, else null. */
+  readonly pin: string | null;
+  /** True only on an `answered` entry that carries `, not-descendant` (D-11). */
+  readonly notDescendant: boolean;
+  readonly line: number;
+}
+export interface BuildRequestOption {
+  readonly text: string;
+  readonly recommended: boolean;
+}
 export interface BuildRequestDocument {
   readonly id: string;
   readonly status: BuildRequestStatus;
   readonly source: string;
   readonly pin: string;
   readonly raised: string;
+  /** The upstream IDs the request touches; empty when `## Upstream IDs` holds the single line `none`. */
+  readonly upstreamIds: readonly string[];
+  readonly options: readonly BuildRequestOption[];
+  /** The ticket IDs the request blocks, at least one. */
+  readonly blocks: readonly string[];
+  /** The History entries in file order, the first `open`. */
+  readonly history: readonly BuildRequestHistoryEntry[];
+  /** Whether `## Answer` holds any text; true exactly when the status is `answered`. */
+  readonly hasAnswer: boolean;
 }
 export type BuildRequestResult =
   | { readonly ok: true; readonly value: BuildRequestDocument }
@@ -970,7 +1122,8 @@ export function buildRequestIdOfFileName(name: string): string | null {
 export function compareBuildRequestIds(a: string, b: string): number {
   return Number(a.slice("BR-".length)) - Number(b.slice("BR-".length));
 }
-function buildRequestRefusal(code: BuildRequestRefusalCode, reason: string, line?: number): BuildRequestResult {
+type BuildRequestRefused = Extract<BuildRequestResult, { ok: false }>;
+function buildRequestRefusal(code: BuildRequestRefusalCode, reason: string, line?: number): BuildRequestRefused {
   return line === undefined ? { ok: false, code, reason } : { ok: false, code, reason, line };
 }
 function buildRequestValueOk(key: BuildRequestKey, value: string): boolean {
@@ -1057,14 +1210,337 @@ export function parseBuildRequestDocument(text: string, fileName: string): Build
   if (id !== nameId) {
     return buildRequestRefusal("id-mismatch", "the frontmatter `id` differs from the id in the file name");
   }
+  return buildRequestBody(lines, close, {
+    id,
+    status: values.get("status") as BuildRequestStatus,
+    source: values.get("source") as string,
+    pin: values.get("pin") as string,
+    raised: values.get("raised") as string,
+  });
+}
+type BuildRequestFrontmatter = Pick<BuildRequestDocument, "id" | "status" | "source" | "pin" | "raised">;
+interface BuildRequestItem {
+  readonly text: string;
+  readonly line: number;
+}
+type BuildRequestStep<T> = { readonly ok: true; readonly value: T } | BuildRequestRefused;
+function buildRequestSectionList(): string {
+  return BUILD_REQUEST_SECTIONS.map((s) => `\`${s}\``).join(", ");
+}
+function buildRequestSectionAt(
+  body: string,
+  bodyLines: readonly string[],
+  toLine: (i: number) => number,
+): BuildRequestStep<readonly number[]> {
+  const at: number[] = [];
+  for (const name of BUILD_REQUEST_SECTIONS) {
+    const found = unfencedHeadingIndices(body, name);
+    if (found.length === 0) {
+      return buildRequestRefusal(
+        "bad-section",
+        `the body has no \`${name}\` section; a build request holds ${buildRequestSectionList()}, each once`,
+      );
+    }
+    if (found.length > 1) {
+      const second = toLine(found[1] as number);
+      return buildRequestRefusal(
+        "bad-section",
+        `line ${second} writes \`${name}\` a second time; each section appears once`,
+        second,
+      );
+    }
+    at.push(found[0] as number);
+  }
+  const first = at[0] as number;
+  const firstHeading = sectionEndIndex(body, 0, 2);
+
+  // Every unfenced heading of level one or two, walked through the one section owner. Each must be a section heading,
+  // except one level-one title line that comes before `## Question`.
+  for (let i = firstHeading; i < bodyLines.length; i = sectionEndIndex(body, i + 1, 2)) {
+    if (at.includes(i)) continue;
+    if (i === firstHeading && i < first && (bodyLines[i] as string).startsWith(BUILD_REQUEST_TITLE_OPENING)) continue;
+    const line = toLine(i);
+    return buildRequestRefusal(
+      "bad-section",
+      `line ${line} is a heading outside the six sections (${buildRequestSectionList()}); only one level-one title line may come before \`## Question\``,
+      line,
+    );
+  }
+
+  for (let s = 1; s < at.length; s += 1) {
+    if ((at[s] as number) < (at[s - 1] as number)) {
+      const line = toLine(at[s] as number);
+      return buildRequestRefusal(
+        "bad-section",
+        `line ${line}: \`${BUILD_REQUEST_SECTIONS[s]}\` comes before \`${BUILD_REQUEST_SECTIONS[s - 1]}\`; the sections run in the order ${buildRequestSectionList()}`,
+        line,
+      );
+    }
+  }
+
+  for (let i = 0; i < first; i += 1) {
+    const text = bodyLines[i] as string;
+    if (text.trim() === "" || text.startsWith(BUILD_REQUEST_TITLE_OPENING)) continue;
+    const line = toLine(i);
+    return buildRequestRefusal(
+      "bad-section",
+      `line ${line} holds text before \`## Question\`; only one level-one title line may come before the first section`,
+      line,
+    );
+  }
+  return { ok: true, value: at };
+}
+function buildRequestItems(
+  body: string,
+  bodyLines: readonly string[],
+  heading: number,
+  toLine: (i: number) => number,
+): BuildRequestItem[] {
+  const end = sectionEndIndex(body, heading + 1, 2);
+  const items: BuildRequestItem[] = [];
+  for (let i = heading + 1; i < end; i += 1) {
+    const text = (bodyLines[i] as string).trimEnd();
+    if (text.trim() !== "") items.push({ text, line: toLine(i) });
+  }
+  return items;
+}
+function buildRequestUpstreamIds(items: readonly BuildRequestItem[], headingLine: number): BuildRequestStep<string[]> {
+  const refuse = (reason: string, line: number) =>
+    buildRequestRefusal("bad-upstream-ids", reason, line);
+  if (items.length === 0) {
+    return refuse(
+      `line ${headingLine}: \`## Upstream IDs\` is empty; it holds one \`- <ID>\` bullet per upstream ID, or the single line \`${BUILD_REQUEST_NONE_IDS}\``,
+      headingLine,
+    );
+  }
+  if (items.length === 1 && (items[0] as BuildRequestItem).text === BUILD_REQUEST_NONE_IDS) return { ok: true, value: [] };
+  const ids: string[] = [];
+  for (const item of items) {
+    if (item.text === BUILD_REQUEST_NONE_IDS) {
+      return refuse(`line ${item.line}: \`${BUILD_REQUEST_NONE_IDS}\` is the only line of a section that names no ID`, item.line);
+    }
+    const id = item.text.startsWith(BUILD_REQUEST_BULLET) ? item.text.slice(BUILD_REQUEST_BULLET.length) : "";
+    if (!UPSTREAM_ID_RE.test(id)) {
+      return refuse(
+        `line ${item.line} is not \`- <ID>\` with an upstream ID: capital letters and digits, a hyphen and a number`,
+        item.line,
+      );
+    }
+    if (ids.includes(id)) return refuse(`line ${item.line} names an upstream ID a second time`, item.line);
+    ids.push(id);
+  }
+  return { ok: true, value: ids };
+}
+function buildRequestOptions(
+  items: readonly BuildRequestItem[],
+  headingLine: number,
+): BuildRequestStep<BuildRequestOption[]> {
+  const refuse = (reason: string, line: number) =>
+    buildRequestRefusal("bad-options", reason, line);
+  const marked = BUILD_REQUEST_RECOMMENDED_MARKER.trimEnd();
+  const options: BuildRequestOption[] = [];
+  for (const item of items) {
+    if (!item.text.startsWith(BUILD_REQUEST_BULLET) || item.text.slice(BUILD_REQUEST_BULLET.length).trim() === "") {
+      return refuse(`line ${item.line} is not an option bullet \`- <text>\``, item.line);
+    }
+    const rest = item.text.slice(BUILD_REQUEST_BULLET.length);
+    if (rest.startsWith(marked)) {
+      const text = rest.startsWith(BUILD_REQUEST_RECOMMENDED_MARKER)
+        ? rest.slice(BUILD_REQUEST_RECOMMENDED_MARKER.length).trim()
+        : "";
+      if (text === "") {
+        return refuse(
+          `line ${item.line}: the recommended option is \`- ${BUILD_REQUEST_RECOMMENDED_MARKER}<text>\`, with a text`,
+          item.line,
+        );
+      }
+      options.push({ text, recommended: true });
+    } else {
+      options.push({ text: rest.trim(), recommended: false });
+    }
+  }
+  const recommended = options.filter((o) => o.recommended).length;
+  if (options.length === 0 || recommended !== 1) {
+    return refuse(
+      `line ${headingLine}: \`## Options\` holds at least one bullet and exactly one opens \`- ${BUILD_REQUEST_RECOMMENDED_MARKER}\`; it has ${options.length} bullets and ${recommended} recommended`,
+      headingLine,
+    );
+  }
+  return { ok: true, value: options };
+}
+function buildRequestBlocks(items: readonly BuildRequestItem[], headingLine: number): BuildRequestStep<string[]> {
+  const refuse = (reason: string, line: number) =>
+    buildRequestRefusal("bad-blocks", reason, line);
+  if (items.length === 0) {
+    return refuse(`line ${headingLine}: \`## Blocks\` names at least one blocked ticket as \`- <ticket ID>\``, headingLine);
+  }
+  const blocks: string[] = [];
+  for (const item of items) {
+    const id = item.text.startsWith(BUILD_REQUEST_BULLET) ? item.text.slice(BUILD_REQUEST_BULLET.length) : "";
+    if (!isTicketRef(id, isTicketId)) {
+      return refuse(
+        `line ${item.line} is not \`- <ticket ID>\` with a ticket ID; a build request, epic, decision or other structural ID is not a ticket`,
+        item.line,
+      );
+    }
+    if (blocks.includes(id)) return refuse(`line ${item.line} names a blocked ticket a second time`, item.line);
+    blocks.push(id);
+  }
+  return { ok: true, value: blocks };
+}
+function buildRequestHistoryEntry(item: BuildRequestItem): BuildRequestHistoryEntry | null {
+  const m = BUILD_REQUEST_HISTORY_RE.exec(item.text);
+  if (m === null) return null;
+  const date = m[1] as string;
+  const event = m[2] as BuildRequestEvent;
+  const actor = m[3] as string;
+  const tail = m[4] as string;
+  if (!isCalendarDate(date)) return null;
+  if (actor !== BUILD_REQUEST_AGENT_ACTOR && !HUMAN_STAMP_RE.test(actor)) return null;
+  const base = { date, event, actor, pin: null, notDescendant: false, line: item.line };
+  if (event === "open" || event === "carried") return tail === "" ? base : null;
+  if (event === "edited" || event === "withdrawn") return BUILD_REQUEST_TEXT_TAIL_RE.test(tail) ? base : null;
+  const a = BUILD_REQUEST_ANSWER_TAIL_RE.exec(tail);
+  if (a === null || !UPSTREAM_OBJECT_ID_RE.test(a[1] as string)) return null;
+  return { ...base, pin: a[1] as string, notDescendant: a[2] !== undefined };
+}
+function buildRequestHistory(
+  items: readonly BuildRequestItem[],
+  headingLine: number,
+  fm: BuildRequestFrontmatter,
+): BuildRequestStep<{ readonly entries: BuildRequestHistoryEntry[]; readonly implied: BuildRequestStatus }> {
+  const refuse = (code: BuildRequestRefusalCode, reason: string, line: number) =>
+    buildRequestRefusal(code, reason, line);
+  if (items.length === 0) {
+    return refuse(
+      "bad-history-order",
+      `line ${headingLine}: \`## History\` is empty; its first entry is \`open, by ${BUILD_REQUEST_AGENT_ACTOR}\` dated \`raised\``,
+      headingLine,
+    );
+  }
+  const entries: BuildRequestHistoryEntry[] = [];
+  let state: BuildRequestStatus = "open";
+  for (const item of items) {
+    const entry = buildRequestHistoryEntry(item);
+    const at = item.line;
+    if (entry === null) {
+      return refuse(
+        "bad-history-line",
+        `line ${at} is not a History entry: \`- YYYY-MM-DD: <event>, by <actor>\` in one of the closed forms for ${BUILD_REQUEST_EVENTS.join(", ")}`,
+        at,
+      );
+    }
+    const human = entry.actor !== BUILD_REQUEST_AGENT_ACTOR;
+    const previous = entries[entries.length - 1];
+    if (previous === undefined) {
+      if (entry.event !== "open" || entry.date !== fm.raised) {
+        return refuse("bad-history-order", `line ${at}: the first History entry is \`open\`, dated the frontmatter \`raised\``, at);
+      }
+      if (human) {
+        return refuse("bad-transition", `line ${at}: a request is opened by ${BUILD_REQUEST_AGENT_ACTOR}`, at);
+      }
+      entries.push(entry);
+      continue;
+    }
+    if (entry.date < previous.date) {
+      return refuse("bad-history-order", `line ${at} is dated before the entry above it; History dates never decrease`, at);
+    }
+    if (state === "answered" || state === "withdrawn") {
+      return refuse("bad-transition", `line ${at} follows a \`${state}\` entry; an answered or withdrawn request takes no further entry`, at);
+    }
+    if (entry.event === "open") {
+      return refuse("bad-transition", `line ${at}: \`open\` is only ever the first History entry`, at);
+    }
+    if (entry.event === "edited") {
+      if (human) return refuse("bad-transition", `line ${at}: an edit is recorded by ${BUILD_REQUEST_AGENT_ACTOR}, its single writer`, at);
+    } else if (entry.event === "carried") {
+      if (!human) {
+        return refuse("bad-transition", `line ${at}: \`carried\` names the human who carried the request, as \`human:<name>\``, at);
+      }
+      state = "carried";
+    } else if (entry.event === "answered") {
+      if (state !== "carried") {
+        return refuse("bad-transition", `line ${at}: only a carried request is answered; an open request is withdrawn instead`, at);
+      }
+      if (!human) {
+        return refuse("bad-transition", `line ${at}: \`answered\` names the human who set the new pin, as \`human:<name>\``, at);
+      }
+      const pin = entry.pin as string;
+      if (pin.length !== fm.pin.length || pin === fm.pin) {
+        return refuse(
+          "bad-transition",
+          `line ${at}: the answer pin is a new commit id of the raising pin's length, different from the raising pin`,
+          at,
+        );
+      }
+      state = "answered";
+    } else {
+      const want = state === "open" ? !human : human;
+      if (!want) {
+        return refuse(
+          "bad-transition",
+          `line ${at}: ${BUILD_REQUEST_AGENT_ACTOR} withdraws an open request, and only a named human withdraws a carried one`,
+          at,
+        );
+      }
+      state = "withdrawn";
+    }
+    entries.push(entry);
+  }
+  return { ok: true, value: { entries, implied: state } };
+}
+function buildRequestBody(lines: readonly string[], close: number, fm: BuildRequestFrontmatter): BuildRequestResult {
+  const bodyLines = lines.slice(close + 1);
+  const body = bodyLines.join("\n");
+  const toLine = (i: number): number => close + 2 + i;
+
+  for (let i = 0; i < bodyLines.length; i += 1) {
+    if (BUILD_REQUEST_CONTROL.test(bodyLines[i] as string)) {
+      return buildRequestRefusal("control-character", `line ${toLine(i)} carries a control character`, toLine(i));
+    }
+  }
+
+  const located = buildRequestSectionAt(body, bodyLines, toLine);
+  if (!located.ok) return located;
+  const at = located.value;
+  const items = at.map((h) => buildRequestItems(body, bodyLines, h, toLine));
+  const headingLine = (s: number): number => toLine(at[s] as number);
+
+  if ((items[0] as BuildRequestItem[]).length === 0) {
+    return buildRequestRefusal("bad-section", `line ${headingLine(0)}: \`## Question\` is empty`, headingLine(0));
+  }
+  const upstreamIds = buildRequestUpstreamIds(items[1] as BuildRequestItem[], headingLine(1));
+  if (!upstreamIds.ok) return upstreamIds;
+  const options = buildRequestOptions(items[2] as BuildRequestItem[], headingLine(2));
+  if (!options.ok) return options;
+  const blocks = buildRequestBlocks(items[3] as BuildRequestItem[], headingLine(3));
+  if (!blocks.ok) return blocks;
+  const history = buildRequestHistory(items[4] as BuildRequestItem[], headingLine(4), fm);
+  if (!history.ok) return history;
+  if (history.value.implied !== fm.status) {
+    return buildRequestRefusal(
+      "status-mismatch",
+      `the frontmatter \`status\` differs from the status the last History entry other than \`edited\` implies`,
+    );
+  }
+  const answer = items[5] as BuildRequestItem[];
+  const hasAnswer = answer.length > 0;
+  if (fm.status === "answered" && !hasAnswer) {
+    return buildRequestRefusal("bad-answer", `line ${headingLine(5)}: an answered request records its answer under \`## Answer\``, headingLine(5));
+  }
+  if (fm.status !== "answered" && hasAnswer) {
+    const line = (answer[0] as BuildRequestItem).line;
+    return buildRequestRefusal("bad-answer", `line ${line}: \`## Answer\` stays empty until the request is answered`, line);
+  }
   return {
     ok: true,
     value: {
-      id,
-      status: values.get("status") as BuildRequestStatus,
-      source: values.get("source") as string,
-      pin: values.get("pin") as string,
-      raised: values.get("raised") as string,
+      ...fm,
+      upstreamIds: upstreamIds.value,
+      options: options.value,
+      blocks: blocks.value,
+      history: history.value.entries,
+      hasAnswer,
     },
   };
 }
