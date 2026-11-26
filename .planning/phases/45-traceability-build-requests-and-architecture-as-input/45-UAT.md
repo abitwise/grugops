@@ -1,9 +1,9 @@
 ---
-status: partial
+status: diagnosed
 phase: 45-traceability-build-requests-and-architecture-as-input
 source: [45-VERIFICATION.md]
 started: 2026-11-26T15:10:00Z
-updated: 2026-11-26T15:32:23.690Z
+updated: 2026-11-26T17:10:00Z
 ---
 
 ## Current Test
@@ -83,8 +83,20 @@ blocked: 1
   reason: "Agent live probe: ticket Blocked and Orchestrator stopped, floor held, but no BR filed; Blocked bullet says 'build request not yet filed'. W20:69/:97 'stop before any further dispatch' read as also blocking the BA/PM build-request subtask; Orchestrator wrote the Blocked bullet itself (W20 step 5 gives it to BA/PM)"
   severity: major
   test: 1
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  root_cause: "Workflow 20 orders the floor-conflict human stop before the build-request hand-off: W20:69 ('the Orchestrator stops for a named human before any further dispatch on it') and the W20:97 stop bullet ('record a Build-request: observation, mark the affected work Blocked and stop for a named human') neither put ## Build requests steps 1-5 (Orchestrator hands the observation to BA/PM; BA/PM files BR-<n> and writes the BR Blocked bullet) before the stop nor exempt them from it, so read literally the stop forbids filing. The 45-02 wording predates the 45-10 build-request procedure and was never reconciled. Reproduced on a fresh rerun; a kit variant that changed only W20:69 and :97 to 'hand the observation to BA/PM per steps 1-5, then stop' flipped the outcome (BR-1 filed by BA/PM, contract bullet, then stop, floors unchanged). No program checks an unfiled Build-request: observation or a Blocked ticket without a BR bullet (declined in 45-10, risk T-45-35)."
+  artifacts:
+    - path: "agent-factory/workflows/20-upstream-sources.md"
+      issue: "L69 and L97 stop precedes the BA/PM filing hand-off; L97 has no filing step and names no actor for the Blocked move; nothing says who records the floor-conflict observation, what the named human decides, or who lifts the stop"
+    - path: "agent-factory/roles/orchestrator.md"
+      issue: "no pointer to Workflow 20 and no floor-conflict Stop-when entry; Board moves L69 lets the Orchestrator write Blocked bullets itself (contributing)"
+    - path: "scripts/runnable-ref/state-check.ts"
+      issue: "no finding for an unfiled Build-request: observation or a Blocked ticket lacking a BR bullet (optional; reverses the 45-10/T-45-35 decision)"
+  missing:
+    - "Reword W20:69 and the L97 stop bullet so the observation is recorded (name who), handed to BA/PM per ## Build requests steps 1-5 so the ticket is Blocked with the BR bullet, and only then the Orchestrator stops for a named human before any other dispatch"
+    - "State what the named human decides at the floor stop and that only a named human lifts it"
+    - "Re-run the live floor-conflict probe as the acceptance check"
+  debug_session: ".planning/debug/floor-conflict-br-not-filed.md"
+  constraints: "flow-guidance-text.test.ts (d) only W20 holds 'The floor does not move.'; (e) pins the five roles pointing at W20; WORKFLOW_STOP_BULLET_COUNT 58 moves only if a stop bullet is added; W20 edits need a docs/audit/29-style-dispositions/ entry"
 
 - gap_id: G-45-9
   truth: "No grugops floor is moved by an upstream decision: the text holds the prohibition with no side door and one floor list"
@@ -92,5 +104,29 @@ blocked: 1
   reason: "User reported: 9 issue, Olger. Reading check: BA/PM can withdraw an open request alone and W20 step 12 then unblocks the ticket (side door around the floor-conflict human stop and W20:67); W20:69 floor list differs from canonical SAFETY_FLOORS (open_pr not named); 'taken as given input' (W20:59, architect-design.md:23) without the floor caveat"
   severity: major
   test: 9
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  root_cause: "The 45-02 floor rule (W20 L69 + stop bullet L97) was never threaded through the build-request lifecycle, the floor vocabulary or the adjacent 'given input' rule. (a) A filed floor-conflict request is indistinguishable from any other: BA/PM may withdraw an open request alone (D-06; W20 step 13; contract open->withdrawn | BA/PM), W20 step 12 and Board moves unblock a ticket once its requests are answered or withdrawn, and the floor stop leaves no durable record (no own Blocked bullet, no named-human owner, closed BR schema). Confirmed: withdrawn by BA/PM + move to Backlog gives state-check 'No findings.' and requests exit 0 with no human named; a human-stamped withdrawal of an open request is refused as bad-transition (build-request-model.ts ~L644, test L403), so the human's decision has no record. (b) W20 L69's floor list was copied from v3.1 research (PITFALLS 19 -> REQUIREMENTS ARCH-02 -> ROADMAP -> D-17), never reconciled with canonical SAFETY_FLOORS (factory.config.md L311, GUARANTEES.md): omits open_pr and production confirmation, uses undefined 'verify-before-write', and 'never move' conflicts with factory.config.md L234 (a human may lower a floor cell). (c) 'taken as given input' is stated unconditionally at every role-facing site (W20 L59/L61/L108, architect-design.md L23, greenfield-mapper.md L20, W00 step 1); the floor exception lives only in a later paragraph."
+  artifacts:
+    - path: "agent-factory/workflows/20-upstream-sources.md"
+      issue: "step 12 (L85) and Board moves (L102) accept withdrawn as unblock; step 13 (L86) lets BA/PM withdraw any open request; L98 guards only carried/answered; floor stop has no bullet, owner or exit rule; L69 floor list non-canonical with undefined term; L59/L61/L108 unconditional 'given input'"
+    - path: "agent-factory/contracts/build-request.md"
+      issue: "open->withdrawn | BA/PM (L116) applies to floor-conflict requests; no human-recorded exit from open"
+    - path: "scripts/build-request-model.ts"
+      issue: "~L644 refuses a human-stamped withdrawal of an open request (pinned by build-request-model.test.ts L403; embedded in state-check.js/upstream.js)"
+    - path: "agent-factory/contracts/board.md"
+      issue: "L152-154 BR bullet owner 'human carrier' contradicted by W20 steps 12-13"
+    - path: "agent-factory/roles/architect-design.md"
+      issue: "L23 states the given-input rule with no floor caveat; no floor Stop-when"
+    - path: "agent-factory/roles/greenfield-mapper.md"
+      issue: "L20 states the given-input rule with no floor caveat"
+    - path: "agent-factory/workflows/00-bootstrap-greenfield.md"
+      issue: "step 1 'Upstream decides the items it names' with no floor caveat"
+    - path: "scripts/flow-guidance-text.test.ts"
+      issue: "45-02 test (c) pins the copied floor list as 'every floor' without reading SAFETY_FLOORS"
+  missing:
+    - "Give the floor stop a durable record (own Blocked bullet owned by a named human) and adopt the WR-03 step 12 fix so a ticket leaves Blocked only with no other bullet"
+    - "Forbid BA/PM alone from withdrawing a floor-conflict or deviation request (extend the L98 stop bullet to avoid moving WORKFLOW_STOP_BULLET_COUNT); provide a way to record the named human's decision (grammar change or prose rule)"
+    - "Resolve the W20 L67 vs step 12 contradiction for withdrawn deviation requests"
+    - "Point W20's floor list at the canonical floors (factory.config.md / SAFETY_FLOORS), define or drop verify-before-write, word as 'no upstream decision moves a floor'; update flow-guidance-text test (c)"
+    - "Put the floor exception in the 'given input' sentence and its role-facing copies (architect-design.md L23, greenfield-mapper.md L20, W00 step 1)"
+  debug_session: ".planning/debug/floor-prohibition-weak.md"
+  constraints: "flow-guidance-text.test.ts (d) and (e); 45-10 test (a) 13 contiguous steps with approved verbs, (b) steps 7 and 13 contain 'named human'; WORKFLOW_STOP_BULLET_COUNT 58; dispositions under docs/audit/29-style-dispositions/"
