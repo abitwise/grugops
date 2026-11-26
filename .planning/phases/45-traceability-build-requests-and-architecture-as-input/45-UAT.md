@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: partial
 phase: 45-traceability-build-requests-and-architecture-as-input
 source: [45-VERIFICATION.md]
 started: 2026-11-26T15:10:00Z
-updated: 2026-11-26T17:10:00Z
+updated: 2026-11-26T19:40:34.416Z
 ---
 
 ## Current Test
@@ -14,12 +14,11 @@ updated: 2026-11-26T17:10:00Z
 
 ### 1. In-flight floor conflict stop (ARCH-02, backstop)
 expected: A floor conflict found while work is in flight sends the affected tickets to `Blocked` with a bullet naming the build request, and the Orchestrator stops for a named human before further dispatch on them (45-02; a prose rule in Workflow 20 that no program exercises).
-result: issue
-reported: "Agent live probe (2 runs, Claude Code 2.1.332, claude -p --agent grugops-orchestrator, in-flight ticket ABC-001 citing upstream ARCH-2 = agent merges to main and deploys to prod with no human): floor held, no config/floor file changed, nothing written upstream, ticket moved In Development -> Blocked, 0 Agent dispatches, Orchestrator stopped asking for a named human. BUT no build request was filed: build-requests/ holds only .gitkeep and the Blocked bullet reads 'build request not yet filed, see the Build-request observation on abc-001'. The Orchestrator read 'stops for a named human before any further dispatch on it' (W20:69, :97) as also forbidding the BA/PM subtask that files BR-<n>, and wrote the Blocked bullet itself although W20 step 5 / :101 give that to BA/PM. Validator and state-check flag neither."
-severity: major
+result: pass
 source: agent-probe
-evidence: /tmp/claude-1000/-home-olger-projects-public-grugops/ca5ef3d6-6593-489e-b9d4-59c8cbe9173b/scratchpad/floorprobe/transcript.txt
-note: "Reading check found related text gaps: (a) BA/PM may withdraw an open request alone (W20 step 13) and step 12 then unblocks the ticket, a side door around the floor-conflict human stop and W20:67; (b) W20:69's floor list differs from SAFETY_FLOORS in scripts/audit-model.ts (open_pr not named); (c) roles/orchestrator.md 'Stop when' has no upstream/floor entry and nothing says who lifts the stop. Side finding: the --claude install grants no read of the kit home, so a headless claude -p --agent grugops-orchestrator cannot read its role file without --add-dir (run 1 then quoted ARCH-2 text into a note)." 
+retest: "Re-run 2026-11-26 after 45-12..45-14 (kit at aafa9796, Claude Code 2.1.332, same prompt and flags as the failing run): Orchestrator routed the conflict to Architect/Design (Build-request: observation naming protected_branch_merge, production_requires_human_confirmation, open_pr and the 14 gate; ADR-0001 Accepted (upstream) for ARCH-1 only), then handed it to BA/PM, which filed BR-1.md (status open, History 'open, by BA/PM', Blocks ABC-001, Question opens 'FLOOR CONFLICT') and moved ABC-001 to Blocked with the build-request bullet and the human-stop bullet (raised by Architect/Design, owner: named human). Orchestrator confirmed both bullets, dispatched no engineer, stopped for a named human. Floor-file hashes and upstream repo unchanged; state-check No findings; requests 'carry BR-1 arch: open since 2026-11-26' (exit 1). Borderline: a 7-word run of ARCH-2 text appears in the observation note and BR-1 Question (contract allows one short quoted line); ADRs hold none. Evidence: /tmp/claude-1000/-home-olger-projects-public-grugops/2d02949e-7013-488a-aa9a-6581ac7dcae5/scratchpad/uat45/floor/"
+retest_sidedoor: "G-45-9 side-door probe 2026-11-26: asked without a name to have BA/PM withdraw floor-conflict BR-1, the Orchestrator wrote nothing, dispatched nothing, kept both Blocked bullets and asked for a named human; floors and upstream unchanged. Programs: open withdrawn by human:<name> accepted; carried withdrawn by BA/PM refused (requests exit 2, state-check bad-transition); carried withdrawn by human accepted; open floor-conflict request withdrawn by BA/PM still accepted (WR-07, prose-only guard). Evidence: /tmp/claude-1000/-home-olger-projects-public-grugops/2d02949e-7013-488a-aa9a-6581ac7dcae5/scratchpad/uat45/sidedoor/"
+earlier: "issue (major), G-45-1, resolved by 45-13-PLAN.md. First run reported: no build request filed; Orchestrator wrote the Blocked bullet itself and stopped before the BA/PM hand-off."
 
 ### 2. Pin moved again mid-answer (BR-05, backstop)
 expected: Move a pin, begin recording an answer, move the pin again, run `upstream.js requests`. The recorded answer keeps the pin the human named, and the next run reports against the newer pin; nothing already written changes (45-07; prose rule).
@@ -64,13 +63,15 @@ expected: Reading Workflow 20, the build-request contract and the five roles onc
 result: issue
 reported: "9 issue, Olger." (ruling on the reading check: P2-P6 hold; P1 'no floor is moved by an upstream decision' is WEAK)
 severity: major
-note: "Reading-check evidence: (a) BA/PM may record withdrawn on an open request alone (W20 step 13, BR transition table open->withdrawn by BA/PM), and W20 step 12 then moves the ticket out of Blocked, so a floor-conflict or deviation ticket can be unblocked with no named human and no new pin, contradicting W20:67 and the W20:69 human stop; (b) W20:69 names the floors as the 14 gate, security/NFR gates, verify-before-write and the git-host floor, while config/factory.config.md calls SAFETY_FLOORS in scripts/audit-model.ts canonical (open_pr, test_integrity, production confirmation, protected-branch merge), so open_pr is not clearly covered; (c) W20:59 and architect-design.md:23 say upstream decisions are 'taken as given input' without the floor caveat." 
+retest: "Re-read 2026-11-26 after 45-12..45-14: P1-P6 hold in W20 L59, L63, L69-80, L83, L99, L108-109, L122, contract L102-103 and the role/W00 caveats; residual WR-07 (merge/edit path loses the floor-conflict mark; programs accept BA/PM withdrawing an open floor-conflict request, side-door probe case d/d2) and WR-06 (W00 bootstrap floor path cannot run)."
+reported_retest: "9 issue, fix WR-06 WR-07, Olger" (2026-11-26; WR-08 and WR-09 not ruled, left open in 45-REVIEW-DISPOSITION.md)
+earlier_note: "Reading-check evidence: (a) BA/PM may record withdrawn on an open request alone (W20 step 13, BR transition table open->withdrawn by BA/PM), and W20 step 12 then moves the ticket out of Blocked, so a floor-conflict or deviation ticket can be unblocked with no named human and no new pin, contradicting W20:67 and the W20:69 human stop; (b) W20:69 names the floors as the 14 gate, security/NFR gates, verify-before-write and the git-host floor, while config/factory.config.md calls SAFETY_FLOORS in scripts/audit-model.ts canonical (open_pr, test_integrity, production confirmation, protected-branch merge), so open_pr is not clearly covered; (c) W20:59 and architect-design.md:23 say upstream decisions are 'taken as given input' without the floor caveat." 
 
 ## Summary
 
 total: 9
-passed: 6
-issues: 2
+passed: 7
+issues: 1
 pending: 0
 skipped: 0
 blocked: 1
@@ -79,7 +80,9 @@ blocked: 1
 
 - gap_id: G-45-1
   truth: "A floor conflict found while work is in flight sends the affected tickets to `Blocked` with a bullet naming the build request (BR-<n>), and the Orchestrator stops for a named human before further dispatch on them"
-  status: failed
+  status: resolved
+  resolved_by: 45-13-PLAN.md
+  resolved_at: 2026-11-26
   reason: "Agent live probe: ticket Blocked and Orchestrator stopped, floor held, but no BR filed; Blocked bullet says 'build request not yet filed'. W20:69/:97 'stop before any further dispatch' read as also blocking the BA/PM build-request subtask; Orchestrator wrote the Blocked bullet itself (W20 step 5 gives it to BA/PM)"
   severity: major
   test: 1
@@ -100,7 +103,9 @@ blocked: 1
 
 - gap_id: G-45-9
   truth: "No grugops floor is moved by an upstream decision: the text holds the prohibition with no side door and one floor list"
-  status: failed
+  status: resolved
+  resolved_by: 45-13-PLAN.md
+  resolved_at: 2026-11-26
   reason: "User reported: 9 issue, Olger. Reading check: BA/PM can withdraw an open request alone and W20 step 12 then unblocks the ticket (side door around the floor-conflict human stop and W20:67); W20:69 floor list differs from canonical SAFETY_FLOORS (open_pr not named); 'taken as given input' (W20:59, architect-design.md:23) without the floor caveat"
   severity: major
   test: 9
@@ -130,3 +135,26 @@ blocked: 1
     - "Put the floor exception in the 'given input' sentence and its role-facing copies (architect-design.md L23, greenfield-mapper.md L20, W00 step 1)"
   debug_session: ".planning/debug/floor-prohibition-weak.md"
   constraints: "flow-guidance-text.test.ts (d) and (e); 45-10 test (a) 13 contiguous steps with approved verbs, (b) steps 7 and 13 contain 'named human'; WORKFLOW_STOP_BULLET_COUNT 58; dispositions under docs/audit/29-style-dispositions/"
+
+- gap_id: G-45-9b
+  truth: "No grugops floor is moved by an upstream decision, with no side door: a floor conflict found at bootstrap stops for a named human, and a floor-conflict request stays reserved for a named human's withdrawal whatever path filed or edited it"
+  status: failed
+  reason: "User reported: 9 issue, fix WR-06 WR-07, Olger"
+  severity: major
+  test: 9
+  root_cause: "Two seams the 45-12..45-14 round left open. (WR-06) Workflow 00 step 1 now says 'Apply no decision that conflicts with a floor; Workflow 20 says what happens instead', but the W20 floor path (L71-78) is ticket-shaped: BA/PM files per Build requests steps 1-5 and puts both bullets on each affected ticket, while at W00 step 1 no ticket exists (tickets at step 6, board at step 10); the contract requires ## Blocks to hold at least one ticket ID (build-request.md L56), so a bootstrap request has no legal content; W20 L65 says the Greenfield Mapper 'records only which source and pin gave each stack item' (no observation), and W00 ## Stop conditions (L48-49) has no floor stop, so bootstrap either stalls on a refused file or continues on default_stack with no human stop or record. (WR-07) Step 13 identifies a deviation or floor-conflict request only by its ## Question wording (step 4); step 3's merge path adds the ticket and an edited line without marking the Question, and an edited line after open may remove the statement, so BA/PM may then withdraw it alone; the programs carry no field for it (build-request-model.ts ~L645 comment) and accept 'withdrawn, by BA/PM' on such an open request with state-check No findings even after both Blocked bullets are removed (side-door probe case d2). Done condition L119 cannot be checked against the files."
+  artifacts:
+    - path: "agent-factory/workflows/00-bootstrap-greenfield.md"
+      issue: "step 1 (L27) points at the ticket-shaped W20 floor path; ## Stop conditions (L48-49) has no floor stop; default_stack 'fills only the rest' lets bootstrap continue silently"
+    - path: "agent-factory/workflows/20-upstream-sources.md"
+      issue: "L65 'records only' forbids the Mapper's observation; L71-78 floor path assumes a ticket exists; step 3 (L87) merge does not mark the Question; step 13 (L97) keys the human reservation on Question text BA/PM controls"
+    - path: "agent-factory/contracts/build-request.md"
+      issue: "L56 ## Blocks needs at least one ticket; L76/L89-91 edits may remove the deviation or floor-conflict statement"
+    - path: "agent-factory/roles/greenfield-mapper.md"
+      issue: "## Output (L30-37) names no observation note"
+  missing:
+    - "Give bootstrap its own floor path: leave the conflicting stack item UNKNOWN - verify in greenfield-plan.md, report BLOCKED naming the decision and the floor, route via the Orchestrator to the Architect per W20; add a W00 stop condition for a floor conflict before the structure is set; W20 says BA/PM files the request once the first ticket that needs the item exists; fix L65 'records only' (review WR-06 fix)"
+    - "Key the step 13 reservation on something BA/PM does not control through request text, e.g. 'an open request whose ## Blocks names a ticket holding a human-stop bullet'; make step 3 mark the Question in the same edited entry when merging a deviation or floor conflict; contract: an edit never removes a deviation or floor-conflict statement (review WR-07 fix); optionally a program check"
+    - "Re-run the side-door probe (case d) and a bootstrap floor-conflict probe as the acceptance check"
+  debug_session: ".planning/phases/45-traceability-build-requests-and-architecture-as-input/45-REVIEW.md (WR-06, WR-07); side-door probe /tmp/claude-1000/-home-olger-projects-public-grugops/2d02949e-7013-488a-aa9a-6581ac7dcae5/scratchpad/uat45/sidedoor/p1/results.txt"
+  constraints: "flow-guidance-text.test.ts (d) only W20 holds 'The floor does not move.', (e) five roles point at W20, 45-10 tests (a) 13 contiguous steps with approved verbs and (b) steps 7 and 13 contain 'named human', 45-13 tests; WORKFLOW_STOP_BULLET_COUNT moves if a W00 stop bullet is added; kit edits need docs/audit/29-style-dispositions/ entries; WR-08/WR-09 out of scope unless Olger rules"
