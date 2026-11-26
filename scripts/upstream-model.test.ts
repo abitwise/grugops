@@ -25,12 +25,14 @@ import {
   UPSTREAM_KEYS,
   UPSTREAM_MANIFEST_HEADER,
   UPSTREAM_NONE_DECLARED_LINE,
+  UPSTREAM_NONE_STATEMENT,
   UPSTREAM_OBJECT_ID_RE,
   UPSTREAM_OWNS_KEYS,
   UPSTREAM_PATH_MAX_LENGTH,
   UPSTREAM_PATH_SEGMENT_RE,
   UPSTREAM_REQUIRED_KEYS,
   UPSTREAM_SOURCE_KEYS,
+  UPSTREAM_STATEMENT_HEADING,
   checkExitCode,
   fenceLines,
   formatCheckLine,
@@ -43,10 +45,20 @@ import {
   parseUpstreamRef,
   pinState,
   sourcePathFindings,
+  upstreamChangedIds,
+  upstreamCitationFindings,
+  upstreamIdFacts,
+  upstreamManifestAtOf,
   upstreamRef,
+  upstreamStatementOf,
+  type UpstreamCitationFinding,
+  type UpstreamCitationTicket,
+  type UpstreamManifestAt,
+  type UpstreamManifestRow,
   type UpstreamManifestResult,
   type UpstreamPinAnswers,
   type UpstreamPinFinding,
+  type UpstreamSource,
 } from "./upstream-model.js";
 import { fixtureEnv, fixtureGit } from "./runnable-ref/upstream-fixture.test-support.js";
 
@@ -950,5 +962,324 @@ describe("exit: the four check-line shapes of plan 44-01", () => {
 
   it("exit: the none-declared line is exactly `no upstream sources declared`", () => {
     expect(UPSTREAM_NONE_DECLARED_LINE).toBe("no upstream sources declared");
+  });
+});
+
+// ── statement, citation and changed IDs (plan 45-06, TRC-01, TRC-03, BR-05, D-01..D-04, D-10) ──────────────
+
+const OLD40 = "6".repeat(40);
+
+/** The one declared source `design`, pinned at C40, admitted by the parser itself. */
+function declaredDesign(): readonly UpstreamSource[] {
+  const r = parseUpstreamConfig({ upstream: { sources: [source()] } });
+  if (r.kind !== "ok") throw new Error("fixture: the design source must parse");
+  return r.sources;
+}
+
+/** Manifest rows parsed from table lines, so every fixture row passed the real grammar. */
+function rowsOf(...rows: string[]): readonly UpstreamManifestRow[] {
+  const parsed = parseManifest([UPSTREAM_MANIFEST_HEADER, "| --- | --- | --- | --- |", ...rows].join("\n"));
+  if (parsed.kind !== "ok") throw new Error(`fixture: manifest must parse: ${parsed.reason}`);
+  return parsed.rows;
+}
+
+/** At the pin C40: DEC-1 locked, DEC-2 superseded by DEC-3, DEC-3 locked. DEC-4 is gone. */
+const PIN_ROWS = rowsOf(
+  "| DEC-1 | locked | decisions/dec-1.md | |",
+  "| DEC-2 | superseded | decisions/dec-2.md | DEC-3 |",
+  "| DEC-3 | locked | decisions/dec-3.md | |",
+);
+/** At the older commit OLD40: DEC-1, DEC-2 and DEC-4 locked; DEC-3 does not exist yet. */
+const OLD_ROWS = rowsOf(
+  "| DEC-1 | locked | decisions/dec-1.md | |",
+  "| DEC-2 | locked | decisions/dec-2.md | |",
+  "| DEC-4 | locked | decisions/dec-4.md | |",
+);
+
+/** A manifest read over a fixed table of answers, recording every (source, commit) it is asked for. */
+function recordingManifestAt(
+  answers: Record<string, UpstreamManifestAt> = { [C40]: { kind: "ok", rows: PIN_ROWS }, [OLD40]: { kind: "ok", rows: OLD_ROWS } },
+): { read: (s: UpstreamSource, commit: string) => UpstreamManifestAt; calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    read: (s, commit) => {
+      calls.push(`${s.id}@${commit}`);
+      return answers[commit] ?? { kind: "unknown", reason: "commit absent" };
+    },
+  };
+}
+
+/** One ticket for the citation decision. */
+function ticket(id: string, refs: readonly string[], over: Partial<UpstreamCitationTicket> = {}): UpstreamCitationTicket {
+  return { id, done: false, refs, statement: { kind: "absent" }, ...over };
+}
+
+/** The citation findings for `tickets` against the design source. */
+function citations(
+  tickets: readonly UpstreamCitationTicket[],
+  read = recordingManifestAt().read,
+  notesComplete = true,
+): readonly UpstreamCitationFinding[] {
+  return upstreamCitationFindings({ sources: declaredDesign(), tickets, manifestAt: read, notesComplete });
+}
+
+describe("statement: the `## Upstream` section of a ticket (TRC-01, D-01)", () => {
+  it("statement: the heading and the none line are the named constants", () => {
+    expect(UPSTREAM_STATEMENT_HEADING).toBe("## Upstream");
+    expect(UPSTREAM_NONE_STATEMENT).toBe("none (build-internal)");
+  });
+
+  it("statement: no heading is absent", () => {
+    expect(upstreamStatementOf("# T-1: a ticket\n\n## Acceptance\n\n- it works\n")).toEqual({ kind: "absent" });
+  });
+
+  it("statement: the heading then the one line `none (build-internal)` is none, blank lines around it allowed", () => {
+    const text = "# T-1: a ticket\n\n## Upstream\n\nnone (build-internal)\n\n## Notes\n\nfree text\n";
+    expect(upstreamStatementOf(text)).toEqual({ kind: "none" });
+    expect(upstreamStatementOf("## Upstream\r\nnone (build-internal)\r\n")).toEqual({ kind: "none" });
+  });
+
+  it("statement: two `## Upstream` headings are malformed", () => {
+    const s = upstreamStatementOf("## Upstream\n\nnone (build-internal)\n\n## Upstream\n\nnone (build-internal)\n");
+    expect(s.kind).toBe("malformed");
+    if (s.kind === "malformed") expect(s.reason).toContain("more than once");
+  });
+
+  it("statement: an empty section is malformed", () => {
+    const s = upstreamStatementOf("## Upstream\n\n## Notes\n\nx\n");
+    expect(s.kind).toBe("malformed");
+    if (s.kind === "malformed") expect(s.reason).toContain(UPSTREAM_NONE_STATEMENT);
+  });
+
+  it("statement: any other text is malformed, and the reason quotes none of it", () => {
+    for (const body of ["none", "None (build-internal)", "none (build-internal)\nalso this", "PLANTED-STATEMENT-TEXT"]) {
+      const s = upstreamStatementOf(`## Upstream\n\n${body}\n`);
+      expect(s.kind, body).toBe("malformed");
+      if (s.kind === "malformed") expect(s.reason).not.toContain("PLANTED");
+    }
+  });
+
+  it("statement: a level-three heading inside the section is other text", () => {
+    expect(upstreamStatementOf("## Upstream\n\n### none (build-internal)\n").kind).toBe("malformed");
+  });
+
+  it("statement: a `## Upstream` line inside a fenced block is not a heading, so the statement is absent", () => {
+    expect(upstreamStatementOf("## Notes\n\n```\n## Upstream\nnone (build-internal)\n```\n")).toEqual({ kind: "absent" });
+  });
+
+  it("statement: a `## Upstream IDs` heading is a different heading", () => {
+    expect(upstreamStatementOf("## Upstream IDs\n\nnone\n")).toEqual({ kind: "absent" });
+  });
+});
+
+describe("citation: the TRC-03 decision table (D-02, D-03, D-04, research Pattern 3)", () => {
+  it("citation: no tickets give no finding", () => {
+    expect(citations([])).toEqual([]);
+  });
+
+  it("citation: a malformed upstream ref is an error that does not quote the ref", () => {
+    const f = citations([ticket("T-1", ["upstream:design:dec-1@PLANTEDREF"])]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "error", ticket: "T-1" });
+    expect(f[0]?.text).toContain("malformed");
+    expect(f[0]?.text).not.toContain("PLANTEDREF");
+    expect(f[0]?.text).not.toContain("dec-1");
+  });
+
+  it("citation: a ref that is not an upstream ref is not a citation", () => {
+    expect(citations([ticket("T-1", ["T-7"], { done: true })])).toEqual([]);
+  });
+
+  it("citation: an undeclared source is an error for a ticket not Done", () => {
+    const f = citations([ticket("T-1", [upstreamRef("sound", "SND-1", C40)])]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "error", ticket: "T-1" });
+    expect(f[0]?.text).toContain("sound");
+  });
+
+  it("citation: an undeclared source is an UNKNOWN line for a Done ticket (the source may be retired)", () => {
+    const f = citations([ticket("T-1", [upstreamRef("sound", "SND-1", C40)], { done: true })]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "unknown", ticket: null });
+    expect(f[0]?.text.startsWith("UNKNOWN - verify sound")).toBe(true);
+  });
+
+  it("citation: a commit whose length differs from the declared pin is an error", () => {
+    const f = citations([ticket("T-1", [upstreamRef("design", "DEC-1", C64)])]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "error", ticket: "T-1" });
+    expect(f[0]?.text).toContain("64");
+  });
+
+  it("citation: an unreadable manifest gives one UNKNOWN line per (source, commit, reason), with the ref count", () => {
+    const m = recordingManifestAt({ [C40]: { kind: "ok", rows: PIN_ROWS } });
+    const f = citations(
+      [ticket("T-1", [upstreamRef("design", "DEC-1", OLD40)]), ticket("T-2", [upstreamRef("design", "DEC-2", OLD40)])],
+      m.read,
+    );
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "unknown", ticket: null });
+    expect(f[0]?.text).toBe(`UNKNOWN - verify design@${OLD40}: commit absent (2 upstream refs not checked)`);
+  });
+
+  it("citation: an ID unlisted at its own commit is an error", () => {
+    const f = citations([ticket("T-1", [upstreamRef("design", "DEC-9", C40)], { done: true })]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "error", ticket: "T-1" });
+    expect(f[0]?.text).toContain("DEC-9");
+  });
+
+  it("citation: an ID listed at its own commit gives nothing for a Done ticket, even when superseded now", () => {
+    expect(citations([ticket("T-1", [upstreamRef("design", "DEC-2", C40)], { done: true })])).toEqual([]);
+  });
+
+  it("citation: listed, not Done, superseded at the current pin is a warning naming the chain end", () => {
+    const f = citations([ticket("T-1", [upstreamRef("design", "DEC-2", C40)])]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "warning", ticket: "T-1" });
+    expect(f[0]?.text).toContain("DEC-2 → DEC-3");
+  });
+
+  it("citation: listed, not Done, absent at the current pin is a warning", () => {
+    const f = citations([ticket("T-1", [upstreamRef("design", "DEC-4", OLD40)])]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "warning", ticket: "T-1" });
+    expect(f[0]?.text).toContain("DEC-4");
+  });
+
+  it("citation: listed and locked at the current pin gives nothing", () => {
+    expect(citations([ticket("T-1", [upstreamRef("design", "DEC-1", OLD40)])])).toEqual([]);
+  });
+
+  it("citation: a ref at an older commit is decided by that commit's manifest, one at the pin by the pin's", () => {
+    // DEC-4 is listed at OLD40 and gone at the pin: the old citation holds, a new one at the pin is an error.
+    expect(citations([ticket("T-1", [upstreamRef("design", "DEC-4", OLD40)], { done: true })])).toEqual([]);
+    const f = citations([ticket("T-1", [upstreamRef("design", "DEC-4", C40)], { done: true })]);
+    expect(f.map((x) => x.severity)).toEqual(["error"]);
+  });
+
+  it("citation: the manifest is read once per distinct (source, commit)", () => {
+    const m = recordingManifestAt();
+    citations(
+      [
+        ticket("T-1", [upstreamRef("design", "DEC-1", OLD40), upstreamRef("design", "DEC-1", C40)]),
+        ticket("T-2", [upstreamRef("design", "DEC-2", OLD40)]),
+        ticket("T-3", [upstreamRef("design", "DEC-3", C40)]),
+      ],
+      m.read,
+    );
+    expect([...m.calls].sort()).toEqual([`design@${C40}`, `design@${OLD40}`]);
+  });
+
+  it("citation: an unknown current pin makes the current-pin half UNKNOWN, never a pass or a warning", () => {
+    const m = recordingManifestAt({
+      [C40]: { kind: "unknown", reason: "drift: blob-mismatch" },
+      [OLD40]: { kind: "ok", rows: OLD_ROWS },
+    });
+    const f = citations([ticket("T-1", [upstreamRef("design", "DEC-2", OLD40)])], m.read);
+    expect(f).toEqual([
+      { severity: "unknown", ticket: null, text: `UNKNOWN - verify design@${C40}: drift: blob-mismatch (1 upstream ref not checked)` },
+    ]);
+  });
+
+  it("citation: upstreamManifestAtOf words a malformed manifest as pinState does", () => {
+    expect(upstreamManifestAtOf({ kind: "malformed", reason: "the header line appears more than once", line: 7 })).toEqual({
+      kind: "unknown",
+      reason: "manifest: the header line appears more than once, line 7",
+    });
+    expect(upstreamManifestAtOf({ kind: "ok", rows: PIN_ROWS })).toEqual({ kind: "ok", rows: PIN_ROWS });
+  });
+});
+
+describe("citation: the statement rules (TRC-01, D-01, research Pattern 4 and Pitfall 4)", () => {
+  it("citation: refs together with the none statement are an error (contradiction)", () => {
+    const f = citations([ticket("T-1", [upstreamRef("design", "DEC-1", C40)], { statement: { kind: "none" } })]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "error", ticket: "T-1" });
+    expect(f[0]?.text).toContain(UPSTREAM_NONE_STATEMENT);
+  });
+
+  it("citation: neither a ref nor a statement, not Done, notes complete, is one warning", () => {
+    const f = citations([ticket("T-1", [])]);
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ severity: "warning", ticket: "T-1" });
+  });
+
+  it("citation: neither a ref nor a statement on a Done ticket gives nothing", () => {
+    expect(citations([ticket("T-1", [], { done: true })])).toEqual([]);
+  });
+
+  it("citation: neither a ref nor a statement while the notes are incomplete gives no warning", () => {
+    expect(citations([ticket("T-1", [])], recordingManifestAt().read, false)).toEqual([]);
+  });
+
+  it("citation: the none statement alone gives nothing", () => {
+    expect(citations([ticket("T-1", [], { statement: { kind: "none" } })])).toEqual([]);
+  });
+
+  it("citation: a malformed statement is an error carrying its reason", () => {
+    const f = citations([ticket("T-1", [], { statement: { kind: "malformed", reason: "the reason" } })]);
+    expect(f).toEqual([{ severity: "error", ticket: "T-1", text: expect.stringContaining("the reason") }]);
+  });
+});
+
+describe("citation: stable order (TRC-03)", () => {
+  it("citation: two calls with the tickets in different input orders return equal arrays, sorted by ticket then text", () => {
+    const tickets = [
+      ticket("T-2", [upstreamRef("design", "DEC-9", C40), upstreamRef("design", "DEC-2", C40)]),
+      ticket("T-1", []),
+      ticket("T-3", [upstreamRef("design", "DEC-1", "7".repeat(40))]),
+      ticket("T-4", [upstreamRef("design", "DEC-1", "8".repeat(40))]),
+    ];
+    const a = citations(tickets);
+    const b = citations([...tickets].reverse());
+    expect(a).toEqual(b);
+    expect(a.filter((f) => f.ticket !== null).map((f) => f.ticket)).toEqual(["T-1", "T-2", "T-2"]);
+    const unknown = a.filter((f) => f.severity === "unknown").map((f) => f.text);
+    expect(unknown).toEqual([...unknown].sort());
+    expect(unknown).toHaveLength(2);
+    // Unknown lines come after every ticket finding.
+    expect(a.slice(-2).every((f) => f.severity === "unknown")).toBe(true);
+  });
+});
+
+describe("changed IDs: the D-10 rule (BR-05)", () => {
+  const blobs = (entries: Record<string, string>): ReadonlyMap<string, string> => new Map(Object.entries(entries));
+
+  it("changed IDs: upstreamIdFacts records status, successor and the listed file's blob", () => {
+    const facts = upstreamIdFacts(PIN_ROWS, blobs({ "decisions/dec-2.md": B40 }));
+    expect(facts.get("DEC-2")).toEqual({ status: "superseded", successor: "DEC-3", blob: B40 });
+    expect(facts.get("DEC-1")).toEqual({ status: "locked", successor: null, blob: null });
+  });
+
+  it("changed IDs: equal facts give nothing", () => {
+    const f = upstreamIdFacts(PIN_ROWS, blobs({ "decisions/dec-1.md": B40 }));
+    expect(upstreamChangedIds(["DEC-1", "DEC-2"], f, f)).toEqual([]);
+  });
+
+  it("changed IDs: a different status, successor or blob is a change", () => {
+    const before = upstreamIdFacts(OLD_ROWS, blobs({ "decisions/dec-1.md": B40 }));
+    const after = upstreamIdFacts(PIN_ROWS, blobs({ "decisions/dec-1.md": OTHER40 }));
+    expect(upstreamChangedIds(["DEC-1"], before, after)).toEqual(["DEC-1"]);
+    expect(upstreamChangedIds(["DEC-2"], before, after)).toEqual(["DEC-2"]);
+  });
+
+  it("changed IDs: listed only before or only after is a change; listed at neither is not", () => {
+    const before = upstreamIdFacts(OLD_ROWS, blobs({}));
+    const after = upstreamIdFacts(PIN_ROWS, blobs({}));
+    expect(upstreamChangedIds(["DEC-4", "DEC-3", "DEC-9"], before, after)).toEqual(["DEC-4", "DEC-3"]);
+  });
+
+  it("changed IDs: a moved path with an equal blob is not a change", () => {
+    const before = upstreamIdFacts(rowsOf("| DEC-1 | locked | a/dec-1.md | |"), blobs({ "a/dec-1.md": B40 }));
+    const after = upstreamIdFacts(rowsOf("| DEC-1 | locked | b/dec-1.md | |"), blobs({ "b/dec-1.md": B40 }));
+    expect(upstreamChangedIds(["DEC-1"], before, after)).toEqual([]);
+  });
+
+  it("changed IDs: the result keeps the order of `ids`", () => {
+    const before = upstreamIdFacts(OLD_ROWS, blobs({}));
+    const after = upstreamIdFacts(PIN_ROWS, blobs({}));
+    expect(upstreamChangedIds(["DEC-3", "DEC-4", "DEC-2"], before, after)).toEqual(["DEC-3", "DEC-4", "DEC-2"]);
   });
 });
