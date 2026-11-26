@@ -790,6 +790,14 @@ export const BANNED_CLAIM_EXEMPT_REGION = {
 // matcher (countBannedClaimOccurrences over every tracked file under it) before the exclusion was written: 0
 // occurrences across all 32 files.
 //
+// install/fixtures/v3.0-blocked-board/ (16 files at plan 45-05, 2026-11-26, BR-02) is EXCLUDED FOR THE SAME REASON: it is
+// the planning state a host repository holds under the v3.0.0 kit, taken from `git archive v3.0.0` of the seed, plus
+// one invented blocked ticket, its board row and a short README, frozen as the input the cross-version tests in
+// install/installer-cross-version.test.ts run against. Nothing in it ships to a host. Plan 45-05 added it without an
+// entry here, and plan 45-09 (2026-11-26) found the gap through the tracked-surface case in
+// scripts/check-banned-claims.test.ts. Measured with this gate's own matcher (countBannedClaimOccurrences over every
+// line of every tracked file under it) before the exclusion was written: 0 occurrences across all 16 files.
+//
 // THE REMEDY IF THAT ARGUMENT EVER STOPS HOLDING, so the next reader is not left to invent one:
 // they enter as a DERIVED PART with their own disk walk, their own vacuity floor and
 // BANNED_CLAIM_SCAN_COUNT moved in the same commit — exactly as install/README.md, skills/ and
@@ -944,6 +952,8 @@ export const BANNED_CLAIM_EXCLUDED_LOCATIONS: readonly string[] = [
   "memory-bank/",
   // Another repository's frozen runtime state, the install --migrate fixture (plan 38-01, D-15; reason above).
   "install/fixtures/pre-v3-chess/",
+  // The v3.0 planning state the cross-version tests read (plan 45-05, BR-02; entry added in plan 45-09; reason above).
+  "install/fixtures/v3.0-blocked-board/",
   // EXACT PATHS — the tracked non-markdown surfaces dispositioned by name above.
   "agent-factory/config/factory.config.json",
   "agent-factory/seed/.grugops/factory.config.json",
@@ -1715,8 +1725,20 @@ export function bannedClaimScanOverlap(
  *         guarantees 1, skills 1, overlap 3)
  *
  * The same run reported 0 findings over 163/163 elements.
+ *
+ * MOVED AGAIN 163 → 164 ON 2026-11-26 IN PLAN 45-09, AND THE ENTRANT IS NAMED:
+ * `agent-factory/contracts/build-request.md`, the build-request contract. It moves through the `kit`
+ * corpus ONLY (81 → 82); it is a member of no other part here, so the overlap stays at 3 and the
+ * deduped total moves by one. Read off this gate's own refusal with the file written and the pin not
+ * yet moved, verbatim:
+ *
+ *   FAIL  the banned-claim scan set derived 164 document(s), expected exactly 163 (kit 82,
+ *         publicDocs 45, installReadme 1, skillSources 7, claudeAdapters 28, pluginManifests 2,
+ *         guarantees 1, skills 1, overlap 3)
+ *
+ * The same run reported 0 findings over 164/164 elements.
  */
-export const BANNED_CLAIM_SCAN_COUNT = 163;
+export const BANNED_CLAIM_SCAN_COUNT = 164;
 
 // ---------------------------------------------------------------------------
 // The exemption region, located by EXACT heading line.

@@ -471,8 +471,16 @@ export function governedCorpus() {
  * after the gate had read both files: the run that moved it reported "derived 71 document(s), expected
  * exactly 69 (workflows 20, checklists 15, seedTemplates 12, contracts 4, roles 20)", zero findings over
  * 71/71 elements for guard_sentence_form and zero over 20/20 for guard_imperative_lexicon.
+ *
+ * MOVED 71 → 72 ON 2026-11-26 IN PLAN 45-09, AND THE ENTRANT IS NAMED:
+ * `agent-factory/contracts/build-request.md`, the build-request contract, enters the contracts part
+ * (4 → 5). It is hand-authored and is SCANNED by existing. The pin moved after the gate had read the
+ * file: the run that moved it reported "derived 72 document(s), expected exactly 71 (workflows 20,
+ * checklists 15, seedTemplates 12, contracts 5, roles 20)", zero findings over 72/72 elements for
+ * guard_sentence_form and zero over 20/20 for guard_imperative_lexicon, because the contract carries no
+ * `## Steps` section.
  */
-export const GOVERNED_CORPUS_COUNT = 71;
+export const GOVERNED_CORPUS_COUNT = 72;
 // ---------------------------------------------------------------------------
 // APPROVED_STEP_VERBS — the CLOSED verb set (WP-01).
 //

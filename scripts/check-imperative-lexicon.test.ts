@@ -891,7 +891,9 @@ describe("check-imperative-lexicon — exported pins and cost", () => {
     // (Plan 44-07, 2026-11-25) 69 → 71: agent-factory/workflows/20-upstream-sources.md enters the
     // workflows part (19 → 20) and agent-factory/contracts/upstream.md enters the contracts part
     // (3 → 4); both are hand-authored and enter by existing (UP-02 to UP-05).
-    expect(GOVERNED_CORPUS_COUNT).toBe(71);
+    // (Plan 45-09, 2026-11-26) 71 → 72: agent-factory/contracts/build-request.md, the build-request
+    // contract, is hand-authored and enters the contracts part by existing (4 → 5) (BR-01).
+    expect(GOVERNED_CORPUS_COUNT).toBe(72);
     expect(ROLE_PART_COUNT).toBe(20);
     expect(ROLE_CORPUS_N).toBe(ROLE_PART_COUNT);
     expect(GOVERNED_CORPUS_PARTS.map((p) => p.name)).toEqual([

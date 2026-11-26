@@ -3465,7 +3465,10 @@ describe("check-banned-claims — an excluded directory is excluded WHEREVER it 
     // ["memory-bank/"] -> ["memory-bank/", "install/fixtures/pre-v3-chess/"] (plan 38-01, 2026-10-28, D-15): the frozen
     // install --migrate fixture, another repository's runtime state, dispositioned by name in the block above (measured
     // 0 occurrences with countBannedClaimOccurrences before the exclusion was written).
-    expect(root).toEqual(["memory-bank/", "install/fixtures/pre-v3-chess/"]);
+    // + "install/fixtures/v3.0-blocked-board/" (plan 45-09, 2026-11-26): the frozen v3.0 planning state the plan 45-05
+    // cross-version tests read, dispositioned by name in the block above (measured 0 occurrences over its 16 tracked
+    // files with countBannedClaimOccurrences before the exclusion was written).
+    expect(root).toEqual(["memory-bank/", "install/fixtures/pre-v3-chess/", "install/fixtures/v3.0-blocked-board/"]);
     // 31-06 added tsconfig.fixtures.json, dispositioned by name in the block above.
     // 8 -> 11 (plan 34.1-01): the three generated host entries (.agents/skills/grugops/SKILL.md,
     // .opencode/commands/grugops.md, .pi/prompts/grugops.md), dispositioned by name in the block above
